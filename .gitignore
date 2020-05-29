@@ -9,3 +9,6 @@
 **/*.class
 **/*.bin
 test-case-data
+
+gradle-app.setting
+gradle.properties
