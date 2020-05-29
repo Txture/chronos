@@ -2,6 +2,8 @@
 
 ChronoGraph is a [TinkerPop](http://tinkerpop.apache.org/) Graph Database with support for content versioning.
 
+For a conceptual overview, please see our [article in Software and Systems Modeling](https://link.springer.com/content/pdf/10.1007/s10270-019-00725-0.pdf). If you want to dig right into the code and start using ChronoGraph, read on.
+
 # Getting Started
 
 First of all, you need to include ChronoGraph in your JDK project. You can use your favourite dependency
@@ -42,6 +44,8 @@ If you would rather build everything from source, simply run:
 ... from the **root** directory to run a standard gradle build of all artifacts.
 
 ## Creating a new ChronoGraph instance
+
+> Language Note: all code below is provided in Java. However, using Kotlin is fully supported and recommended.
 
 There are several options for creating a new ChronoGraph instance. The easiest one is using the builder syntax:
 
