@@ -44,7 +44,7 @@ allprojects{
 	apply plugin: 'signing'
 
     // configure the group and version for this project
-    group = 'org.chronos'
+    group = 'com.github.martinhaeusler'
     version = '1.0.0'
 
     // java version
@@ -159,24 +159,6 @@ allprojects{
         manifest.attributes provider: 'chronos.org'
     }
 
-    task javadocJar(type: Jar) {
-        classifier = 'javadoc'
-        from javadoc
-    }
-
-    task sourcesJar(type: Jar) {
-        classifier = 'sources'
-        from sourceSets.main.allSource
-    }
-
-    artifacts {
-    	archives javadocJar, sourcesJar
-	}
-	
-	signing {
-   		sign configurations.archives
-	}
-
     compileKotlin {
         kotlinOptions.jvmTarget = "1.8"
     }
@@ -189,50 +171,6 @@ allprojects{
         useJUnitPlatform()
     }
 
-    uploadArchives {
-	  repositories {
-	    mavenDeployer {
-	      beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
-	
-	      repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
-	        authentication(userName: ossrhUsername, password: ossrhPassword)
-	      }
-	
-	      snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
-	        authentication(userName: ossrhUsername, password: ossrhPassword)
-	      }
-	
-	      pom.project {
-	        name 'Chronos'
-	        packaging 'jar'
-	        // optionally artifactId can be defined here 
-	        description 'Versioned data storage, embeddable and easy to use.'
-	        url 'https://github.com/Txture/chronos'
-	
-	        scm {
-	          connection 'scm:git:https://github.com/MartinHaeusler/chronos'
-	          developerConnection 'scm:git:https://github.com/Txture/chronos'
-	          url 'https://github.com/Txture/chronos'
-	        }
-	
-	        licenses {
-	          license {
-	            name 'GNU Affero General Public License v3'
-	            url 'https://www.gnu.org/licenses/agpl-3.0.txt'
-	          }
-	        }
-	
-	        developers {
-	          developer {
-	            id 'martin.haeusler'
-	            name 'Martin Häusler'
-	            email 'martin.haeusler89@txture.io'
-	          }
-	        }
-	      }
-	    }
-	  }
-	}
 }
 
 subprojects {
@@ -283,6 +221,69 @@ subprojects {
         sourceDirectories = files(sourceSets.main.allSource.srcDirs)
         classDirectories = files(sourceSets.main.output)
     }
+
+        task javadocJar(type: Jar) {
+        classifier = 'javadoc'
+        from javadoc
+    }
+
+    task sourcesJar(type: Jar) {
+        classifier = 'sources'
+        from sourceSets.main.allSource
+    }
+
+    artifacts {
+    	archives javadocJar, sourcesJar
+	}
+	
+	signing {
+   		sign configurations.archives
+	}
+
+    uploadArchives {
+	  repositories {
+	    mavenDeployer {
+	      beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+	
+	      repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+	        authentication(userName: ossrhUsername, password: ossrhPassword)
+	      }
+	
+	      snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
+	        authentication(userName: ossrhUsername, password: ossrhPassword)
+	      }
+	
+	      pom.project {
+	        name 'Chronos'
+	        packaging 'jar'
+	        // optionally artifactId can be defined here 
+	        description 'Versioned data storage, embeddable and easy to use.'
+	        url 'https://github.com/Txture/chronos'
+	
+	        scm {
+	          connection 'scm:git:https://github.com/MartinHaeusler/chronos'
+	          developerConnection 'scm:git:https://github.com/Txture/chronos'
+	          url 'https://github.com/Txture/chronos'
+	        }
+	
+	        licenses {
+	          license {
+	            name 'GNU Affero General Public License v3'
+	            url 'https://www.gnu.org/licenses/agpl-3.0.txt'
+	          }
+	        }
+	
+	        developers {
+	          developer {
+	            id 'martin.haeusler'
+	            name 'Martin Häusler'
+	            email 'martin.haeusler89@txture.io'
+	          }
+	        }
+	      }
+	    }
+	  }
+	}
 
 }
 
