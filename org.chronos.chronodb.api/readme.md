@@ -1,4 +1,4 @@
-# ![ChronoGraph](../markdownSources/chronoDB.png)
+# ![ChronoDB](../markdownSources/chronoDb.png)
 
 ChronoDB is a key-value store with support for content versioning and secondary indexing.
 
