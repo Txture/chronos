@@ -4,7 +4,42 @@ ChronoGraph is a [TinkerPop](http://tinkerpop.apache.org/) Graph Database with s
 
 # Getting Started
 
-## Including ChronoGraph in your project
+First of all, you need to include ChronoGraph in your JDK project. You can use your favourite dependency
+management tool.
+
+## Gradle
+
+```gradle
+dependencies {
+  implementation 'com.github.martinhaeusler:org.chronos.chronograph:1.0.0'
+}
+```
+
+... or, with the Gradle Kotlin DSL:
+
+```kotlin
+implementation("com.github.martinhaeusler:org.chronos.chronograph:1.0.0")
+```
+
+## Maven
+
+```xml
+<dependency>
+  <groupId>com.github.martinhaeusler</groupId>
+  <artifactId>org.chronos.chronograph</artifactId>
+  <version>1.0.0</version>
+</dependency>
+```
+
+## Building from Source
+
+If you would rather build everything from source, simply run:
+
+```sh
+./gradlew build
+```
+
+... from the **root** directory to run a standard gradle build of all artifacts.
 
 ## Creating a new ChronoGraph instance
 
