@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  
+  <!-- ========================================================================================= -->
+  <!--                                  Appender Definitions                                     -->
+  <!-- ========================================================================================= -->
+ 
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>[%-5level] %date{YYYY-MM-dd HH:mm:ss} [%15.15thread{15}] [%30.30logger{30}]:  %msg%n</pattern> 
+    </encoder>
+  </appender>
+
+  <!-- ========================================================================================= -->
+  <!--                       Loggers which are explicitly included                               -->
+  <!-- ========================================================================================= -->
+  
+  <!-- Logger: org.chronos.* -->
+  <!-- Reason: We ALWAYS want to see the log that we produce ourselves, regardless of root log level. -->
+  <logger name="org.chronos" level="ALL" />
+ 
+  <!-- ========================================================================================= -->
+  <!--                                 Root Logger Definition                                    -->
+  <!-- ========================================================================================= -->
+
+  <logger name="jetbrains.exodus.io.FileDataWriter" level="ERROR" />
+  <logger name="jetbrains.exodus.env.EnvironmentImpl" level="WARN" />
+
+  <root level="INFO">
+	<appender-ref ref="STDOUT" />
+  </root>
+ 
+ 
+</configuration>

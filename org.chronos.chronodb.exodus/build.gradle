@@ -1,0 +1,73 @@
+plugins {
+    id 'org.jetbrains.kotlin.jvm'
+}
+
+compileKotlin {
+    kotlinOptions.jvmTarget = "1.8"
+}
+compileTestKotlin {
+    kotlinOptions.jvmTarget = "1.8"
+}
+
+
+jar {
+    manifest {
+        attributes 'Implementation-Title': 'ChronoDB Exodus Backend'
+    }
+}
+
+
+task sourceJar(type: Jar) {
+    from sourceSets.main.allSource
+    classifier "sources"
+}
+
+afterEvaluate { project ->
+
+    // Defines the to-be published artifacts with the maven-publish task
+    // Is not responsible for any publishing. Just defines the artifacts.
+    publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                from components.java
+                artifact sourceJar
+                //the maven descriptor info
+                groupId project.group
+                artifactId jar.baseName
+                version project.mavenVersion
+            }
+        }
+
+        repositories {
+            maven {
+                url project.s3Url
+                credentials(AwsCredentials) {
+                    accessKey project.s3AccessKey
+                    secretKey project.s3SecretKey
+                }
+            }
+        }
+    }
+}
+
+test{
+    useJUnitPlatform {
+        excludeTags "slow", "performance"
+    }
+}
+
+dependencies {
+    // chronos project dependencies
+    compile project(':org.chronos.common')
+    compile project(':org.chronos.chronodb.api')
+
+    // exodus
+    compile("org.jetbrains.xodus:xodus-openAPI:${project.exodusVersion}")
+    compile("org.jetbrains.xodus:xodus-environment:${project.exodusVersion}")
+
+    // Utilities
+    compile("com.esotericsoftware:kryo:${project.kryoVersion}");
+    compile("com.thoughtworks.xstream:xstream:${project.xstreamVersion}");
+
+    testCompile project(':org.chronos.common.testing')
+}

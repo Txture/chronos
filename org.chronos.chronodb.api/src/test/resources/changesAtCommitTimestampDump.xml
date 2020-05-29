@@ -1,0 +1,73 @@
+<!--
+This test file has been edited manually to make sure that all commits are exactly within 1ms of each other.
+This is required to verify the exact boundaries of the matrix queries in tests.
+-->
+<chronodump>
+  <dbmetadata>
+    <creationDate>2018-09-14 07:45:28.850 UTC</creationDate>
+    <chronosVersion>0.9.14-SNAPSHOT</chronosVersion>
+    <commitMetadata>
+      <org.chronos.chronodb.internal.impl.dump.meta.CommitDumpMetadata>
+        <timestamp>1536911128416</timestamp>
+        <branch>master</branch>
+      </org.chronos.chronodb.internal.impl.dump.meta.CommitDumpMetadata>
+      <org.chronos.chronodb.internal.impl.dump.meta.CommitDumpMetadata>
+        <timestamp>1536911128415</timestamp>
+        <branch>master</branch>
+      </org.chronos.chronodb.internal.impl.dump.meta.CommitDumpMetadata>
+      <org.chronos.chronodb.internal.impl.dump.meta.CommitDumpMetadata>
+        <timestamp>1536911128414</timestamp>
+        <branch>master</branch>
+      </org.chronos.chronodb.internal.impl.dump.meta.CommitDumpMetadata>
+    </commitMetadata>
+    <branchMetadata>
+      <branch>
+        <name>master</name>
+        <branchingTimestamp>0</branchingTimestamp>
+      </branch>
+    </branchMetadata>
+    <indexerMetadata/>
+  </dbmetadata>
+  <dbentryPlain>
+    <timestamp>1536911128414</timestamp>
+    <branch>master</branch>
+    <keyspace>default</keyspace>
+    <key>foo</key>
+    <value class="string">bar</value>
+  </dbentryPlain>
+  <dbentryPlain>
+    <timestamp>1536911128415</timestamp>
+    <branch>master</branch>
+    <keyspace>default</keyspace>
+    <key>foo</key>
+    <value class="string">baz</value>
+  </dbentryPlain>
+  <dbentryPlain>
+    <timestamp>1536911128414</timestamp>
+    <branch>master</branch>
+    <keyspace>default</keyspace>
+    <key>hello</key>
+    <value class="string">world</value>
+  </dbentryPlain>
+  <dbentryPlain>
+    <timestamp>1536911128415</timestamp>
+    <branch>master</branch>
+    <keyspace>default</keyspace>
+    <key>hello</key>
+    <value class="string">john</value>
+  </dbentryPlain>
+  <dbentryPlain>
+    <timestamp>1536911128416</timestamp>
+    <branch>master</branch>
+    <keyspace>default</keyspace>
+    <key>new</key>
+    <value class="string">value</value>
+  </dbentryPlain>
+  <dbentryPlain>
+    <timestamp>1536911128414</timestamp>
+    <branch>master</branch>
+    <keyspace>default</keyspace>
+    <key>pi</key>
+    <value class="double">3.1415</value>
+  </dbentryPlain>
+</chronodump>

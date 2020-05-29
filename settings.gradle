@@ -1,0 +1,9 @@
+// ORG.CHRONOS/settings.gradle
+
+include "org.chronos.common",
+        "org.chronos.chronodb.api",
+        "org.chronos.chronodb.exodus",
+        "org.chronos.chronograph",
+        "org.chronos.chronosphere",
+        // non-source projects
+        "org.chronos.common.testing"

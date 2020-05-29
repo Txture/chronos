@@ -1,0 +1,26 @@
+// ORG.CHRONOS.COMMON.TESTING/build.gradle
+
+plugins {
+    id 'org.jetbrains.kotlin.jvm'
+}
+
+compileKotlin {
+    kotlinOptions.jvmTarget = "1.8"
+}
+compileTestKotlin {
+    kotlinOptions.jvmTarget = "1.8"
+}
+
+jar {
+    manifest {
+        attributes 'Implementation-Title': 'Chronos Common Testing Utils'
+    }
+}
+
+
+dependencies {
+    compile project(':org.chronos.common')
+    compile("junit:junit:${project.jUnitVersion}")
+    compile("org.hamcrest:hamcrest-all:${project.hamcrestVersion}")
+}
+
