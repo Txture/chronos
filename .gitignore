@@ -1,0 +1,11 @@
+
+**/bin
+**/build
+**/out
+**/.gradle
+**/.idea
+
+**/*.settings
+**/*.class
+**/*.bin
+test-case-data
