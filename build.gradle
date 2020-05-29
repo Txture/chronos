@@ -36,11 +36,12 @@ repositories {
 def allTestCoverageFile = "$buildDir/jacoco/allTestCoverage.exec"
 
 allprojects{
-    apply plugin: 'java'
-    apply plugin: 'idea'
-    apply plugin: 'maven-publish'
-    apply plugin: 'findbugs'
-    apply plugin: 'jacoco'
+	apply plugin: 'java'
+	apply plugin: 'maven-publish'
+	apply plugin: 'findbugs'
+	apply plugin: 'jacoco'
+	apply plugin: 'maven'
+	apply plugin: 'signing'
 
     // configure the group and version for this project
     group = 'org.chronos'
@@ -156,6 +157,16 @@ allprojects{
 
     jar {
         manifest.attributes provider: 'chronos.org'
+    }
+
+    task javadocJar(type: Jar) {
+        classifier = 'javadoc'
+        from javadoc
+    }
+
+    task sourcesJar(type: Jar) {
+        classifier = 'sources'
+        from sourceSets.main.allSource
     }
 
     artifacts {

@@ -57,16 +57,6 @@ afterEvaluate { project ->
                 version project.mavenVersion
             }
         }
-
-        repositories {
-            maven {
-                url project.s3Url
-                credentials(AwsCredentials) {
-                    accessKey project.s3AccessKey
-                    secretKey project.s3SecretKey
-                }
-            }
-        }
     }
 }
 
