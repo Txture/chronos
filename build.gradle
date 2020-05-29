@@ -44,7 +44,7 @@ allprojects{
 
     // configure the group and version for this project
     group = 'org.chronos'
-    version = '1.0.0-SNAPSHOT'
+    version = '1.0.0'
 
     // java version
     sourceCompatibility = JavaVersion.VERSION_1_8
@@ -158,6 +158,14 @@ allprojects{
         manifest.attributes provider: 'chronos.org'
     }
 
+    artifacts {
+    	archives javadocJar, sourcesJar
+	}
+	
+	signing {
+   		sign configurations.archives
+	}
+
     compileKotlin {
         kotlinOptions.jvmTarget = "1.8"
     }
@@ -169,6 +177,51 @@ allprojects{
     test {
         useJUnitPlatform()
     }
+
+    uploadArchives {
+	  repositories {
+	    mavenDeployer {
+	      beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+	
+	      repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+	        authentication(userName: ossrhUsername, password: ossrhPassword)
+	      }
+	
+	      snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
+	        authentication(userName: ossrhUsername, password: ossrhPassword)
+	      }
+	
+	      pom.project {
+	        name 'Chronos'
+	        packaging 'jar'
+	        // optionally artifactId can be defined here 
+	        description 'Versioned data storage, embeddable and easy to use.'
+	        url 'https://github.com/Txture/chronos'
+	
+	        scm {
+	          connection 'scm:git:https://github.com/MartinHaeusler/chronos'
+	          developerConnection 'scm:git:https://github.com/Txture/chronos'
+	          url 'https://github.com/Txture/chronos'
+	        }
+	
+	        licenses {
+	          license {
+	            name 'GNU Affero General Public License v3'
+	            url 'https://www.gnu.org/licenses/agpl-3.0.txt'
+	          }
+	        }
+	
+	        developers {
+	          developer {
+	            id 'martin.haeusler'
+	            name 'Martin Häusler'
+	            email 'martin.haeusler89@txture.io'
+	          }
+	        }
+	      }
+	    }
+	  }
+	}
 }
 
 subprojects {
