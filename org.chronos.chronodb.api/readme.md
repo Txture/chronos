@@ -256,6 +256,8 @@ ChronoDB supports not only versioning, but also **branching**. You can think of 
 
 There is one branch which always exists by default and cannot be deleted. That branch is named `master`.
 
+### Working with Branches
+
 ```java
 ChronoDB db = ...;
 BranchManager branchManager = db.getBranchManager();
@@ -287,3 +289,54 @@ System.out.println(myBranchTx2.get("fizz")); // prints "buzz"
 // note that we can also see what was on master before the branch was created:
 System.out.println(myBranchTx2.get("foo")); // prints "bar"
 ```
+
+### Deleting a Branch
+
+You can also **delete** a branch (and all of its children recursively):
+
+```java
+ChronoDB db = ...;
+BranchManager branchManager = db.getBranchManager();
+
+branchManager.deleteBranchRecursively("my-branch");
+```
+
+> **WARNING:** This is a **management opertion**.
+>
+> - `deleteBranchRecursively` is **not** safe for concurrent access.
+> - Deleting branches which still have open transactions on them will cause the transactions to **fail** randomly.
+> - If the JVM process terminates while the operation is ongoing, some child branches may have been deleted
+>   while others may still exist.
+> - The results of this operation are always **permanent** and **cannot be undone**.
+
+## Backups
+
+You can create either a **full** backup or an **incremental** backup. All backup-related operations can be found in `db.getBackupManager()`. ChronoDB backups in general are XML-based and intended to be human-readable.
+
+## Dateback
+
+The Dateback API allows you to change the history after it has been written. The Dateback API is very powerful, but exercise extreme caution when you use it - its effects are permanent, cannot be undone, and can easily mess up your data if you're not careful. Dateback is comparable to a `rebase` operation in Git.
+
+The primary use cases for dateback are **data migration** and **schema changes**.
+
+> **WARNING:** All dateback operations are **management opertions**.
+>
+> - They are **not** safe for concurrent access.
+> - If there are ongoing transactions while you perform a dateback, those transactions will **fail**.
+> - If the JVM process terminates while the operation is ongoing, some elements may have changed on disk while others have not (the operations are not guaranteed to be atomic).
+> - The results of these operations are always **permanent** and **cannot be undone**.
+
+```java
+ChronoDB db = ...;
+DatebackManager datebackManager = db.getDatebackManager();
+
+// The dateback API relies on lambda expressions. The "dateback" object
+// is only valid within the lamdba.
+datebackManager.dateback("my-branch", dateback -> {
+  // remove a commit entirely from the history
+  dateback.purgeCommit(someCommitTimestamp);
+  // ...
+});
+```
+
+Please refer to the `Dateback` Javadoc or use your code completion to explore the available options.
