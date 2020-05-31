@@ -6,17 +6,27 @@ For a conceptual overview, please see our [article in Software and Systems Model
 
 > **Fair Warning:** ChronoDB is a very low-level API, and many responsibilities are left to the developer using it. For most use cases, you'll want to use [ChronoGraph](../org.chronos.chronograph/readme.md) instead. Only use ChronoDB directly if you are sure that you _really_ want a key-value interface.
 
-# Getting Started
+## Core Features
+
+- Key-Value Store with first-level support for content versioning and branching
+- Historical queries at any point in the past
+- Secondary Indexing support
+- Full ACID transactions
+- Interchangeable storage backends
+- Full & incremental backup support
+- Low-Level API for direct control
+
+## Getting Started
 
 First of all, you need to include ChronoDB in your JDK project. You can use your favourite dependency
-management tool.
+management tool; all dependencies are provided at Maven Central.
 
 You need two artifacts:
 
 - `org.chronos.chronodb.api` contains the Java API and the reference in-memory backend.
 - `org.chronos.chronodb.exodus` contains the default persistent backend implementation.
 
-## Gradle
+### Gradle
 
 ```gradle
 dependencies {
@@ -32,7 +42,7 @@ implementation("com.github.martinhaeusler:org.chronos.chronodb.api:1.0.0")
 implementation("com.github.martinhaeusler:org.chronos.chronodb.exodus:1.0.0")
 ```
 
-## Maven
+### Maven
 
 ```xml
 <dependency>
@@ -156,7 +166,7 @@ ChronoDB supports **arbitrary** values as long as they are serializable and dese
   - It has a default (no-argument) constructor (may be `private`)
   - It only references fields which are of a supported type
 
-**BIG WORD OF CAUTION:** Kryo performs reasonably well on custom types. However, keep in mind that your format is **set in stone**. There are no migration paths in case your classes change. Also, you will not be able to load your data from persistence again if the class you used to serialize it is no longer on your classpath, or its fields have changed. If you expect/require major format changes, please consider using only primitives and strings. A common way to store data in a way that does not depend on kryo is by first serializing it to a string (e.g. JSON or XML). The price to pay of course is a larger footprint on disk and the added performance cost of the conversion.
+> **BIG WORD OF CAUTION:** Kryo performs reasonably well on custom types. However, keep in mind that your format is **set in stone**. There are no migration paths in case your classes change. Also, you will not be able to load your data from persistence again if the class you used to serialize it is no longer on your classpath, or its fields have changed. If you expect/require major format changes, please consider using only primitives and strings. A common way to store data in a way that does not depend on kryo is by first serializing it to a string (e.g. JSON or XML). The price to pay of course is a larger footprint on disk and the added performance cost of the conversion.
 
 ## Secondary Indices & Queries
 
