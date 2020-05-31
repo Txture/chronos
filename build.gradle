@@ -277,7 +277,7 @@ subprojects {
 	          developer {
 	            id 'martin.haeusler'
 	            name 'Martin Häusler'
-	            email 'martin.haeusler89@txture.io'
+	            email 'martin.haeusler@txture.io'
 	          }
 	        }
 	      }
