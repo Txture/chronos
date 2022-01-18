@@ -1,14 +1,4 @@
-
-**/bin
-**/build
-**/out
-**/.gradle
-**/.idea
-
-**/*.settings
+.idea/
+**/out/**
 **/*.class
-**/*.bin
-test-case-data
-
-gradle-app.setting
-gradle.properties
+**/.gradle/**
