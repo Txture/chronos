@@ -7,12 +7,15 @@ import java.util.Map;
 import org.chronos.chronodb.api.DumpOption.DefaultConverterOption;
 import org.chronos.chronodb.api.dump.ChronoConverter;
 import org.chronos.chronodb.api.dump.annotations.ChronosExternalizable;
-import org.chronos.common.logging.ChronoLogger;
 import org.chronos.common.util.ReflectionUtils;
 
 import com.google.common.collect.Maps;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ConverterRegistry {
+
+	private static final Logger log = LoggerFactory.getLogger(ConverterRegistry.class);
 
 	private final Map<Class<?>, ChronoConverter<?, ?>> defaultConverters = Maps.newHashMap();
 	private final Map<Class<? extends ChronoConverter<?, ?>>, ChronoConverter<?, ?>> converterCache = Maps.newHashMap();
@@ -59,7 +62,7 @@ public class ConverterRegistry {
 			Class<?> converterClass = Class.forName(converterClassName);
 			return this.getOrCreateConverterWithClass(converterClass);
 		} catch (ClassNotFoundException e) {
-			ChronoLogger.logError("Could not find ChronoConverter with class '" + converterClassName + "'!", e);
+			log.error("Could not find ChronoConverter with class '" + converterClassName + "'!", e);
 			return null;
 		}
 	}
@@ -96,8 +99,7 @@ public class ConverterRegistry {
 			this.registerConverterInCache(converter);
 			return converter;
 		} catch (Exception e) {
-			ChronoLogger
-					.logWarning("Could not instantiate Plain-Text-Converter class '" + converterClass.getName() + "'.");
+			log.warn("Could not instantiate Plain-Text-Converter class '" + converterClass.getName() + "'.");
 			return null;
 		}
 	}

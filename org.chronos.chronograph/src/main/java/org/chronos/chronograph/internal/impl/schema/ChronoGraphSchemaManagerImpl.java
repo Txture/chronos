@@ -14,21 +14,27 @@ import org.chronos.chronograph.api.schema.SchemaValidationResult;
 import org.chronos.chronograph.api.structure.ChronoElement;
 import org.chronos.chronograph.internal.ChronoGraphConstants;
 import org.chronos.chronograph.internal.api.structure.ChronoGraphInternal;
-import org.chronos.common.logging.ChronoLogger;
+import org.chronos.chronograph.internal.impl.groovy.GroovyCompilationCache;
+import org.chronos.chronograph.internal.impl.groovy.LocalGroovyCompilationCache;
+import org.chronos.chronograph.internal.impl.groovy.StaticGroovyCompilationCache;
 import org.codehaus.groovy.control.CompilerConfiguration;
 import org.codehaus.groovy.control.customizers.ASTTransformationCustomizer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Consumer;
 
 import static com.google.common.base.Preconditions.*;
 
 public class ChronoGraphSchemaManagerImpl implements ChronoGraphSchemaManager {
+
+    private static final Logger log = LoggerFactory.getLogger(ChronoGraphSchemaManagerImpl.class);
 
     private final ChronoGraphInternal owningGraph;
     private final ReadWriteLock validatorsLock;
@@ -36,10 +42,17 @@ public class ChronoGraphSchemaManagerImpl implements ChronoGraphSchemaManager {
     private final Map<String, String> validatorScriptContentCache = Maps.newHashMap();
     private final Map<String, Script> compiledValidatorScriptCache = Maps.newHashMap();
 
+    private final GroovyCompilationCache compilationCache;
+
     public ChronoGraphSchemaManagerImpl(ChronoGraphInternal owningGraph) {
         checkNotNull(owningGraph, "Precondition violation - argument 'owningGraph' must not be NULL!");
         this.owningGraph = owningGraph;
         this.validatorsLock = new ReentrantReadWriteLock(true);
+        if (owningGraph.getChronoGraphConfiguration().isUseStaticGroovyCompilationCache()) {
+            this.compilationCache = StaticGroovyCompilationCache.getInstance();
+        } else {
+            this.compilationCache = new LocalGroovyCompilationCache();
+        }
         this.loadValidatorCaches();
     }
 
@@ -54,8 +67,9 @@ public class ChronoGraphSchemaManagerImpl implements ChronoGraphSchemaManager {
         checkArgument(!validatorName.isEmpty(), "Precondition violation - argument 'validatorName' must not be empty!");
         checkNotNull(scriptContent, "Precondition violation - argument 'scriptContent' must not be NULL!");
         checkArgument(!scriptContent.isEmpty(), "Precondition violation - argument 'scriptContent' must not be empty!");
+        Class<? extends Script> scriptClass;
         try {
-            this.compile(scriptContent);
+            scriptClass = this.compile(scriptContent);
         } catch (Exception e) {
             throw new IllegalArgumentException("The given validator script has compilation errors. Please see root cause for details.", e);
         }
@@ -65,7 +79,7 @@ public class ChronoGraphSchemaManagerImpl implements ChronoGraphSchemaManager {
             boolean exists = tx.exists(ChronoGraphConstants.KEYSPACE_SCHEMA_VALIDATORS, validatorName);
             tx.put(ChronoGraphConstants.KEYSPACE_SCHEMA_VALIDATORS, validatorName, scriptContent);
             tx.commit(commitMetadata);
-            this.addValidatorToCache(validatorName, scriptContent, Exception::printStackTrace);
+            this.addValidatorToCache(validatorName, scriptContent, scriptClass);
             return exists;
         } finally {
             this.validatorsLock.writeLock().unlock();
@@ -136,7 +150,7 @@ public class ChronoGraphSchemaManagerImpl implements ChronoGraphSchemaManager {
                         this.executeValidator(script, branch, element);
                     } catch (Throwable t) {
                         if (t instanceof ChronoGraphSchemaViolationException == false) {
-                            ChronoLogger.logWarning("The validator '" + validatorName + "' produced an unexpected exception. " +
+                            log.warn("The validator '" + validatorName + "' produced an unexpected exception. " +
                                 "This will be treated as validation failure. The exception is of type '" + t.getClass().getName() +
                                 "' and its message is: " + t.getMessage());
                         }
@@ -158,6 +172,10 @@ public class ChronoGraphSchemaManagerImpl implements ChronoGraphSchemaManager {
     private Class<? extends Script> compile(String groovyValidatorScript) throws Exception {
         checkNotNull(groovyValidatorScript, "Precondition violation - argument 'groovyValidatorScript' must not be NULL!");
         checkArgument(!groovyValidatorScript.isEmpty(), "Precondition violation - argument 'groovyValidatorScript' must not be empty!");
+        Class<? extends Script> cached = this.compilationCache.get(groovyValidatorScript);
+        if (cached != null) {
+            return cached;
+        }
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
         // prepare the default import statements which we are going to use
         String imports = "import org.apache.tinkerpop.*; import org.apache.tinkerpop.gremlin.*; import org.apache.tinkerpop.gremlin.structure.*;";
@@ -170,7 +188,9 @@ public class ChronoGraphSchemaManagerImpl implements ChronoGraphSchemaManager {
         config.addCompilationCustomizers(new ASTTransformationCustomizer(CompileStatic.class));
         // compile the script into a binary class
         try (GroovyClassLoader gcl = new GroovyClassLoader(classLoader, config)) {
-            return gcl.parseClass(imports + varDefs + groovyValidatorScript);
+            Class<?extends Script> compiledScript = gcl.parseClass(imports + varDefs + groovyValidatorScript);
+            this.compilationCache.put(groovyValidatorScript, compiledScript);
+            return compiledScript;
         }
     }
 
@@ -179,21 +199,27 @@ public class ChronoGraphSchemaManagerImpl implements ChronoGraphSchemaManager {
         Set<String> validatorNames = tx.keySet(ChronoGraphConstants.KEYSPACE_SCHEMA_VALIDATORS);
         for (String validatorName : validatorNames) {
             String validatorScript = tx.get(ChronoGraphConstants.KEYSPACE_SCHEMA_VALIDATORS, validatorName);
-            this.addValidatorToCache(validatorName, validatorScript, e -> ChronoLogger.logWarning("The Graph Schema Validator '" + validatorName + "' failed to compile and will be ignored. Root cause: " + e));
+            try {
+                Class<? extends Script> compiledScript = this.compile(validatorScript);
+                this.addValidatorToCache(validatorName, validatorScript, compiledScript);
+            } catch (Exception e) {
+                log.warn("The Graph Schema Validator '" + validatorName + "' failed to compile and will be ignored. Root cause: " + e);
+            }
         }
     }
 
-    private void addValidatorToCache(String validatorName, String validatorScript, Consumer<Exception> exceptionHandler) {
+    private void addValidatorToCache(String validatorName, String validatorScript, Class<? extends Script> scriptClass) {
         checkNotNull(validatorName, "Precondition violation - argument 'validatorName' must not be NULL!");
         checkArgument(!validatorName.isEmpty(), "Precondition violation - argument 'validatorName' must not be empty!");
         checkNotNull(validatorScript, "Precondition violation - argument 'validatorScript' must not be NULL!");
         checkArgument(!validatorScript.isEmpty(), "Precondition violation - argument 'validatorScript' must not be empty!");
+        checkNotNull(scriptClass, "Precondition violation - argument 'scriptClass' must not be NULL!");
+        this.validatorScriptContentCache.put(validatorName, validatorScript);
         try {
-            Class<? extends Script> scriptClass = this.compile(validatorScript);
-            this.validatorScriptContentCache.put(validatorName, validatorScript);
-            this.compiledValidatorScriptCache.put(validatorName, scriptClass.getConstructor().newInstance());
-        } catch (Exception e) {
-            exceptionHandler.accept(e);
+            Script validatorInstance = scriptClass.getConstructor().newInstance();
+            this.compiledValidatorScriptCache.put(validatorName, validatorInstance);
+        } catch (InvocationTargetException | InstantiationException | IllegalAccessException | NoSuchMethodException e) {
+            throw new IllegalArgumentException("Could not create an instance of the given validator script. See root cause for details.", e);
         }
     }
 

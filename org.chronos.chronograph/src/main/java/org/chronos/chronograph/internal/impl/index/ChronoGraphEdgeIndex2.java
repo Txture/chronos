@@ -7,6 +7,11 @@ import org.chronos.chronograph.internal.ChronoGraphConstants;
 import org.chronos.chronograph.internal.api.index.IChronoGraphEdgeIndex;
 import org.chronos.common.exceptions.UnknownEnumLiteralException;
 
+
+/**
+ * @deprecated  Use {@link ChronoGraphIndex3} instead. This class only exists for backwards compatibility.
+ */
+@Deprecated
 public class ChronoGraphEdgeIndex2 extends AbstractChronoGraphIndex2 implements IChronoGraphEdgeIndex {
 
 	protected ChronoGraphEdgeIndex2() {
@@ -34,20 +39,6 @@ public class ChronoGraphEdgeIndex2 extends AbstractChronoGraphIndex2 implements 
 	@Override
 	public String toString() {
 		return "Index[Edge, " + this.getIndexedProperty() + ", " + this.indexType + "]";
-	}
-
-	@Override
-	public Indexer<?> createIndexer() {
-		switch (this.indexType) {
-		case STRING:
-			return new EdgeRecordStringIndexer2(this.getIndexedProperty());
-		case LONG:
-			return new EdgeRecordLongIndexer2(this.getIndexedProperty());
-		case DOUBLE:
-			return new EdgeRecordDoubleIndexer2(this.getIndexedProperty());
-		default:
-			throw new UnknownEnumLiteralException(this.indexType);
-		}
 	}
 
 }

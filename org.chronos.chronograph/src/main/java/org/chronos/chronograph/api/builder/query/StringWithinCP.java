@@ -25,17 +25,17 @@ public class StringWithinCP implements BiPredicate<Object, Collection> {
     @Override
     @SuppressWarnings("unchecked")
     public boolean test(final Object o, final Collection collection) {
-        if(collection == null || collection.isEmpty()){
+        if (collection == null || collection.isEmpty()) {
             return false;
         }
-        if(o instanceof String){
-            switch(this.matchMode){
+        if (o instanceof String) {
+            switch (this.matchMode) {
                 case STRICT:
                     return collection.contains(o);
                 case CASE_INSENSITIVE:
-                    for(Object element : collection){
-                        if(element instanceof String) {
-                            if (((String) element).equalsIgnoreCase((String)o)) {
+                    for (Object element : collection) {
+                        if (element instanceof String) {
+                            if (((String) element).equalsIgnoreCase((String) o)) {
                                 return true;
                             }
                         }
@@ -44,14 +44,33 @@ public class StringWithinCP implements BiPredicate<Object, Collection> {
                 default:
                     throw new UnknownEnumLiteralException(this.matchMode);
             }
-        }else if(o instanceof Collection){
-            for(Object element : (Collection<Object>)o){
-                if(test(element, collection)){
+        } else if (o instanceof Collection) {
+            for (Object element : (Collection<Object>) o) {
+                if (test(element, collection)) {
                     return true;
                 }
             }
         }
         return false;
+    }
+
+    @Override
+    public boolean equals(final Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        StringWithinCP that = (StringWithinCP) o;
+
+        return matchMode == that.matchMode;
+    }
+
+    @Override
+    public int hashCode() {
+        return matchMode != null ? matchMode.hashCode() : 0;
     }
 
     @NotNull

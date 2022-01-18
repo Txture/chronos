@@ -35,6 +35,16 @@ afterEvaluate { project ->
                 version project.mavenVersion
             }
         }
+
+        repositories {
+            maven {
+                url project.s3Url
+                credentials(AwsCredentials) {
+                    accessKey project.s3AccessKey
+                    secretKey project.s3SecretKey
+                }
+            }
+        }
     }
 }
 
@@ -47,6 +57,7 @@ dependencies {
     compile("com.thoughtworks.xstream:xstream:${project.xstreamVersion}");
 
     testCompile project(':org.chronos.common.testing')
+    testCompile("io.strikt:strikt-core:${project.striktVersion}")
 
     // we also add the backend-specific modules to the test dependencies so that
     // we can have all tests in the same module (i.e. AllBackendsTest)

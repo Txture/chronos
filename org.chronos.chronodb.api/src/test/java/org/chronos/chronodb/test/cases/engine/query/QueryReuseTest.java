@@ -2,6 +2,7 @@ package org.chronos.chronodb.test.cases.engine.query;
 
 import com.google.common.collect.Sets;
 import org.chronos.chronodb.api.ChronoDB;
+import org.chronos.chronodb.api.ChronoDBConstants;
 import org.chronos.chronodb.api.ChronoDBTransaction;
 import org.chronos.chronodb.api.indexing.StringIndexer;
 import org.chronos.chronodb.api.key.QualifiedKey;
@@ -24,30 +25,9 @@ public class QueryReuseTest extends AllChronoDBBackendsTest {
     @Test
     public void queryReuseWorks() {
         ChronoDB db = this.getChronoDB();
-        StringIndexer integerIndexer = new StringIndexer() {
-
-            @Override
-            public int hashCode() {
-                return super.hashCode();
-            }
-
-            @Override
-            public boolean equals(final Object obj) {
-                return super.equals(obj);
-            }
-
-            @Override
-            public boolean canIndex(final Object object) {
-                return object instanceof Integer;
-            }
-
-            @Override
-            public Set<String> getIndexValues(final Object object) {
-                return Collections.singleton(((Integer) object).toString());
-            }
-
-        };
-        db.getIndexManager().addIndexer("integer", integerIndexer);
+        StringIndexer integerIndexer = new MyStringIndexer();
+        db.getIndexManager().createIndex().withName("integer").withIndexer(integerIndexer).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().reindexAll();
         ChronoDBTransaction tx = db.tx();
         tx.put("First", 123);
         tx.put("Second", 456);
@@ -84,4 +64,27 @@ public class QueryReuseTest extends AllChronoDBBackendsTest {
         }
     }
 
+    private static class MyStringIndexer implements StringIndexer {
+
+        @Override
+        public int hashCode() {
+            return super.hashCode();
+        }
+
+        @Override
+        public boolean equals(final Object obj) {
+            return super.equals(obj);
+        }
+
+        @Override
+        public boolean canIndex(final Object object) {
+            return object instanceof Integer;
+        }
+
+        @Override
+        public Set<String> getIndexValues(final Object object) {
+            return Collections.singleton(((Integer) object).toString());
+        }
+
+    }
 }

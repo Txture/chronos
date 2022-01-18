@@ -102,6 +102,36 @@ public interface ChronoDBConfiguration extends ChronosConfiguration {
     public static final String CACHE_MAX_SIZE = NS_DOT + "cache.maxSize";
 
     /**
+     * The type of cache to deploy.
+     *
+     * <p>
+     * Type: [mosaic,headFirst]<br>
+     * Default: mosaic;
+     * Maps to: {@link #getCacheType()}
+     */
+    public static final String CACHE_TYPE = NS_DOT + "cache.type";
+
+    /**
+     * The branch to prefer to keep in case of cache eviction. Only relevant if {@link #CACHE_TYPE} is set to headFirst.
+     *
+     * <p>
+     * Type: String<br>
+     * Default: null;
+     * Maps to: {@link #getCacheHeadFirstPreferredBranch()}
+     */
+    public static final String CACHE_HEADFIRST_PREFERRED_BRANCH = NS_DOT + "cache.headfirst.preferredBranch";
+
+    /**
+     * The keyspace to prefer to keep in case of cache eviction. Only relevant if {@link #CACHE_TYPE} is set to headFirst.
+     *
+     * <p>
+     * Type: String<br>
+     * Default: null;
+     * Maps to: {@link #getCacheHeadFirstPreferredKeyspace()}
+     */
+    public static final String CACHE_HEADFIRST_PREFERRED_KEYSPACE = NS_DOT + "cache.headfirst.preferredKeyspace";
+
+    /**
      * Determines if the query cache is enabled or not.
      *
      * <p>
@@ -308,6 +338,36 @@ public interface ChronoDBConfiguration extends ChronosConfiguration {
      * enabled, otherwise <code>null</code> if caching is disabled.
      */
     public Integer getCacheMaxSize();
+
+    /**
+     * Returns the type of cache to instantiate.
+     *
+     * <p>
+     * Mapped by setting: {@value #CACHE_TYPE}
+     *
+     * @return The cache type to use, never null
+     */
+    public CacheType getCacheType();
+
+    /**
+     * Returns the branch to prefer to keep in case of cache eviction.
+     *
+     * <p>
+     * Mapped by setting: {@value #CACHE_HEADFIRST_PREFERRED_BRANCH}
+     *
+     * @return The branch to keep, can be null
+     */
+    public String getCacheHeadFirstPreferredBranch();
+
+    /**
+     * Returns the keyspace to prefer to keep in case of cache eviction.
+     *
+     * <p>
+     * Mapped by setting: {@value #CACHE_HEADFIRST_PREFERRED_KEYSPACE}
+     *
+     * @return The keyspace to keep, can be null
+     */
+    public String getCacheHeadFirstPreferredKeyspace();
 
     /**
      * Returns <code>true</code> when cached values may be assumed to be immutable, otherwise <code>false</code>.

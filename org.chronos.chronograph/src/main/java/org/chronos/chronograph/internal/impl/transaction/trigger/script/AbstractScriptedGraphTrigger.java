@@ -34,7 +34,6 @@ public abstract class AbstractScriptedGraphTrigger implements ChronoGraphTrigger
 
     @SuppressWarnings("unchecked")
     private static Class<? extends Script> runGroovyCompile(String scriptContent) {
-        System.out.println(scriptContent);
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
         // prepare the compiler configuration to have static type checking
         CompilerConfiguration config = new CompilerConfiguration();

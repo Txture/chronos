@@ -1,13 +1,11 @@
 package org.chronos.chronodb.api.builder.database;
 
+import org.apache.commons.configuration2.Configuration;
+import org.chronos.chronodb.api.ChronoDB;
+import org.chronos.chronodb.internal.api.ChronoDBConfiguration;
+
 import java.io.File;
 import java.util.Properties;
-
-import org.apache.commons.configuration.Configuration;
-import org.chronos.chronodb.api.ChronoDB;
-import org.chronos.chronodb.api.MaintenanceManager;
-import org.chronos.chronodb.internal.api.ChronoDBConfiguration;
-import org.chronos.common.builder.ChronoBuilder;
 
 /**
  * This is the starter interface for building a {@link ChronoDB} interface in a fluent API.

@@ -17,10 +17,11 @@ import org.chronos.chronograph.api.transaction.ChronoGraphTransaction;
 import org.chronos.chronograph.api.transaction.ChronoGraphTransactionManager;
 import org.chronos.chronograph.api.transaction.GraphTransactionContext;
 import org.chronos.chronograph.test.base.AllChronoGraphBackendsTest;
-import org.chronos.common.logging.ChronoLogger;
 import org.chronos.common.test.junit.categories.IntegrationTest;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Iterator;
 import java.util.Set;
@@ -29,6 +30,8 @@ import static org.junit.Assert.*;
 
 @Category(IntegrationTest.class)
 public class RemoveElementsTest extends AllChronoGraphBackendsTest {
+
+    private static final Logger log = LoggerFactory.getLogger(RemoveElementsTest.class);
 
     @Test
     public void removingVerticesWorks() {
@@ -171,21 +174,21 @@ public class RemoveElementsTest extends AllChronoGraphBackendsTest {
         Vertex v1 = g.addVertex("name", "one");
         Vertex v2 = g.addVertex("name", "two");
         Vertex v3 = g.addVertex("name", "three");
-        ChronoLogger.logInfo("v1 ID: " + v1.id());
-        ChronoLogger.logInfo("v2 ID: " + v2.id());
-        ChronoLogger.logInfo("v3 ID: " + v3.id());
-        ChronoLogger.logInfo("");
-        ChronoLogger.logInfo("v1->v1: " + v1.addEdge("self", v1).id());
-        ChronoLogger.logInfo("v1->v2: " + v1.addEdge("knows", v2).id());
-        ChronoLogger.logInfo("v1->v3: " + v1.addEdge("knows", v3).id());
-        ChronoLogger.logInfo("");
-        ChronoLogger.logInfo("v2->v2: " + v2.addEdge("self", v2).id());
-        ChronoLogger.logInfo("v2->v1: " + v2.addEdge("knows", v1).id());
-        ChronoLogger.logInfo("v2->v3: " + v2.addEdge("knows", v3).id());
-        ChronoLogger.logInfo("");
-        ChronoLogger.logInfo("v3->v3: " + v3.addEdge("self", v3).id());
-        ChronoLogger.logInfo("v3->v1: " + v3.addEdge("knows", v1).id());
-        ChronoLogger.logInfo("v3->v2: " + v3.addEdge("knows", v2).id());
+        log.info("v1 ID: " + v1.id());
+        log.info("v2 ID: " + v2.id());
+        log.info("v3 ID: " + v3.id());
+        log.info("");
+        log.info("v1->v1: " + v1.addEdge("self", v1).id());
+        log.info("v1->v2: " + v1.addEdge("knows", v2).id());
+        log.info("v1->v3: " + v1.addEdge("knows", v3).id());
+        log.info("");
+        log.info("v2->v2: " + v2.addEdge("self", v2).id());
+        log.info("v2->v1: " + v2.addEdge("knows", v1).id());
+        log.info("v2->v3: " + v2.addEdge("knows", v3).id());
+        log.info("");
+        log.info("v3->v3: " + v3.addEdge("self", v3).id());
+        log.info("v3->v1: " + v3.addEdge("knows", v1).id());
+        log.info("v3->v2: " + v3.addEdge("knows", v2).id());
 
         assertTrue(Sets.newHashSet(v1.vertices(Direction.OUT)).contains(v1));
         assertTrue(Sets.newHashSet(v1.vertices(Direction.OUT)).contains(v2));
@@ -253,8 +256,9 @@ public class RemoveElementsTest extends AllChronoGraphBackendsTest {
 
         g.tx().commit();
 
-        assertEquals(3, Iterators.size(v2.edges(Direction.BOTH)));
-        assertEquals(3, Iterators.size(v1.edges(Direction.BOTH)));
+        // self-edges count twice when using BOTH, according to gremlin standard.
+        assertEquals(4, Iterators.size(v2.edges(Direction.BOTH)));
+        assertEquals(4, Iterators.size(v1.edges(Direction.BOTH)));
 
         v2.remove();
         g.tx().commit();
@@ -449,8 +453,8 @@ public class RemoveElementsTest extends AllChronoGraphBackendsTest {
     @Test
     public void removedVerticesDoNotShowUpInIndexQueryResults() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("name").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("name").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
         g.tx().commit();
         Vertex vMartin = g.addVertex("name", "Martin");
         Vertex vJoe = g.addVertex("name", "Joe");

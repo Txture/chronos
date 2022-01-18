@@ -20,25 +20,31 @@ import org.chronos.chronograph.api.structure.record.IEdgeTargetRecord;
 import org.chronos.chronograph.api.structure.record.IPropertyRecord;
 import org.chronos.chronograph.api.transaction.ChronoGraphTransaction;
 import org.chronos.chronograph.internal.ChronoGraphConstants;
-import org.chronos.chronograph.internal.api.configuration.ChronoGraphConfiguration;
 import org.chronos.chronograph.internal.api.structure.ChronoGraphInternal;
 import org.chronos.chronograph.internal.api.transaction.ChronoGraphTransactionInternal;
-import org.chronos.chronograph.internal.impl.structure.record.*;
+import org.chronos.chronograph.internal.impl.structure.record.EdgeRecord;
 import org.chronos.chronograph.internal.impl.structure.record2.EdgeRecord2;
 import org.chronos.chronograph.internal.impl.util.ChronoGraphElementUtil;
 import org.chronos.chronograph.internal.impl.util.ChronoGraphLoggingUtil;
 import org.chronos.chronograph.internal.impl.util.ChronoProxyUtil;
 import org.chronos.chronograph.internal.impl.util.PredefinedProperty;
 import org.chronos.common.exceptions.UnknownEnumLiteralException;
-import org.chronos.common.logging.ChronoLogger;
-import org.chronos.common.logging.LogLevel;
+import org.chronos.common.logging.ChronosLogMarker;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.lang.ref.WeakReference;
-import java.util.*;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Set;
 
 import static com.google.common.base.Preconditions.*;
 
 public class ChronoEdgeImpl extends AbstractChronoElement implements Edge, ChronoEdge {
+
+    private static final Logger log = LoggerFactory.getLogger(ChronoEdgeImpl.class);
 
     public static ChronoEdgeImpl create(final ChronoGraphInternal graph, final ChronoGraphTransactionInternal tx,
                                         final IEdgeRecord record) {
@@ -268,7 +274,12 @@ public class ChronoEdgeImpl extends AbstractChronoElement implements Edge, Chron
 
     @Override
     public void remove() {
-        this.checkAccess();
+        this.checkThread();
+        this.checkTransaction();
+        if(this.isRemoved()){
+            // removing an edge twice has no effect (as defined in Gremlin standard)
+            return;
+        }
         this.logEdgeRemove();
         this.withoutRemovedCheck(() -> {
             super.remove();
@@ -298,7 +309,7 @@ public class ChronoEdgeImpl extends AbstractChronoElement implements Edge, Chron
                 this.outVcache = null;
                 this.properties.clear();
                 ChronoDBTransaction backendTx = this.getOwningTransaction().getBackingDBTransaction();
-                EdgeRecord eRecord = backendTx.get(ChronoGraphConstants.KEYSPACE_EDGE, this.id().toString());
+                EdgeRecord eRecord = backendTx.get(ChronoGraphConstants.KEYSPACE_EDGE, this.id());
                 if (eRecord == null) {
                     // edge was removed
                     lifecycleEvent[0] = ElementLifecycleEvent.RELOADED_FROM_DB_AND_NO_LONGER_EXISTENT;
@@ -433,6 +444,11 @@ public class ChronoEdgeImpl extends AbstractChronoElement implements Edge, Chron
         });
     }
 
+    @Override
+    public boolean isLazy() {
+        return this.lazyLoadProperties;
+    }
+
     // =====================================================================================================================
     // UTILITY
     // =====================================================================================================================
@@ -471,11 +487,9 @@ public class ChronoEdgeImpl extends AbstractChronoElement implements Edge, Chron
     // =================================================================================================================
 
     private void logPropertyChange(final String key, final Object value) {
-        ChronoGraphConfiguration config = this.graph.getChronoGraphConfiguration();
-        if (!config.isGraphModificationLoggingActive()) {
+        if (!log.isTraceEnabled(ChronosLogMarker.CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS)) {
             return;
         }
-        LogLevel logLevel = config.getGraphModificationLogLevel();
         // prepare some debug output
         StringBuilder messageBuilder = new StringBuilder();
         messageBuilder.append(ChronoGraphLoggingUtil.createLogHeader(this.owningTransaction));
@@ -498,43 +512,39 @@ public class ChronoEdgeImpl extends AbstractChronoElement implements Edge, Chron
         messageBuilder.append(" (Object ID: ");
         messageBuilder.append(System.identityHashCode(this));
         messageBuilder.append(")");
-        ChronoLogger.log(logLevel, messageBuilder.toString());
+        log.trace(ChronosLogMarker.CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS, messageBuilder.toString());
     }
 
     private void logEdgeRemove() {
-        ChronoGraphConfiguration config = this.graph.getChronoGraphConfiguration();
-        if (!config.isGraphModificationLoggingActive()) {
+        if (!log.isTraceEnabled(ChronosLogMarker.CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS)) {
             return;
         }
-        LogLevel logLevel = config.getGraphModificationLogLevel();
         // prepare some debug output
         StringBuilder messageBuilder = new StringBuilder();
         messageBuilder.append(ChronoGraphLoggingUtil.createLogHeader(this.owningTransaction));
         messageBuilder.append("Removing Edge ");
-        messageBuilder.append(this.toString());
+        messageBuilder.append(this);
         messageBuilder.append(" (Object ID: ");
         messageBuilder.append(System.identityHashCode(this));
         messageBuilder.append(")");
-        ChronoLogger.log(logLevel, messageBuilder.toString());
+        log.trace(ChronosLogMarker.CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS, messageBuilder.toString());
     }
 
     private void logPropertyRemove(final String key) {
-        ChronoGraphConfiguration config = this.graph.getChronoGraphConfiguration();
-        if (!config.isGraphModificationLoggingActive()) {
+        if (!log.isTraceEnabled(ChronosLogMarker.CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS)) {
             return;
         }
-        LogLevel logLevel = config.getGraphModificationLogLevel();
         // prepare some debug output
         StringBuilder messageBuilder = new StringBuilder();
         messageBuilder.append(ChronoGraphLoggingUtil.createLogHeader(this.owningTransaction));
         messageBuilder.append("Removing Property '");
         messageBuilder.append(key);
         messageBuilder.append("' from Edge ");
-        messageBuilder.append(this.toString());
+        messageBuilder.append(this);
         messageBuilder.append(" (Object ID: ");
         messageBuilder.append(System.identityHashCode(this));
         messageBuilder.append(")");
-        ChronoLogger.log(logLevel, messageBuilder.toString());
+        log.trace(ChronosLogMarker.CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS, messageBuilder.toString());
     }
 
     // =================================================================================================================
@@ -544,7 +554,7 @@ public class ChronoEdgeImpl extends AbstractChronoElement implements Edge, Chron
     private class PropertiesIterator<V> implements Iterator<Property<V>> {
 
         @SuppressWarnings("rawtypes")
-        private Iterator<Property> iter;
+        private final Iterator<Property> iter;
 
         @SuppressWarnings("rawtypes")
         public PropertiesIterator(final Iterator<Property> iter) {
@@ -559,8 +569,8 @@ public class ChronoEdgeImpl extends AbstractChronoElement implements Edge, Chron
         @Override
         @SuppressWarnings("unchecked")
         public Property<V> next() {
-            Property<?> p = this.iter.next();
-            return (Property<V>) p;
+            Property<V> p = this.iter.next();
+            return p;
         }
 
     }

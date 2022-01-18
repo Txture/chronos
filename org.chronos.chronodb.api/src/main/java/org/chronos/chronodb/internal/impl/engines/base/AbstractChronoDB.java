@@ -4,7 +4,10 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
-import org.chronos.chronodb.api.*;
+import org.chronos.chronodb.api.Branch;
+import org.chronos.chronodb.api.ChronoDB;
+import org.chronos.chronodb.api.ChronoDBTransaction;
+import org.chronos.chronodb.api.CommitMetadataFilter;
 import org.chronos.chronodb.api.builder.transaction.ChronoDBTransactionBuilder;
 import org.chronos.chronodb.api.exceptions.ChronosBuildVersionConflictException;
 import org.chronos.chronodb.api.exceptions.InvalidTransactionBranchException;
@@ -17,8 +20,9 @@ import org.chronos.chronodb.internal.impl.builder.transaction.DefaultTransaction
 import org.chronos.chronodb.internal.impl.dump.CommitMetadataMap;
 import org.chronos.chronodb.internal.util.ThreadBound;
 import org.chronos.common.autolock.AutoLock;
-import org.chronos.common.logging.ChronoLogger;
 import org.chronos.common.version.ChronosVersion;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -31,11 +35,14 @@ import static com.google.common.base.Preconditions.*;
 
 public abstract class AbstractChronoDB implements ChronoDB, ChronoDBInternal {
 
+    private static final Logger log = LoggerFactory.getLogger(AbstractChronoDB.class);
+
     protected final ReadWriteLock dbLock;
 
     private final ChronoDBConfiguration configuration;
     private final Set<ChronoDBShutdownHook> shutdownHooks;
     private final CommitMetadataFilter commitMetadataFilter;
+    private CommitTimestampProvider commitTimestampProvider;
 
     private final ThreadBound<AutoLock> exclusiveLockHolder;
     private final ThreadBound<AutoLock> nonExclusiveLockHolder;
@@ -59,17 +66,13 @@ public abstract class AbstractChronoDB implements ChronoDB, ChronoDBInternal {
 
     @Override
     public void postConstruct() {
-        // do not perform any migrations when in read-only mode
-        if (!this.getConfiguration().isReadOnly()) {
-            // check the chronos build version
-            this.updateBuildVersionInDatabase();
-        }
         // check if any branch needs recovery (we do this even in read-only mode, as the DB
         // might not be readable otherwise)
         for (Branch branch : this.getBranchManager().getBranches()) {
             TemporalKeyValueStore tkvs = ((BranchInternal) branch).getTemporalKeyValueStore();
             tkvs.performStartupRecoveryIfRequired();
         }
+        this.commitTimestampProvider = new CommitTimestampProviderImpl(this.getBranchManager().getMaxNowAcrossAllBranches());
     }
 
     // =================================================================================================================
@@ -133,8 +136,10 @@ public abstract class AbstractChronoDB implements ChronoDB, ChronoDBInternal {
             TemporalKeyValueStore tkvs = this.getTKVS(branchName);
             long now = tkvs.getNow();
             if (configuration.isTimestampNow() == false && configuration.getTimestamp() > now) {
-                ChronoLogger.logDebug("Invalid timestamp. Requested = " + configuration.getTimestamp() + ", now = "
-                    + now + ", branch = '" + branchName + "'");
+                if (log.isDebugEnabled()) {
+                    log.debug("Invalid timestamp. Requested = " + configuration.getTimestamp() + ", now = "
+                        + now + ", branch = '" + branchName + "'");
+                }
                 throw new InvalidTransactionTimestampException(
                     "Cannot open transaction at the given date or timestamp: it's after the latest commit! Latest commit: "
                         + now + ", transaction timestamp: " + configuration.getTimestamp() + ", branch: " + branchName);
@@ -158,7 +163,7 @@ public abstract class AbstractChronoDB implements ChronoDB, ChronoDBInternal {
     }
 
     @Override
-    public CloseableIterator<ChronoDBEntry> entryStream(long minTimestamp, long maxTimestamp){
+    public CloseableIterator<ChronoDBEntry> entryStream(long minTimestamp, long maxTimestamp) {
         Set<String> branchNames = this.getBranchManager().getBranchNames();
         Iterator<String> branchIterator = branchNames.iterator();
         Iterator<CloseableIterator<ChronoDBEntry>> branchStreams = Iterators.transform(branchIterator,
@@ -170,7 +175,7 @@ public abstract class AbstractChronoDB implements ChronoDB, ChronoDBInternal {
     @Override
     public CloseableIterator<ChronoDBEntry> entryStream(String branch, long minTimestamp, long maxTimestamp) {
         checkNotNull(branch, "Precondition violation - argument 'branch' must not be NULL!");
-        if(!this.getBranchManager().existsBranch(branch)){
+        if (!this.getBranchManager().existsBranch(branch)) {
             throw new IllegalArgumentException("There is no branch named '" + branch + "'!");
         }
         checkArgument(minTimestamp >= 0, "Precondition violation - argument 'minTimestamp' must not be negative!");
@@ -182,7 +187,7 @@ public abstract class AbstractChronoDB implements ChronoDB, ChronoDBInternal {
     @Override
     public void loadEntries(final List<ChronoDBEntry> entries) {
         checkNotNull(entries, "Precondition violation - argument 'entries' must not be NULL!");
-       this.loadEntries(entries, false);
+        this.loadEntries(entries, false);
     }
 
     protected void loadEntries(final List<ChronoDBEntry> entries, final boolean force) {
@@ -272,7 +277,7 @@ public abstract class AbstractChronoDB implements ChronoDB, ChronoDBInternal {
             }
             return constructor.newInstance();
         } catch (NoSuchMethodException | IllegalAccessException | InstantiationException | InvocationTargetException e) {
-            ChronoLogger.logWarning("Configuration warning: The given Commit Metadata Filter class '" + filterClass.getName() + "' could not be instantiated (" + e.getClass().getSimpleName() + ")! Does it have a default constructor? No filter will be used.");
+            log.warn("Configuration warning: The given Commit Metadata Filter class '" + filterClass.getName() + "' could not be instantiated (" + e.getClass().getSimpleName() + ")! Does it have a default constructor? No filter will be used.");
             return null;
         }
     }
@@ -280,6 +285,11 @@ public abstract class AbstractChronoDB implements ChronoDB, ChronoDBInternal {
     @Override
     public ChronosVersion getCurrentChronosVersion() {
         return ChronosVersion.getCurrentVersion();
+    }
+
+    @Override
+    public CommitTimestampProvider getCommitTimestampProvider() {
+        return commitTimestampProvider;
     }
 
     // =====================================================================================================================
@@ -301,8 +311,15 @@ public abstract class AbstractChronoDB implements ChronoDB, ChronoDBInternal {
      * {@link ChronosBuildVersionConflictException}.
      * </ol>
      * </ol>
+     *
+     * @param readOnly Set to <code>true</code> if the DB is in read-only mode. If read-only mode is enabled,
+     *                 no changes must be performed to the persistent data. If the current software version is
+     *                 incompatible with the persistent format in any way (e.g. a migration would be necessary),
+     *                 an exception should be thrown if read-only is enabled.
+     *
+     * @return The current version of chronos which was originally stored in the database
      */
-    protected abstract void updateBuildVersionInDatabase();
+    protected abstract ChronosVersion updateBuildVersionInDatabase(boolean readOnly);
 
     // =================================================================================================================
     // INNER CLASSES

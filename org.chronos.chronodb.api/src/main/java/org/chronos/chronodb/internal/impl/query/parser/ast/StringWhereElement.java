@@ -3,11 +3,13 @@ package org.chronos.chronodb.internal.impl.query.parser.ast;
 import static com.google.common.base.Preconditions.*;
 
 import com.google.common.collect.Sets;
+import org.chronos.chronodb.api.SecondaryIndex;
 import org.chronos.chronodb.api.query.*;
 import org.chronos.chronodb.internal.api.query.searchspec.SearchSpecification;
 import org.chronos.chronodb.internal.api.query.searchspec.StringSearchSpecification;
 import org.chronos.chronodb.internal.impl.query.TextMatchMode;
 
+import java.util.Objects;
 import java.util.Set;
 
 public class StringWhereElement extends WhereElement<String, StringCondition> {
@@ -30,8 +32,11 @@ public class StringWhereElement extends WhereElement<String, StringCondition> {
     }
 
     @Override
-    public SearchSpecification<?, ?> toSearchSpecification() {
-        return StringSearchSpecification.create(this.getIndexName(), this.getCondition(), this.getMatchMode(), this.getComparisonValue());
+    public SearchSpecification<?, ?> toSearchSpecification(SecondaryIndex index) {
+        if(!Objects.equals(index.getName(), this.indexName)){
+            throw new IllegalArgumentException("Cannot use index '" + index.getName() + "' for search specification - expected index name is '" + this.indexName + "'!");
+        }
+        return StringSearchSpecification.create(index, this.getCondition(), this.getMatchMode(), this.getComparisonValue());
     }
 
     @Override

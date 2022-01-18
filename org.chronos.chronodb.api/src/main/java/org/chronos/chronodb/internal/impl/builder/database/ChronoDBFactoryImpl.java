@@ -2,7 +2,7 @@ package org.chronos.chronodb.internal.impl.builder.database;
 
 import static com.google.common.base.Preconditions.*;
 
-import org.apache.commons.configuration.Configuration;
+import org.apache.commons.configuration2.Configuration;
 import org.chronos.chronodb.api.ChronoDB;
 import org.chronos.chronodb.api.builder.database.ChronoDBBaseBuilder;
 import org.chronos.chronodb.api.builder.database.spi.ChronoDBBackendProvider;

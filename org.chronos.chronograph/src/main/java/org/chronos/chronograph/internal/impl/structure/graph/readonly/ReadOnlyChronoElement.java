@@ -76,6 +76,11 @@ public abstract class ReadOnlyChronoElement implements ChronoElementInternal {
         return this.element.getPropertyStatus(propertyKey);
     }
 
+    @Override
+    public boolean isLazy() {
+        return this.element.isLazy();
+    }
+
     protected <T> T unsupportedOperation() {
         throw new UnsupportedOperationException("Unsupported operation for readOnly graph!");
     }

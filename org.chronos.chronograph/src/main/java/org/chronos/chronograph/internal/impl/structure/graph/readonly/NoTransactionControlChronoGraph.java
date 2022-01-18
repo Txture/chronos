@@ -1,6 +1,6 @@
 package org.chronos.chronograph.internal.impl.structure.graph.readonly;
 
-import org.apache.commons.configuration.Configuration;
+import org.apache.commons.configuration2.Configuration;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer;
 import org.apache.tinkerpop.gremlin.structure.Edge;
@@ -255,13 +255,13 @@ public class NoTransactionControlChronoGraph implements ChronoGraph {
     }
 
     @Override
-    public ChronoGraphIndexManager getIndexManager() {
-        return this.graph.getIndexManager();
+    public ChronoGraphIndexManager getIndexManagerOnMaster() {
+        return this.graph.getIndexManagerOnMaster();
     }
 
     @Override
-    public ChronoGraphIndexManager getIndexManager(final String branchName) {
-        return this.graph.getIndexManager(branchName);
+    public ChronoGraphIndexManager getIndexManagerOnBranch(final String branchName) {
+        return this.graph.getIndexManagerOnBranch(branchName);
     }
 
     @Override

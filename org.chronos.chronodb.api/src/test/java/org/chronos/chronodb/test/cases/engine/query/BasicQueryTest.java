@@ -10,9 +10,9 @@ import org.chronos.chronodb.api.indexing.StringIndexer;
 import org.chronos.chronodb.api.key.QualifiedKey;
 import org.chronos.chronodb.internal.api.query.ChronoDBQuery;
 import org.chronos.chronodb.test.base.AllChronoDBBackendsTest;
-import org.chronos.common.test.utils.NamedPayload;
 import org.chronos.chronodb.test.cases.util.model.payload.NamedPayloadNameIndexer;
 import org.chronos.common.test.junit.categories.IntegrationTest;
+import org.chronos.common.test.utils.NamedPayload;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -31,7 +31,7 @@ public class BasicQueryTest extends AllChronoDBBackendsTest {
         ChronoDB db = this.getChronoDB();
         // set up the "name" index
         StringIndexer nameIndexer = new NamedPayloadNameIndexer();
-        db.getIndexManager().addIndexer("name", nameIndexer);
+        db.getIndexManager().createIndex().withName("name").withIndexer(nameIndexer).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
 
         // generate and insert test data
@@ -57,7 +57,7 @@ public class BasicQueryTest extends AllChronoDBBackendsTest {
         ChronoDB db = this.getChronoDB();
         // set up the "name" index
         StringIndexer nameIndexer = new NamedPayloadNameIndexer();
-        db.getIndexManager().addIndexer("name", nameIndexer);
+        db.getIndexManager().createIndex().withName("name").withIndexer(nameIndexer).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
 
         // generate and insert test data
@@ -114,7 +114,7 @@ public class BasicQueryTest extends AllChronoDBBackendsTest {
         ChronoDB db = this.getChronoDB();
         // set up the "name" index
         StringIndexer nameIndexer = new NamedPayloadNameIndexer();
-        db.getIndexManager().addIndexer("name", nameIndexer);
+        db.getIndexManager().createIndex().withName("name").withIndexer(nameIndexer).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
 
         // generate and insert test data
@@ -129,7 +129,7 @@ public class BasicQueryTest extends AllChronoDBBackendsTest {
 
         Iterator<QualifiedKey> keys = tx.find().inDefaultKeyspace().not().not().not().where("name")
             .isNotEqualTo("Hello World").getKeys();
-        Set<String> keySet = Sets.newHashSet(keys).stream().map(qKey -> qKey.getKey()).collect(Collectors.toSet());
+        Set<String> keySet = Sets.newHashSet(keys).stream().map(QualifiedKey::getKey).collect(Collectors.toSet());
         assertEquals(1, keySet.size());
         assertTrue(keySet.contains("np1"));
     }
@@ -139,7 +139,7 @@ public class BasicQueryTest extends AllChronoDBBackendsTest {
         ChronoDB db = this.getChronoDB();
         // set up the "name" index
         StringIndexer nameIndexer = new NamedPayloadNameIndexer();
-        db.getIndexManager().addIndexer("name", nameIndexer);
+        db.getIndexManager().createIndex().withName("name").withIndexer(nameIndexer).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
 
         // generate and insert test data
@@ -162,7 +162,7 @@ public class BasicQueryTest extends AllChronoDBBackendsTest {
         ChronoDB db = this.getChronoDB();
         // set up the "name" index
         StringIndexer nameIndexer = new NamedPayloadNameIndexer();
-        db.getIndexManager().addIndexer("name", nameIndexer);
+        db.getIndexManager().createIndex().withName("name").withIndexer(nameIndexer).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
 
         // generate and insert test data

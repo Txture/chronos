@@ -1,5 +1,6 @@
 package org.chronos.chronograph.internal.impl.structure.graph.readonly;
 
+import org.apache.tinkerpop.gremlin.process.traversal.TraversalSource;
 import org.apache.tinkerpop.gremlin.structure.Transaction;
 import org.chronos.chronograph.api.structure.ChronoGraph;
 import org.chronos.chronograph.api.transaction.ChronoGraphTransaction;
@@ -138,6 +139,11 @@ public class ReadOnlyChronoGraphTransactionManager implements ChronoGraphTransac
     @Override
     public void rollback() {
         // transaction was read-only to begin with; nothing to do!
+    }
+
+    @Override
+    public <T extends TraversalSource> T begin(final Class<T> traversalSourceClass) {
+        return this.manager.begin(traversalSourceClass);
     }
 
     @Override

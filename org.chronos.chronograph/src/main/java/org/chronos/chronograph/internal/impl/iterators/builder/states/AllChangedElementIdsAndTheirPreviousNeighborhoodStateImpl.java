@@ -35,7 +35,7 @@ public class AllChangedElementIdsAndTheirPreviousNeighborhoodStateImpl extends A
         if (this.neighborhoodEdgeIds == null) {
             this.neighborhoodEdgeIds = this.calculatPreviousNeighborhoodEdgeIds(this.getCurrentElementId());
         }
-        return this.neighborhoodEdgeIds;
+        return Collections.unmodifiableSet(this.neighborhoodEdgeIds);
     }
 
     @Override

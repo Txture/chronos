@@ -1,6 +1,9 @@
 package org.chronos.chronodb.exodus.test.cases.secondaryindex
 
+import org.chronos.chronodb.api.ChronoDBConstants
 import org.chronos.chronodb.api.Order
+import org.chronos.chronodb.api.indexing.DoubleIndexer
+import org.chronos.chronodb.api.indexing.LongIndexer
 import org.chronos.chronodb.api.query.Condition
 import org.chronos.chronodb.api.query.NumberCondition
 import org.chronos.chronodb.exodus.kotlin.ext.toByteArray
@@ -10,7 +13,9 @@ import org.chronos.common.testing.kotlin.ext.shouldBe
 import org.chronos.chronodb.exodus.transaction.ExodusTransaction
 import org.chronos.chronodb.exodus.transaction.ExodusTransactionImpl
 import org.chronos.chronodb.exodus.util.readLongsFromBytes
+import org.chronos.chronodb.internal.api.Period
 import org.chronos.chronodb.internal.api.query.searchspec.LongSearchSpecification
+import org.chronos.chronodb.internal.impl.index.SecondaryIndexImpl
 import org.chronos.chronodb.internal.impl.query.LongSearchSpecificationImpl
 import org.junit.jupiter.api.Test
 
@@ -102,26 +107,39 @@ class SecondaryLongIndexStoreTest : EnvironmentTest() {
 
     @Test
     fun canSeparateKeyspaces() {
+        val indexId = "dd1f3a91-12d5-47bd-a343-7b15a3475f09"
+        val index = SecondaryIndexImpl(
+            id = indexId,
+            name = "value",
+            indexer = DummyIndexer(),
+            validPeriod = Period.eternal(),
+            branch = ChronoDBConstants.MASTER_BRANCH_IDENTIFIER,
+            parentIndexId = null,
+            dirty = false,
+            options = emptySet()
+        )
         this.readWriteTx { tx ->
-            SecondaryLongIndexStore.insert(tx, "value", "alpha", 314, "1111", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "alpha", 314, "1112", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "beta", 512, "2222", 1000)
-            SecondaryLongIndexStore.terminateValidity(tx, "value", "beta", 512, "2222", 2000, 0L)
-            SecondaryLongIndexStore.insert(tx, "value", "beta", 512, "2223", 3000)
+            SecondaryLongIndexStore.insert(tx, indexId, "alpha", 314, "1111", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "alpha", 314, "1112", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "beta", 512, "2222", 1000)
+            SecondaryLongIndexStore.terminateValidity(tx, indexId, "beta", 512, "2222", 2000, 0L)
+            SecondaryLongIndexStore.insert(tx, indexId, "beta", 512, "2223", 3000)
             tx.commit()
         }
-        val entriesAlpha = this.readOnlyTx { tx -> readEntries(tx, SecondaryLongIndexStore.storeName("value", "alpha")) }
+        val entriesAlpha = this.readOnlyTx { tx -> readEntries(tx, SecondaryLongIndexStore.storeName(indexId, "alpha")) }
         entriesAlpha shouldBe listOf(
             Triple(314L, "1111", listOf(1000L, Long.MAX_VALUE)),
             Triple(314L, "1112", listOf(1000L, Long.MAX_VALUE))
         )
-        val entriesBeta = this.readOnlyTx { tx -> readEntries(tx, SecondaryLongIndexStore.storeName("value", "beta")) }
+        val entriesBeta = this.readOnlyTx { tx -> readEntries(tx, SecondaryLongIndexStore.storeName(indexId, "beta")) }
         entriesBeta shouldBe listOf(
             Triple(512L, "2222", listOf(1000L, 2000)),
             Triple(512L, "2223", listOf(3000L, Long.MAX_VALUE))
         )
 
-        val spec1 = LongSearchSpecification.create("value", Condition.EQUALS, 314)
+
+
+        val spec1 = LongSearchSpecification.create(index, Condition.EQUALS, 314)
         this.readOnlyTx { tx ->
             SecondaryLongIndexStore.scan(tx, spec1, "alpha", 1000) shouldBe ScanResult(
                 listOf(
@@ -137,7 +155,7 @@ class SecondaryLongIndexStoreTest : EnvironmentTest() {
             )
         }
 
-        val spec2 = LongSearchSpecification.create("value", Condition.EQUALS, 512)
+        val spec2 = LongSearchSpecification.create(index, Condition.EQUALS, 512)
         this.readOnlyTx { tx ->
             SecondaryLongIndexStore.scan(tx, spec2, "beta", 1000) shouldBe ScanResult(
                 listOf(
@@ -155,7 +173,19 @@ class SecondaryLongIndexStoreTest : EnvironmentTest() {
 
     @Test
     fun canQueryEmptyStore() {
-        val searchSpec = LongSearchSpecificationImpl("value", NumberCondition.EQUALS, 314)
+        val indexId = "dd1f3a91-12d5-47bd-a343-7b15a3475f09"
+        val index = SecondaryIndexImpl(
+            id = indexId,
+            name = "value",
+            indexer = DummyIndexer(),
+            validPeriod = Period.eternal(),
+            branch = ChronoDBConstants.MASTER_BRANCH_IDENTIFIER,
+            parentIndexId = null,
+            dirty = false,
+            options = emptySet()
+        )
+
+        val searchSpec = LongSearchSpecificationImpl(index, NumberCondition.EQUALS, 314)
         this.readOnlyTx { tx ->
             SecondaryLongIndexStore.scan(tx, searchSpec, "youDoNotExist", 1000) shouldBe ScanResult(
                 listOf(),
@@ -166,18 +196,31 @@ class SecondaryLongIndexStoreTest : EnvironmentTest() {
 
     @Test
     fun canEvaluateEquals() {
+        val indexId = "dd1f3a91-12d5-47bd-a343-7b15a3475f09"
+        val index = SecondaryIndexImpl(
+            id = indexId,
+            name = "value",
+            indexer = DummyIndexer(),
+            validPeriod = Period.eternal(),
+            branch = ChronoDBConstants.MASTER_BRANCH_IDENTIFIER,
+            parentIndexId = null,
+            dirty = false,
+            options = emptySet()
+        )
+
         this.readWriteTx { tx ->
-            SecondaryLongIndexStore.insert(tx, "value", "default", 300, "7487", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 314, "1111", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 314, "1112", 1000)
-            SecondaryLongIndexStore.terminateValidity(tx, "value", "default", 314, "1112", 2000, 0L)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 675, "2222", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 675, "2223", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 115235, "5555", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 568275864, "6666", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 300, "7487", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 314, "1111", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 314, "1112", 1000)
+            SecondaryLongIndexStore.terminateValidity(tx, indexId, "default", 314, "1112", 2000, 0L)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 675, "2222", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 675, "2223", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 115235, "5555", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 568275864, "6666", 1000)
             tx.commit()
         }
-        val searchSpec = LongSearchSpecificationImpl("value", NumberCondition.EQUALS, 314)
+
+        val searchSpec = LongSearchSpecificationImpl(index, NumberCondition.EQUALS, 314)
         this.readOnlyTx { tx ->
             SecondaryLongIndexStore.scan(tx, searchSpec, "default", 3000) shouldBe ScanResult(
                 listOf(
@@ -190,24 +233,35 @@ class SecondaryLongIndexStoreTest : EnvironmentTest() {
 
     @Test
     fun canEvaluateGreaterThan() {
+        val indexId = "dd1f3a91-12d5-47bd-a343-7b15a3475f09"
+        val index = SecondaryIndexImpl(
+            id = indexId,
+            name = "value",
+            indexer = DummyIndexer(),
+            validPeriod = Period.eternal(),
+            branch = ChronoDBConstants.MASTER_BRANCH_IDENTIFIER,
+            parentIndexId = null,
+            dirty = false,
+            options = emptySet()
+        )
         this.readWriteTx { tx ->
-            SecondaryLongIndexStore.insert(tx, "value", "default", 10, "1111", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 11, "2222", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 12, "3333", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 13, "4444", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 14, "5555", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 15, "6666", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 16, "7777", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 10, "1111", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 11, "2222", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 12, "3333", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 13, "4444", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 14, "5555", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 15, "6666", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 16, "7777", 1000)
             tx.commit()
         }
-        val searchSpec = LongSearchSpecificationImpl("value", NumberCondition.GREATER_THAN, 13)
+
+        val searchSpec = LongSearchSpecificationImpl(index, NumberCondition.GREATER_THAN, 13)
         this.readOnlyTx { tx ->
             SecondaryLongIndexStore.scan(tx, searchSpec, "default", 3000) shouldBe ScanResult(
                 listOf(
                     ScanResultEntry(14L, "5555"),
                     ScanResultEntry(15L, "6666"),
                     ScanResultEntry(16L, "7777")
-
                 ),
                 OrderedBy("value", Order.ASCENDING)
             )
@@ -216,17 +270,29 @@ class SecondaryLongIndexStoreTest : EnvironmentTest() {
 
     @Test
     fun canEvaluateGreaterOrEqual() {
+        val indexId = "dd1f3a91-12d5-47bd-a343-7b15a3475f09"
+        val index = SecondaryIndexImpl(
+            id = indexId,
+            name = "value",
+            indexer = DummyIndexer(),
+            validPeriod = Period.eternal(),
+            branch = ChronoDBConstants.MASTER_BRANCH_IDENTIFIER,
+            parentIndexId = null,
+            dirty = false,
+            options = emptySet()
+        )
         this.readWriteTx { tx ->
-            SecondaryLongIndexStore.insert(tx, "value", "default", 10, "1111", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 11, "2222", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 12, "3333", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 13, "4444", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 14, "5555", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 15, "6666", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 16, "7777", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 10, "1111", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 11, "2222", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 12, "3333", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 13, "4444", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 14, "5555", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 15, "6666", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 16, "7777", 1000)
             tx.commit()
         }
-        val searchSpec = LongSearchSpecificationImpl("value", NumberCondition.GREATER_EQUAL, 13)
+
+        val searchSpec = LongSearchSpecificationImpl(index, NumberCondition.GREATER_EQUAL, 13)
         this.readOnlyTx { tx ->
             SecondaryLongIndexStore.scan(tx, searchSpec, "default", 3000) shouldBe ScanResult(
                 listOf(
@@ -242,17 +308,29 @@ class SecondaryLongIndexStoreTest : EnvironmentTest() {
 
     @Test
     fun canEvaluateLessThan() {
+        val indexId = "dd1f3a91-12d5-47bd-a343-7b15a3475f09"
+        val index = SecondaryIndexImpl(
+            id = indexId,
+            name = "value",
+            indexer = DummyIndexer(),
+            validPeriod = Period.eternal(),
+            branch = ChronoDBConstants.MASTER_BRANCH_IDENTIFIER,
+            parentIndexId = null,
+            dirty = false,
+            options = emptySet()
+        )
         this.readWriteTx { tx ->
-            SecondaryLongIndexStore.insert(tx, "value", "default", 10, "1111", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 11, "2222", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 12, "3333", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 13, "4444", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 14, "5555", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 15, "6666", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 16, "7777", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 10, "1111", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 11, "2222", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 12, "3333", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 13, "4444", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 14, "5555", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 15, "6666", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 16, "7777", 1000)
             tx.commit()
         }
-        val searchSpec = LongSearchSpecificationImpl("value", NumberCondition.LESS_THAN, 13)
+
+        val searchSpec = LongSearchSpecificationImpl(index, NumberCondition.LESS_THAN, 13)
         this.readOnlyTx { tx ->
             SecondaryLongIndexStore.scan(tx, searchSpec, "default", 3000) shouldBe ScanResult(
                 listOf(
@@ -267,17 +345,29 @@ class SecondaryLongIndexStoreTest : EnvironmentTest() {
 
     @Test
     fun canEvaluateLessOrEqual() {
+        val indexId = "dd1f3a91-12d5-47bd-a343-7b15a3475f09"
+        val index = SecondaryIndexImpl(
+            id = indexId,
+            name = "value",
+            indexer = DummyIndexer(),
+            validPeriod = Period.eternal(),
+            branch = ChronoDBConstants.MASTER_BRANCH_IDENTIFIER,
+            parentIndexId = null,
+            dirty = false,
+            options = emptySet()
+        )
         this.readWriteTx { tx ->
-            SecondaryLongIndexStore.insert(tx, "value", "default", 10, "1111", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 11, "2222", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 12, "3333", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 13, "4444", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 14, "5555", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 15, "6666", 1000)
-            SecondaryLongIndexStore.insert(tx, "value", "default", 16, "7777", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 10, "1111", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 11, "2222", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 12, "3333", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 13, "4444", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 14, "5555", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 15, "6666", 1000)
+            SecondaryLongIndexStore.insert(tx, indexId, "default", 16, "7777", 1000)
             tx.commit()
         }
-        val searchSpec = LongSearchSpecificationImpl("value", NumberCondition.LESS_EQUAL, 13)
+
+        val searchSpec = LongSearchSpecificationImpl(index, NumberCondition.LESS_EQUAL, 13)
         this.readOnlyTx { tx ->
             SecondaryLongIndexStore.scan(tx, searchSpec, "default", 3000) shouldBe ScanResult(
                 listOf(
@@ -333,4 +423,21 @@ class SecondaryLongIndexStoreTest : EnvironmentTest() {
         }
         return resultList
     }
+
+    // =================================================================================================================
+    // INNER CLASSES
+    // =================================================================================================================
+
+    private class DummyIndexer: LongIndexer {
+
+        override fun canIndex(`object`: Any?): Boolean {
+            return true
+        }
+
+        override fun getIndexValues(`object`: Any?): Set<Long> {
+            return emptySet()
+        }
+
+    }
+
 }

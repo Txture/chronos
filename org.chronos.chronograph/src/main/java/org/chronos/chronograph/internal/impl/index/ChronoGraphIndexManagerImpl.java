@@ -1,20 +1,19 @@
 package org.chronos.chronograph.internal.impl.index;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.*;
 import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Element;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
-import org.chronos.chronodb.api.ChronoDB;
-import org.chronos.chronodb.api.ChronoDBTransaction;
-import org.chronos.chronodb.api.IndexManager;
+import org.chronos.chronodb.api.*;
 import org.chronos.chronodb.api.builder.query.FinalizableQueryBuilder;
 import org.chronos.chronodb.api.builder.query.QueryBuilder;
 import org.chronos.chronodb.api.builder.query.WhereBuilder;
-import org.chronos.chronodb.api.exceptions.UnknownKeyspaceException;
 import org.chronos.chronodb.api.indexing.Indexer;
 import org.chronos.chronodb.api.key.QualifiedKey;
 import org.chronos.chronodb.api.query.*;
 import org.chronos.chronodb.internal.api.query.searchspec.*;
+import org.chronos.chronodb.internal.impl.index.IndexingOption;
 import org.chronos.chronodb.internal.impl.query.TextMatchMode;
 import org.chronos.chronograph.api.builder.index.IndexBuilderStarter;
 import org.chronos.chronograph.api.index.ChronoGraphIndex;
@@ -23,8 +22,6 @@ import org.chronos.chronograph.api.transaction.ChronoGraphTransaction;
 import org.chronos.chronograph.internal.ChronoGraphConstants;
 import org.chronos.chronograph.internal.api.index.ChronoGraphIndexInternal;
 import org.chronos.chronograph.internal.api.index.ChronoGraphIndexManagerInternal;
-import org.chronos.chronograph.internal.api.index.IChronoGraphEdgeIndex;
-import org.chronos.chronograph.internal.api.index.IChronoGraphVertexIndex;
 import org.chronos.chronograph.internal.impl.builder.index.ChronoGraphIndexBuilder;
 import org.chronos.common.exceptions.UnknownEnumLiteralException;
 
@@ -43,21 +40,15 @@ public class ChronoGraphIndexManagerImpl implements ChronoGraphIndexManager, Chr
     // =====================================================================================================================
 
     private final ChronoDB chronoDB;
-    private final String branchName;
-
-    private final Map<String, IChronoGraphVertexIndex> vertexIndices;
-    private final Map<String, IChronoGraphEdgeIndex> edgeIndices;
+    private final Branch branch;
 
     private final ReadWriteLock lock;
 
     public ChronoGraphIndexManagerImpl(final ChronoDB chronoDB, final String branchName) {
         checkNotNull(chronoDB, "Precondition violation - argument 'chronoDB' must not be NULL!");
         this.chronoDB = chronoDB;
-        this.branchName = branchName;
-        this.vertexIndices = Maps.newHashMap();
-        this.edgeIndices = Maps.newHashMap();
+        this.branch = this.chronoDB.getBranchManager().getBranch(branchName);
         this.lock = new ReentrantReadWriteLock(true);
-        this.loadIndexDataFromDB();
     }
 
     // =====================================================================================================================
@@ -74,17 +65,96 @@ public class ChronoGraphIndexManagerImpl implements ChronoGraphIndexManager, Chr
     // =====================================================================================================================
 
     @Override
-    public Set<ChronoGraphIndex> getIndexedPropertiesOf(final Class<? extends Element> clazz) {
+    public Set<ChronoGraphIndex> getIndexedPropertiesAtTimestamp(final Class<? extends Element> clazz, long timestamp) {
         checkNotNull(clazz, "Precondition violation - argument 'clazz' must not be NULL!");
-        return this.performNonExclusive(() -> {
-            if (Vertex.class.isAssignableFrom(clazz)) {
-                return Collections.unmodifiableSet(Sets.newHashSet(this.vertexIndices.values()));
-            } else if (Edge.class.isAssignableFrom(clazz)) {
-                return Collections.unmodifiableSet(Sets.newHashSet(this.edgeIndices.values()));
-            } else {
-                throw new IllegalArgumentException("Unknown graph element class: '" + clazz.getName() + "'!");
-            }
-        });
+        checkArgument(timestamp >= 0, "Precondition violation - argument 'timestamp' must not be negative!");
+        return this.performNonExclusive(() -> this.getChronoDBIndexManager().getIndices(this.branch, timestamp).stream()
+            .map(ChronoGraphIndex3::createFromChronoDBIndexOrNull)
+            .filter(Objects::nonNull)
+            .filter(idx -> Objects.equals(idx.getIndexedElementClass(), clazz))
+            .collect(Collectors.toSet())
+        );
+    }
+
+    @Override
+    public Set<ChronoGraphIndex> getIndexedPropertiesAtAnyPointInTime(final Class<? extends Element> clazz) {
+        checkNotNull(clazz, "Precondition violation - argument 'clazz' must not be NULL!");
+        return this.performNonExclusive(() -> this.getChronoDBIndexManager().getIndices(this.branch).stream()
+            .map(ChronoGraphIndex3::createFromChronoDBIndexOrNull)
+            .filter(Objects::nonNull)
+            .filter(idx -> Objects.equals(idx.getIndexedElementClass(), clazz))
+            .collect(Collectors.toSet())
+        );
+    }
+
+    @Override
+    public Set<ChronoGraphIndex> getAllIndicesAtAnyPointInTime() {
+        return this.performNonExclusive(() -> this.getChronoDBIndexManager().getIndices(this.branch).stream()
+            .map(ChronoGraphIndex3::createFromChronoDBIndexOrNull)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet())
+        );
+    }
+
+    @Override
+    public Set<ChronoGraphIndex> getAllIndicesAtTimestamp(final long timestamp) {
+        return this.performNonExclusive(() -> this.getChronoDBIndexManager().getIndices(this.branch, timestamp).stream()
+            .map(ChronoGraphIndex3::createFromChronoDBIndexOrNull)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet())
+        );
+    }
+
+    @Override
+    public ChronoGraphIndex getVertexIndexAtTimestamp(final String indexedPropertyName, final long timestamp) {
+        checkNotNull(indexedPropertyName, "Precondition violation - argument 'indexedPropertyName' must not be NULL!");
+        checkArgument(timestamp >= 0, "Precondition violation - argument 'timestamp' must not be negative!");
+        return this.performNonExclusive(() -> this.getChronoDBIndexManager().getIndices(this.branch, timestamp).stream()
+            .map(ChronoGraphIndex3::createFromChronoDBIndexOrNull)
+            .filter(Objects::nonNull)
+            .filter(idx -> Vertex.class.equals(idx.getIndexedElementClass()))
+            .filter(idx -> idx.getValidPeriod().contains(timestamp))
+            .filter(idx -> idx.getIndexedProperty().equals(indexedPropertyName))
+            .findFirst().orElse(null)
+        );
+    }
+
+    @Override
+    public Set<ChronoGraphIndex> getVertexIndicesAtAnyPointInTime(final String indexedPropertyName) {
+        checkNotNull(indexedPropertyName, "Precondition violation - argument 'indexedPropertyName' must not be NULL!");
+        return this.performNonExclusive(() -> this.getChronoDBIndexManager().getIndices(this.branch).stream()
+            .map(ChronoGraphIndex3::createFromChronoDBIndexOrNull)
+            .filter(Objects::nonNull)
+            .filter(idx -> Vertex.class.equals(idx.getIndexedElementClass()))
+            .filter(idx -> idx.getIndexedProperty().equals(indexedPropertyName))
+            .collect(Collectors.toSet())
+        );
+    }
+
+    @Override
+    public ChronoGraphIndex getEdgeIndexAtTimestamp(final String indexedPropertyName, final long timestamp) {
+        checkNotNull(indexedPropertyName, "Precondition violation - argument 'indexedPropertyName' must not be NULL!");
+        checkArgument(timestamp >= 0, "Precondition violation - argument 'timestamp' must not be negative!");
+        return this.performNonExclusive(() -> this.getChronoDBIndexManager().getIndices(this.branch, timestamp).stream()
+            .map(ChronoGraphIndex3::createFromChronoDBIndexOrNull)
+            .filter(Objects::nonNull)
+            .filter(idx -> Edge.class.equals(idx.getIndexedElementClass()))
+            .filter(idx -> idx.getIndexedProperty().equals(indexedPropertyName))
+            .filter(idx -> idx.getValidPeriod().contains(timestamp))
+            .findFirst().orElse(null)
+        );
+    }
+
+    @Override
+    public Set<ChronoGraphIndex> getEdgeIndicesAtAnyPointInTime(final String indexedPropertyName) {
+        checkNotNull(indexedPropertyName, "Precondition violation - argument 'indexedPropertyName' must not be NULL!");
+        return this.performNonExclusive(() -> this.getChronoDBIndexManager().getIndices(this.branch).stream()
+            .map(ChronoGraphIndex3::createFromChronoDBIndexOrNull)
+            .filter(Objects::nonNull)
+            .filter(idx -> Edge.class.equals(idx.getIndexedElementClass()))
+            .filter(idx -> idx.getIndexedProperty().equals(indexedPropertyName))
+            .collect(Collectors.toSet())
+        );
     }
 
     @Override
@@ -93,17 +163,13 @@ public class ChronoGraphIndexManagerImpl implements ChronoGraphIndexManager, Chr
     }
 
     @Override
-    public Set<ChronoGraphIndex> getDirtyIndices() {
-        return this.performNonExclusive(() -> {
-            IndexManager indexManager = this.getChronoDBIndexManager();
-            Set<String> dirtyBackendIndexKeys = indexManager.getDirtyIndices();
-            Set<ChronoGraphIndex> dirtyGraphIndices = Sets.newHashSet();
-            for (String dirtyBackendIndexKey : dirtyBackendIndexKeys) {
-                ChronoGraphIndex graphIndex = this.getIndexForBackendPropertyKey(dirtyBackendIndexKey);
-                dirtyGraphIndices.add(graphIndex);
-            }
-            return Collections.unmodifiableSet(dirtyGraphIndices);
-        });
+    public Set<ChronoGraphIndex> getDirtyIndicesAtAnyPointInTime() {
+        return this.performNonExclusive(() -> this.getChronoDBIndexManager().getIndices(this.branch).stream()
+            .map(ChronoGraphIndex3::createFromChronoDBIndexOrNull)
+            .filter(Objects::nonNull)
+            .filter(ChronoGraphIndex3::isDirty)
+            .collect(Collectors.toSet())
+        );
     }
 
     // =====================================================================================================================
@@ -116,37 +182,16 @@ public class ChronoGraphIndexManagerImpl implements ChronoGraphIndexManager, Chr
     }
 
     @Override
-    public void reindex(final ChronoGraphIndex index) {
-        checkNotNull(index, "Precondition violation - argument 'index' must not be NULL!");
-        this.reindexAll();
-    }
-
-    @Override
     public void dropIndex(final ChronoGraphIndex index) {
-        this.dropIndex(index, null);
-    }
-
-    @Override
-    public void dropIndex(final ChronoGraphIndex index, final Object commitMetadata) {
         checkNotNull(index, "Precondition violation - argument 'index' must not be NULL!");
         this.performExclusive(() -> {
-            ChronoGraphIndexInternal indexInternal = (ChronoGraphIndexInternal) index;
             IndexManager indexManager = this.getChronoDBIndexManager();
-            indexManager.removeIndex(indexInternal.getBackendIndexKey());
-            // FIXME CONSISTENCY: What happens if an exception occurs at this line (or JVM shutdown, or...)?
-            ChronoDB db = this.chronoDB;
-            ChronoDBTransaction tx = db.tx(this.branchName);
-            tx.remove(indexInternal.getBackendIndexKey());
-            tx.commit(commitMetadata);
-            // FIXME CONSISTENCY: What happens if an exception occurs at this line (or JVM shutdown, or...)?
-            if (indexInternal instanceof IChronoGraphVertexIndex) {
-                this.vertexIndices.remove(indexInternal.getBackendIndexKey());
-            } else if (indexInternal instanceof IChronoGraphEdgeIndex) {
-                this.edgeIndices.remove(indexInternal.getBackendIndexKey());
+            SecondaryIndex chronoDbIndex = indexManager.getIndexById(index.getId());
+            if (chronoDbIndex != null) {
+                indexManager.deleteIndex(chronoDbIndex);
             }
         });
     }
-
 
     @Override
     public void dropAllIndices() {
@@ -157,16 +202,32 @@ public class ChronoGraphIndexManagerImpl implements ChronoGraphIndexManager, Chr
     public void dropAllIndices(final Object commitMetadata) {
         this.performExclusive(() -> {
             IndexManager indexManager = this.getChronoDBIndexManager();
-            indexManager.clearAllIndices();
-            // FIXME CONSISTENCY: What happens if an exception occurs at this line (or JVM shutdown, or...)?
-            ChronoDB db = this.chronoDB;
-            ChronoDBTransaction tx = db.tx(this.branchName);
-            for (ChronoGraphIndex index : this.getAllIndices()) {
-                tx.remove(((ChronoGraphIndexInternal) index).getBackendIndexKey());
+            Set<SecondaryIndex> indicesToDelete = this.getAllIndicesAtAnyPointInTime().stream()
+                .map(graphIndex -> indexManager.getIndexById(graphIndex.getId()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+            indexManager.deleteIndices(indicesToDelete);
+        });
+    }
+
+    @Override
+    public ChronoGraphIndex terminateIndex(final ChronoGraphIndex index, final long timestamp) {
+        checkNotNull(index, "Precondition violation - argument 'index' must not be NULL!");
+        Preconditions.checkArgument(timestamp >= 0, "Precondition violation - argument 'timestamp' must not be negative!");
+        return this.performExclusive(()-> {
+            IndexManager indexManager = this.getChronoDBIndexManager();
+            SecondaryIndex chronoDBIndex = indexManager.getIndexById(index.getId());
+            ChronoGraphIndex existingIndex = Optional.ofNullable(chronoDBIndex)
+                .map(ChronoGraphIndex3::createFromChronoDBIndexOrNull)
+                .orElse(null);
+            if(existingIndex == null){
+                throw new IllegalArgumentException("The given index '" + index + "' does not exist anymore and cannot be terminated!");
             }
-            tx.commit(commitMetadata);
-            this.vertexIndices.clear();
-            this.edgeIndices.clear();
+            if(existingIndex.getValidPeriod().getUpperBound() != Long.MAX_VALUE) {
+                throw new IllegalStateException("The index '" + index + "' has already been terminated. It cannot be terminated it again!");
+            }
+            SecondaryIndex updatedIndex = indexManager.setIndexEndDate(chronoDBIndex, timestamp);
+            return ChronoGraphIndex3.createFromChronoDBIndexOrNull(updatedIndex);
         });
     }
 
@@ -175,34 +236,66 @@ public class ChronoGraphIndexManagerImpl implements ChronoGraphIndexManager, Chr
     // =====================================================================================================================
 
     @Override
-    public void addIndex(final ChronoGraphIndex index) {
-        this.addIndex(index, null);
-    }
-
-    @Override
-    public void addIndex(final ChronoGraphIndex index, final Object commitMetadata) {
-        checkNotNull(index, "Precondition violation - argument 'index' must not be NULL!");
-        this.performExclusive(() -> {
-            if (this.getAllIndices().contains(index)) {
-                throw new IllegalArgumentException("The given index already exists: " + index.toString());
-            }
-            ChronoGraphIndexInternal indexInternal = (ChronoGraphIndexInternal) index;
-            Indexer<?> indexer = indexInternal.createIndexer();
-            IndexManager indexManager = this.getChronoDBIndexManager();
-            indexManager.addIndexer(indexInternal.getBackendIndexKey(), indexer);
-            // FIXME CONSISTENCY: What happens if an exception occurs at this line (or JVM shutdown, or...)?
-            ChronoDB db = this.chronoDB;
-            ChronoDBTransaction tx = db.tx(this.branchName);
-            tx.put(ChronoGraphConstants.KEYSPACE_MANAGEMENT_INDICES, indexInternal.getBackendIndexKey(), indexInternal);
-            tx.commit(commitMetadata);
-            if (indexInternal instanceof IChronoGraphVertexIndex) {
-                this.vertexIndices.put(indexInternal.getBackendIndexKey(), (IChronoGraphVertexIndex) indexInternal);
-            } else if (indexInternal instanceof IChronoGraphEdgeIndex) {
-                this.edgeIndices.put(indexInternal.getBackendIndexKey(), (IChronoGraphEdgeIndex) indexInternal);
+    public ChronoGraphIndex addIndex(
+        final Class<? extends Element> elementType,
+        final IndexType indexType,
+        final String propertyName,
+        final long startTimestamp,
+        final long endTimestamp,
+        final Set<IndexingOption> indexingOptions
+    ) {
+        checkNotNull(elementType, "Precondition violation - argument 'elementType' must not be NULL!");
+        checkNotNull(indexType, "Precondition violation - argument 'indexType' must not be NULL!");
+        checkNotNull(propertyName, "Precondition violation - argument 'propertyName' must not be NULL!");
+        checkArgument(!propertyName.isEmpty(), "Precondition violation - argument 'propertyName' must not be empty!");
+        checkArgument(startTimestamp <= System.currentTimeMillis(), "Precondition violation - argument 'startTimestamp' is in the future!");
+        checkArgument(startTimestamp >= 0, "Precondition violation - argument 'startTimestamp' must not be negative!");
+        checkArgument(endTimestamp > startTimestamp, "Precondition violation - argument 'endTimestamp' must be greater than 'startTimestamp'!");
+        return this.performExclusive(() -> {
+            String indexName;
+            Indexer<?> indexer;
+            if (Vertex.class.equals(elementType)) {
+                indexName = ChronoGraphConstants.INDEX_PREFIX_VERTEX + propertyName;
+                switch (indexType) {
+                    case STRING:
+                        indexer = new VertexRecordStringIndexer2(propertyName);
+                        break;
+                    case LONG:
+                        indexer = new VertexRecordLongIndexer2(propertyName);
+                        break;
+                    case DOUBLE:
+                        indexer = new VertexRecordDoubleIndexer2(propertyName);
+                        break;
+                    default:
+                        throw new UnknownEnumLiteralException(indexType);
+                }
+            } else if (Edge.class.equals(elementType)) {
+                indexName = ChronoGraphConstants.INDEX_PREFIX_EDGE + propertyName;
+                switch (indexType) {
+                    case STRING:
+                        indexer = new EdgeRecordStringIndexer2(propertyName);
+                        break;
+                    case LONG:
+                        indexer = new EdgeRecordLongIndexer2(propertyName);
+                        break;
+                    case DOUBLE:
+                        indexer = new EdgeRecordDoubleIndexer2(propertyName);
+                        break;
+                    default:
+                        throw new UnknownEnumLiteralException(indexType);
+                }
             } else {
-                throw new IllegalArgumentException(
-                    "Unknown index class: '" + indexInternal.getClass().getName() + "'!");
+                throw new IllegalArgumentException("The elementType '" + elementType.getName() + "' is unknown! Only Vertex and Edge are allowed!");
             }
+            SecondaryIndex dbIndex = this.chronoDB.getIndexManager().createIndex()
+                .withName(indexName)
+                .withIndexer(indexer)
+                .onBranch(this.branch)
+                .fromTimestamp(startTimestamp)
+                .toTimestamp(endTimestamp)
+                .withOptions(indexingOptions)
+                .build();
+            return ChronoGraphIndex3.createFromChronoDBIndexOrNull(dbIndex);
         });
     }
 
@@ -212,41 +305,50 @@ public class ChronoGraphIndexManagerImpl implements ChronoGraphIndexManager, Chr
 
     @Override
     public Iterator<String> findVertexIdsByIndexedProperties(final ChronoGraphTransaction tx, final Set<SearchSpecification<?, ?>> searchSpecifications) {
-        checkNotNull(searchSpecifications,
-            "Precondition violation - argument 'searchSpecifications' must not be NULL!");
+        checkNotNull(
+            searchSpecifications,
+            "Precondition violation - argument 'searchSpecifications' must not be NULL!"
+        );
         return this.findElementsByIndexedProperties(tx, Vertex.class, ChronoGraphConstants.KEYSPACE_VERTEX,
-            searchSpecifications);
+            searchSpecifications
+        );
     }
 
     @Override
     public Iterator<String> findEdgeIdsByIndexedProperties(final ChronoGraphTransaction tx, final Set<SearchSpecification<?, ?>> searchSpecifications) {
-        checkNotNull(searchSpecifications,
-            "Precondition violation - argument 'searchSpecifications' must not be NULL!");
+        checkNotNull(
+            searchSpecifications,
+            "Precondition violation - argument 'searchSpecifications' must not be NULL!"
+        );
         return this.findElementsByIndexedProperties(tx, Edge.class, ChronoGraphConstants.KEYSPACE_EDGE,
-            searchSpecifications);
+            searchSpecifications
+        );
     }
 
     private Iterator<String> findElementsByIndexedProperties(final ChronoGraphTransaction tx, final Class<? extends Element> clazz,
                                                              final String keyspace, final Set<SearchSpecification<?, ?>> searchSpecifications) {
         checkNotNull(clazz, "Precondition violation - argument 'clazz' must not be NULL!");
         checkNotNull(keyspace, "Precondition violation - argument 'key' must not be NULL!");
-        checkNotNull(searchSpecifications,
-            "Precondition violation - argument 'searchSpecifications' must not be NULL!");
-        // we need to make sure that all of the given properties are indeed indexed
-        checkArgument(searchSpecifications.isEmpty() == false,
-            "Precondition violation - need at least one search specification to search for!");
-        Set<String> properties = searchSpecifications.stream().map(SearchSpecification::getProperty).collect(Collectors.toSet());
-        this.assertAllPropertiesAreIndexed(clazz, properties);
+        checkNotNull(
+            searchSpecifications,
+            "Precondition violation - argument 'searchSpecifications' must not be NULL!"
+        );
+        // we need to make sure that all given properties are indeed indexed
+        checkArgument(
+            searchSpecifications.isEmpty() == false,
+            "Precondition violation - need at least one search specification to search for!"
+        );
+        Set<String> properties = searchSpecifications.stream().map(search -> search.getIndex().getName()).collect(Collectors.toSet());
+        this.assertAllPropertiesAreIndexed(clazz, properties, tx.getTimestamp());
         // build a map from 'backend property key' to 'search specifications'
         SetMultimap<String, SearchSpecification<?, ?>> backendPropertyKeyToSearchSpecs = HashMultimap.create();
-        Set<ChronoGraphIndex> graphIndices = this.getIndexedPropertiesOf(clazz);
+        Set<ChronoGraphIndex> graphIndices = this.getIndexedPropertiesAtTimestamp(clazz, tx.getTimestamp());
         for (SearchSpecification<?, ?> searchSpec : searchSpecifications) {
-            String propertyName = searchSpec.getProperty();
             ChronoGraphIndex index = graphIndices.stream()
-                .filter(idx -> idx.getIndexedProperty().equals(propertyName))
+                .filter(idx -> idx.getId().equals(searchSpec.getIndex().getId()))
                 .findAny()
                 .orElseThrow(() ->
-                    new IllegalStateException("Unable to find graph index for property name '" + propertyName + "'!")
+                    new IllegalStateException("Unable to find graph index for ID '" + searchSpec.getIndex().getId() + "'!")
                 );
             String backendPropertyKey = ((ChronoGraphIndexInternal) index).getBackendIndexKey();
             backendPropertyKeyToSearchSpecs.put(backendPropertyKey, searchSpec);
@@ -294,45 +396,6 @@ public class ChronoGraphIndexManagerImpl implements ChronoGraphIndexManager, Chr
         return this.chronoDB.getIndexManager();
     }
 
-    private void loadIndexDataFromDB() {
-        ChronoDBTransaction tx = this.chronoDB.tx(this.branchName);
-        Set<String> allIndexKeys = null;
-        try {
-            allIndexKeys = tx.keySet(ChronoGraphConstants.KEYSPACE_MANAGEMENT_INDICES);
-        } catch (UnknownKeyspaceException e) {
-            // we do not yet have any indices
-            allIndexKeys = Collections.emptySet();
-        }
-        for (String indexKey : allIndexKeys) {
-            ChronoGraphIndex index = tx.get(ChronoGraphConstants.KEYSPACE_MANAGEMENT_INDICES, indexKey);
-            if (index == null) {
-                throw new IllegalStateException("Could not find index specification for index key '" + indexKey + "'!");
-            }
-            index = IndexMigrationUtil.migrate(index);
-            if (index instanceof IChronoGraphVertexIndex) {
-                IChronoGraphVertexIndex vertexIndex = (IChronoGraphVertexIndex) index;
-                this.vertexIndices.put(vertexIndex.getBackendIndexKey(), vertexIndex);
-            } else if (index instanceof IChronoGraphEdgeIndex) {
-                IChronoGraphEdgeIndex edgeIndex = (IChronoGraphEdgeIndex) index;
-                this.edgeIndices.put(edgeIndex.getBackendIndexKey(), edgeIndex);
-            } else {
-                throw new IllegalStateException(
-                    "Loaded unknown graph index class: '" + index.getClass().getName() + "'!");
-            }
-        }
-    }
-
-    private ChronoGraphIndex getIndexForBackendPropertyKey(final String propertyKey) {
-        checkNotNull(propertyKey, "Precondition violation - argument 'propertyKey' must not be NULL!");
-        if (propertyKey.startsWith(ChronoGraphConstants.INDEX_PREFIX_VERTEX)) {
-            return this.vertexIndices.get(propertyKey);
-        } else if (propertyKey.startsWith(ChronoGraphConstants.INDEX_PREFIX_EDGE)) {
-            return this.edgeIndices.get(propertyKey);
-        } else {
-            throw new IllegalArgumentException("The string '" + propertyKey + "' is no valid index property key!");
-        }
-    }
-
     private void performExclusive(final Runnable r) {
         this.lock.writeLock().lock();
         try {
@@ -348,7 +411,7 @@ public class ChronoGraphIndexManagerImpl implements ChronoGraphIndexManager, Chr
         try {
             return c.call();
         } catch (Exception e) {
-            throw new RuntimeException("Exception occurred while performing exclusive task: " + e.toString(), e);
+            throw new RuntimeException("Exception occurred while performing exclusive task: " + e, e);
         } finally {
             this.lock.writeLock().unlock();
         }
@@ -359,34 +422,37 @@ public class ChronoGraphIndexManagerImpl implements ChronoGraphIndexManager, Chr
         try {
             return c.call();
         } catch (Exception e) {
-            throw new RuntimeException("Exception occurred while performing exclusive task: " + e.toString(), e);
+            throw new RuntimeException("Exception occurred while performing exclusive task: " + e, e);
         } finally {
             this.lock.readLock().unlock();
         }
     }
 
-    private void assertAllPropertiesAreIndexed(final Class<? extends Element> clazz, final Set<String> propertyNames) {
+    private void assertAllPropertiesAreIndexed(final Class<? extends Element> clazz, final Set<String> propertyNames, long timestamp) {
         checkNotNull(clazz, "Precondition violation - argument 'clazz' must not be NULL!");
         checkNotNull(propertyNames, "Precondition violation - argument 'propertyNames' must not be NULL!");
+        checkArgument(timestamp >= 0, "Precondition violation - argument 'timestamp' must not be negative!");
         if (Vertex.class.isAssignableFrom(clazz)) {
-            Set<ChronoGraphIndex> indexedVertexProperties = this.getIndexedVertexProperties();
-            Set<String> indexedVertexPropertyNames = indexedVertexProperties.stream()
-                .map(ChronoGraphIndex::getIndexedProperty).collect(Collectors.toSet());
+            Set<String> indexedVertexPropertyNames = this.getIndexedVertexPropertyNamesAtTimestamp(timestamp);
             Set<String> unindexedProperties = Sets.newHashSet(propertyNames);
             unindexedProperties.removeAll(indexedVertexPropertyNames);
             if (unindexedProperties.isEmpty() == false) {
                 throw new IllegalArgumentException(
-                    "Some of the given properties are not indexed on vertices: " + unindexedProperties);
+                    "Some of the given properties are not indexed on vertices on branch '"
+                        + this.branch.getName() + "' at timestamp " + timestamp + ": "
+                        + unindexedProperties
+                );
             }
         } else if (Edge.class.isAssignableFrom(clazz)) {
-            Set<ChronoGraphIndex> indexedEdgeProperties = this.getIndexedEdgeProperties();
-            Set<String> indexedEdgePropertyNames = indexedEdgeProperties.stream().map(ChronoGraphIndex::getIndexedProperty)
-                .collect(Collectors.toSet());
+            Set<String> indexedEdgePropertyNames = this.getIndexedEdgePropertyNamesAtTimestamp(timestamp);
             Set<String> unindexedProperties = Sets.newHashSet(propertyNames);
             unindexedProperties.removeAll(indexedEdgePropertyNames);
             if (unindexedProperties.isEmpty() == false) {
                 throw new IllegalArgumentException(
-                    "Some of the given properties are not indexed on edges: " + unindexedProperties);
+                    "Some of the given properties are not indexed on edges on branch '"
+                        + this.branch.getName() + "' at timestamp " + timestamp + ": "
+                        + unindexedProperties
+                );
             }
         } else {
             throw new IllegalArgumentException("Unknown graph element class: '" + clazz.getName() + "'!");

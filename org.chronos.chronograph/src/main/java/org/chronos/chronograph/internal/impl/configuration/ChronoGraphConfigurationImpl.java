@@ -7,7 +7,6 @@ import org.chronos.common.configuration.AbstractConfiguration;
 import org.chronos.common.configuration.annotation.EnumFactoryMethod;
 import org.chronos.common.configuration.annotation.Namespace;
 import org.chronos.common.configuration.annotation.Parameter;
-import org.chronos.common.logging.LogLevel;
 
 import javax.annotation.PostConstruct;
 import java.lang.reflect.Constructor;
@@ -29,15 +28,21 @@ public class ChronoGraphConfigurationImpl extends AbstractConfiguration implemen
     @Parameter(key = ChronoGraphConfiguration.TRANSACTION_CHECK_GRAPH_INVARIANT)
     private boolean graphInvariantCheckActive = false;
 
-    @Parameter(key = ChronoGraphConfiguration.GRAPH_MODIFICATION_LOG_LEVEL)
-    @EnumFactoryMethod("fromString")
-    private LogLevel graphModificationLogLevel = LogLevel.OFF;
-
     @Parameter(key = ChronoGraphConfiguration.ALL_VERTICES_ITERATION_HANDLER_CLASS_NAME, optional = true)
     private String allVerticesIterationHandlerClassName = null;
 
     @Parameter(key = ChronoGraphConfiguration.ALL_EDGES_ITERATION_HANDLER_CLASS_NAME, optional = true)
     private String allEdgesIterationHandlerClassName = null;
+
+    @Parameter(key = ChronoGraphConfiguration.USE_STATIC_GROOVY_COMPILATION_CACHE, optional = true)
+    private boolean useStaticGroovyCompilationCache = false;
+
+    @Parameter(key = ChronoGraphConfiguration.USE_SECONDARY_INDEX_FOR_VALUE_MAP_STEP, optional = true)
+    private boolean useSecondaryIndexForGremlinValueMapStep = false;
+
+    @Parameter(key = ChronoGraphConfiguration.USE_SECONDARY_INDEX_FOR_VALUES_STEP, optional = true)
+    private boolean useSecondaryIndexForGremlinValuesStep = false;
+
 
     // =================================================================================================================
     // CACHE
@@ -110,14 +115,6 @@ public class ChronoGraphConfigurationImpl extends AbstractConfiguration implemen
     }
 
     @Override
-    public LogLevel getGraphModificationLogLevel() {
-        if (this.graphModificationLogLevel == null) {
-            return LogLevel.OFF;
-        }
-        return this.graphModificationLogLevel;
-    }
-
-    @Override
     public AllVerticesIterationHandler getAllVerticesIterationHandler() {
         return this.allVerticesIterationHandler;
     }
@@ -125,5 +122,20 @@ public class ChronoGraphConfigurationImpl extends AbstractConfiguration implemen
     @Override
     public AllEdgesIterationHandler getAllEdgesIterationHandler() {
         return this.allEdgesIterationHandler;
+    }
+
+    @Override
+    public boolean isUseStaticGroovyCompilationCache(){
+        return this.useStaticGroovyCompilationCache;
+    }
+
+    @Override
+    public boolean isUseSecondaryIndexForGremlinValueMapStep() {
+        return this.useSecondaryIndexForGremlinValueMapStep;
+    }
+
+    @Override
+    public boolean isUseSecondaryIndexForGremlinValuesStep() {
+        return this.useSecondaryIndexForGremlinValuesStep;
     }
 }

@@ -5,7 +5,8 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Streams;
 import com.google.common.hash.HashCode;
 import com.google.common.hash.Hashing;
-import org.chronos.common.logging.ChronoLogger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -27,6 +28,8 @@ public class ChronosFileUtils {
 
     private static final int UNZIP_BUFFER_SIZE_BYTES = 4096;
 
+    private static final Logger log = LoggerFactory.getLogger(ChronosFileUtils.class);
+
     private ChronosFileUtils() {
         throw new UnsupportedOperationException("Do not instantiate this class!");
     }
@@ -37,7 +40,7 @@ public class ChronosFileUtils {
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
             magic = raf.read() & 0xff | raf.read() << 8 & 0xff00;
         } catch (Exception e) {
-            ChronoLogger.logError("Failed to read file '" + file.getAbsolutePath() + "'!", e);
+            log.error("Failed to read file '" + file.getAbsolutePath() + "'!", e);
         }
         return magic == GZIPInputStream.GZIP_MAGIC;
     }

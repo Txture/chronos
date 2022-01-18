@@ -1,19 +1,14 @@
 package org.chronos.chronosphere.impl;
 
 import com.google.common.collect.Maps;
-import org.apache.commons.configuration.Configuration;
+import org.apache.commons.configuration2.Configuration;
 import org.chronos.chronodb.api.ChronoDBConstants;
 import org.chronos.chronodb.api.Order;
 import org.chronos.chronodb.internal.impl.engines.base.ChronosInternalCommitMetadata;
 import org.chronos.chronograph.api.index.ChronoGraphIndex;
 import org.chronos.chronograph.api.index.ChronoGraphIndexManager;
 import org.chronos.chronograph.api.structure.ChronoGraph;
-import org.chronos.chronosphere.api.ChronoSphere;
-import org.chronos.chronosphere.api.ChronoSphereBranchManager;
-import org.chronos.chronosphere.api.ChronoSphereEPackageManager;
-import org.chronos.chronosphere.api.ChronoSphereIndexManager;
-import org.chronos.chronosphere.api.ChronoSphereTransaction;
-import org.chronos.chronosphere.api.SphereBranch;
+import org.chronos.chronosphere.api.*;
 import org.chronos.chronosphere.api.exceptions.ChronoSphereConfigurationException;
 import org.chronos.chronosphere.impl.transaction.ChronoSphereTransactionImpl;
 import org.chronos.chronosphere.internal.api.ChronoSphereInternal;
@@ -29,10 +24,12 @@ import org.chronos.common.configuration.ChronosConfigurationUtil;
 import org.chronos.common.version.ChronosVersion;
 import org.eclipse.emf.ecore.EObject;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.Date;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.Map.Entry;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.Set;
 
 import static com.google.common.base.Preconditions.*;
 
@@ -50,7 +47,7 @@ public class StandardChronoSphere implements ChronoSphere, ChronoSphereInternal 
     private final EObjectToGraphMapper eObjectToGraphMapper;
     private final EPackageToGraphMapper ePackageToGraphMapper;
 
-    private final Lock branchLock;
+    private final Object branchLock;
     private final Map<SphereBranch, ChronoSphereIndexManager> branchToIndexManager;
 
     // =====================================================================================================================
@@ -66,7 +63,7 @@ public class StandardChronoSphere implements ChronoSphere, ChronoSphereInternal 
         this.ePackageToGraphMapper = new EPackageToGraphMapperImpl();
         this.branchManager = new ChronoSphereBranchManagerImpl(graph);
         this.ePackageManager = new ChronoSphereEPackageManagerImpl(this);
-        this.branchLock = new ReentrantLock(true);
+        this.branchLock = new Object();
         this.branchToIndexManager = Maps.newHashMap();
         // ensure that the graph format is correct
         this.ensureGraphFormatIsCompatible();
@@ -120,8 +117,7 @@ public class StandardChronoSphere implements ChronoSphere, ChronoSphereInternal 
     public ChronoSphereIndexManager getIndexManager(final String branchName) {
         checkNotNull(branchName, "Precondition violation - argument 'branchName' must not be NULL!");
         SphereBranch branch = this.getBranchManager().getBranch(branchName);
-        this.branchLock.lock();
-        try {
+        synchronized (this.branchLock){
             ChronoSphereIndexManager indexManager = this.branchToIndexManager.get(branch);
             if (indexManager != null) {
                 // index manager already exists
@@ -132,9 +128,6 @@ public class StandardChronoSphere implements ChronoSphere, ChronoSphereInternal 
                 this.branchToIndexManager.put(branch, indexManager);
                 return indexManager;
             }
-
-        } finally {
-            this.branchLock.unlock();
         }
     }
 
@@ -301,14 +294,14 @@ public class StandardChronoSphere implements ChronoSphere, ChronoSphereInternal 
     // =====================================================================================================================
 
     private void setUpDefaultGraphIndicesIfNecessary() {
-        ChronoGraphIndexManager indexManager = this.getRootGraph().getIndexManager();
-        ChronoGraphIndex kindIndex = indexManager.getVertexIndex(ChronoSphereGraphFormat.V_PROP__KIND);
-        if (kindIndex == null) {
-            indexManager.create().stringIndex().onVertexProperty(ChronoSphereGraphFormat.V_PROP__KIND).build();
+        ChronoGraphIndexManager indexManager = this.getRootGraph().getIndexManagerOnMaster();
+        Set<ChronoGraphIndex> kindIndices = indexManager.getVertexIndicesAtAnyPointInTime(ChronoSphereGraphFormat.V_PROP__KIND);
+        if (kindIndices.isEmpty()) {
+            indexManager.create().stringIndex().onVertexProperty(ChronoSphereGraphFormat.V_PROP__KIND).acrossAllTimestamps().build();
         }
-        ChronoGraphIndex classIndex = indexManager.getVertexIndex(ChronoSphereGraphFormat.V_PROP__ECLASS_ID);
-        if (classIndex == null) {
-            indexManager.create().stringIndex().onVertexProperty(ChronoSphereGraphFormat.V_PROP__ECLASS_ID).build();
+        Set<ChronoGraphIndex> classIndices = indexManager.getVertexIndicesAtAnyPointInTime(ChronoSphereGraphFormat.V_PROP__ECLASS_ID);
+        if (classIndices.isEmpty()) {
+            indexManager.create().stringIndex().onVertexProperty(ChronoSphereGraphFormat.V_PROP__ECLASS_ID).acrossAllTimestamps().build();
         }
     }
 

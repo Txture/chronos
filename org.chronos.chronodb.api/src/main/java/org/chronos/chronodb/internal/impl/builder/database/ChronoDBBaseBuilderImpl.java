@@ -1,20 +1,18 @@
 package org.chronos.chronodb.internal.impl.builder.database;
 
-import static com.google.common.base.Preconditions.*;
+import org.apache.commons.configuration2.Configuration;
+import org.apache.commons.configuration2.MapConfiguration;
+import org.chronos.chronodb.api.builder.database.ChronoDBBackendBuilder;
+import org.chronos.chronodb.api.builder.database.ChronoDBBaseBuilder;
+import org.chronos.chronodb.api.builder.database.ChronoDBPropertyFileBuilder;
+import org.chronos.chronodb.api.exceptions.ChronoDBConfigurationException;
 
 import java.io.File;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.sql.Driver;
-import java.sql.DriverManager;
-import java.sql.SQLException;
 import java.util.Properties;
 
-import org.apache.commons.configuration.Configuration;
-import org.apache.commons.configuration.MapConfiguration;
-import org.chronos.chronodb.api.builder.database.*;
-import org.chronos.chronodb.api.exceptions.ChronoDBConfigurationException;
-import org.chronos.common.builder.ChronoBuilder;
+import static com.google.common.base.Preconditions.*;
 
 public class ChronoDBBaseBuilderImpl extends AbstractChronoDBBuilder<ChronoDBBaseBuilderImpl>
 		implements ChronoDBBaseBuilder {

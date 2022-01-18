@@ -1,7 +1,6 @@
 package org.chronos.chronodb.api.builder.database.spi;
 
-import org.apache.commons.configuration.Configuration;
-import org.chronos.chronodb.api.ChronoDB;
+import org.apache.commons.configuration2.Configuration;
 import org.chronos.common.exceptions.ChronosIOException;
 
 import java.io.File;

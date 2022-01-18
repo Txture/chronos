@@ -2,7 +2,6 @@ package org.chronos.chronograph.test.cases.index;
 
 import com.google.common.collect.Sets;
 import org.chronos.chronograph.internal.impl.index.GraphIndexingUtils;
-import org.chronos.chronograph.internal.impl.structure.record.PropertyRecord;
 import org.chronos.chronograph.internal.impl.structure.record2.PropertyRecord2;
 import org.chronos.chronograph.test.base.ChronoGraphUnitTest;
 import org.junit.Test;

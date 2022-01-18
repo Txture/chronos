@@ -3,17 +3,18 @@ package org.chronos.chronodb.internal.impl;
 import org.chronos.chronodb.api.CommitMetadataFilter;
 import org.chronos.chronodb.api.DuplicateVersionEliminationMode;
 import org.chronos.chronodb.api.conflict.ConflictResolutionStrategy;
+import org.chronos.chronodb.internal.api.CacheType;
 import org.chronos.chronodb.internal.api.ChronoDBConfiguration;
 import org.chronos.common.configuration.AbstractConfiguration;
 import org.chronos.common.configuration.Comparison;
-import org.chronos.common.configuration.ParameterValueConverters;
 import org.chronos.common.configuration.annotation.*;
-import org.chronos.common.logging.ChronoLogger;
-
-import java.io.File;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Namespace(ChronoDBConfiguration.NAMESPACE)
 public abstract class ChronoDBBaseConfiguration extends AbstractConfiguration implements ChronoDBConfiguration {
+
+    private static final Logger log = LoggerFactory.getLogger(ChronoDBBaseConfiguration.class);
 
     // =====================================================================================================================
     // DEFAULT SETTINGS
@@ -49,6 +50,19 @@ public abstract class ChronoDBBaseConfiguration extends AbstractConfiguration im
     @Parameter(key = CACHE_MAX_SIZE)
     @RequiredIf(field = "cachingEnabled", comparison = Comparison.IS_SET_TO, compareValue = "true")
     private Integer cacheMaxSize;
+
+    @EnumFactoryMethod("fromString")
+    @IgnoredIf(field = "cachingEnabled", comparison = Comparison.IS_SET_TO, compareValue = "false")
+    @Parameter(key = CACHE_TYPE, optional = true)
+    private CacheType cacheType = CacheType.MOSAIC;
+
+    @IgnoredIf(field = "cacheType", comparison = Comparison.IS_NOT_SET_TO, compareValue = "HEAD_FIRST")
+    @Parameter(key = CACHE_HEADFIRST_PREFERRED_BRANCH, optional = true)
+    private String cacheHeadFirstPreferredBranch = null;
+
+    @IgnoredIf(field = "cacheType", comparison = Comparison.IS_NOT_SET_TO, compareValue = "HEAD_FIRST")
+    @Parameter(key = CACHE_HEADFIRST_PREFERRED_KEYSPACE, optional = true)
+    private String cacheHeadFirstPreferredKeyspace = null;
 
     @Parameter(key = QUERY_CACHE_ENABLED)
     private boolean indexQueryCachingEnabled = false;
@@ -119,6 +133,21 @@ public abstract class ChronoDBBaseConfiguration extends AbstractConfiguration im
     }
 
     @Override
+    public CacheType getCacheType() {
+        return this.cacheType;
+    }
+
+    @Override
+    public String getCacheHeadFirstPreferredBranch() {
+        return this.cacheHeadFirstPreferredBranch;
+    }
+
+    @Override
+    public String getCacheHeadFirstPreferredKeyspace() {
+        return this.cacheHeadFirstPreferredKeyspace;
+    }
+
+    @Override
     public boolean isIndexQueryCachingEnabled() {
         return this.indexQueryCachingEnabled;
     }
@@ -157,7 +186,7 @@ public abstract class ChronoDBBaseConfiguration extends AbstractConfiguration im
         try {
             return (Class<? extends CommitMetadataFilter>) Class.forName(this.commitMetadataFilterClassName.trim());
         } catch (ClassNotFoundException | NoClassDefFoundError e) {
-            ChronoLogger.logWarning("Configuration warning: could not find Commit Metadata Filter class: '" + this.commitMetadataFilterClassName.trim() + "' (" + e.getClass().getSimpleName() + ")! No filter will be instantiated.");
+            log.warn("Configuration warning: could not find Commit Metadata Filter class: '" + this.commitMetadataFilterClassName.trim() + "' (" + e.getClass().getSimpleName() + ")! No filter will be instantiated.");
             return null;
         }
     }

@@ -3,6 +3,7 @@ package org.chronos.chronodb.internal.api;
 import java.util.List;
 import java.util.Set;
 
+import org.chronos.chronodb.api.Branch;
 import org.chronos.chronodb.api.BranchManager;
 import org.chronos.chronodb.internal.impl.IBranchMetadata;
 
@@ -18,6 +19,10 @@ import org.chronos.chronodb.internal.impl.IBranchMetadata;
  *
  */
 public interface BranchManagerInternal extends BranchManager {
+
+	public void addBranchEventListener(BranchEventListener listener);
+
+	public void removeBranchEventListener(BranchEventListener listener);
 
 	@Override
 	public BranchInternal getBranch(String branchName);
@@ -36,4 +41,9 @@ public interface BranchManagerInternal extends BranchManager {
 	 *            The sorted list of branches, as indicated above. May be empty, but never <code>null</code>.
 	 */
 	public void loadBranchDataFromDump(List<IBranchMetadata> branches);
+
+	public default long getMaxNowAcrossAllBranches() {
+		return this.getBranches().stream().mapToLong(Branch::getNow).max().orElse(0);
+	}
+
 }

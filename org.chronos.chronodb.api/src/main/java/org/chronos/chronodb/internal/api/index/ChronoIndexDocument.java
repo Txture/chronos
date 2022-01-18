@@ -1,7 +1,9 @@
 package org.chronos.chronodb.internal.api.index;
 
 import org.chronos.chronodb.api.ChronoDBTransaction;
+import org.chronos.chronodb.api.SecondaryIndex;
 import org.chronos.chronodb.api.key.ChronoIdentifier;
+import org.chronos.chronodb.internal.api.Period;
 
 /**
  * A {@link ChronoIndexDocument} is an abstraction across all indexing backends.
@@ -58,7 +60,7 @@ public interface ChronoIndexDocument {
 	 *
 	 * @return The index name. Never <code>null</code>.
 	 */
-	public String getIndexName();
+	public SecondaryIndex getIndex();
 
 	/**
 	 * Returns the name of the branch in which the value represented by this document was indexed (immutable property).
@@ -124,5 +126,9 @@ public interface ChronoIndexDocument {
 	 *            The new "valid to" value. Subject to the constraints explained above. Must not be negative.
 	 */
 	public void setValidToTimestamp(long validTo);
+
+	public default Period getValidPeriod(){
+		return Period.createRange(this.getValidFromTimestamp(), this.getValidToTimestamp());
+	}
 
 }

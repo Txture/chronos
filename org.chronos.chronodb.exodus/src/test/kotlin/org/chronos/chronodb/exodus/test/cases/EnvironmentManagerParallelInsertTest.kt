@@ -2,11 +2,9 @@ package org.chronos.chronodb.exodus.test.cases
 
 import jetbrains.exodus.bindings.IntegerBinding
 import jetbrains.exodus.env.StoreConfig
+import mu.KotlinLogging
 import org.chronos.chronodb.exodus.test.base.EnvironmentTest
-import org.chronos.common.logging.ChronoLogger
 import org.chronos.common.test.utils.TestUtils
-import org.junit.Ignore
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import java.io.File
@@ -17,14 +15,20 @@ import kotlin.system.measureTimeMillis
 @Tag("slow")
 class EnvironmentManagerParallelInsertTest : EnvironmentTest(20, 5) {
 
+    companion object {
+
+        private val log = KotlinLogging.logger {}
+
+    }
+
     @Test
     fun environmentManagerParallelInsertTest() {
         val numberOfFolders = 100
         val folders = (0 until numberOfFolders).map { File(this.testDir, "env${it}") }.toList()
 
-        ChronoLogger.log("Sleeping")
+        log.info("Sleeping")
         sleep(1000)
-        ChronoLogger.log("Ready")
+        log.info("Ready")
 
         measureTimeMillis {
             val thread1 = Thread({ doWork(folders, 0, 250_000) }, "Thread 1")

@@ -2,20 +2,24 @@ package org.chronos.chronodb.internal.impl.query;
 
 import static com.google.common.base.Preconditions.*;
 
+import com.google.common.primitives.Primitives;
+import org.chronos.chronodb.api.SecondaryIndex;
+import org.chronos.chronodb.api.exceptions.InvalidIndexAccessException;
 import org.chronos.chronodb.api.query.Condition;
 import org.chronos.chronodb.internal.api.query.searchspec.SearchSpecification;
 
 public abstract class AbstractSearchSpecification<ELEMENTVALUE, CONDITIONTYPE extends Condition, SEARCHVALUE> implements SearchSpecification<ELEMENTVALUE, SEARCHVALUE> {
 
-	protected final String property;
+	protected final SecondaryIndex index;
 	protected final CONDITIONTYPE condition;
 	protected final SEARCHVALUE searchValue;
 
-	protected AbstractSearchSpecification(final String property, final CONDITIONTYPE condition, final SEARCHVALUE searchValue) {
-		checkNotNull(property, "Precondition violation - argument 'property' must not be NULL!");
+	protected AbstractSearchSpecification(final SecondaryIndex index, final CONDITIONTYPE condition, final SEARCHVALUE searchValue) {
+		checkNotNull(index, "Precondition violation - argument 'index' must not be NULL!");
 		checkNotNull(condition, "Precondition violation - argument 'condition' must not be NULL!");
 		checkNotNull(searchValue, "Precondition violation - argument 'searchValue' must not be NULL!");
-		this.property = property;
+		this.checkIndexType(index);
+		this.index = index;
 		this.condition = condition;
 		this.searchValue = searchValue;
 	}
@@ -25,8 +29,8 @@ public abstract class AbstractSearchSpecification<ELEMENTVALUE, CONDITIONTYPE ex
 	// =================================================================================================================
 
 	@Override
-	public String getProperty() {
-		return this.property;
+	public SecondaryIndex getIndex(){
+		return this.index;
 	}
 
 	@Override
@@ -48,7 +52,7 @@ public abstract class AbstractSearchSpecification<ELEMENTVALUE, CONDITIONTYPE ex
 		final int prime = 31;
 		int result = 1;
 		result = prime * result + (this.condition == null ? 0 : this.condition.hashCode());
-		result = prime * result + (this.property == null ? 0 : this.property.hashCode());
+		result = prime * result + (this.index == null ? 0 : this.index.hashCode());
 		result = prime * result + (this.searchValue == null ? 0 : this.searchValue.hashCode());
 		return result;
 	}
@@ -72,11 +76,11 @@ public abstract class AbstractSearchSpecification<ELEMENTVALUE, CONDITIONTYPE ex
 		} else if (!this.condition.equals(other.condition)) {
 			return false;
 		}
-		if (this.property == null) {
-			if (other.property != null) {
+		if (this.index == null) {
+			if (other.index != null) {
 				return false;
 			}
-		} else if (!this.property.equals(other.property)) {
+		} else if (!this.index.equals(other.index)) {
 			return false;
 		}
 		if (this.searchValue == null) {
@@ -91,6 +95,24 @@ public abstract class AbstractSearchSpecification<ELEMENTVALUE, CONDITIONTYPE ex
 
 	@Override
 	public String toString() {
-		return this.getProperty() + " " + this.getCondition().getInfix() + " '" + this.getSearchValue() + "'";
+		return this.getIndex() + " " + this.getCondition().getInfix() + " '" + this.getSearchValue() + "'";
 	}
+
+	protected abstract Class<ELEMENTVALUE> getElementValueClass();
+
+	private void checkIndexType(SecondaryIndex index){
+		Class<ELEMENTVALUE> expectedValueType = Primitives.wrap(this.getElementValueClass());
+		Class<?> indexValueType = Primitives.wrap(index.getValueType());
+
+		if (!expectedValueType.equals(indexValueType)) {
+			throw new InvalidIndexAccessException(
+				"Cannot create search specification of type '"
+					+ expectedValueType.getSimpleName() +
+					"' on index of type '"
+					+ indexValueType.getSimpleName()
+					+ "'!"
+			);
+		}
+	}
+
 }

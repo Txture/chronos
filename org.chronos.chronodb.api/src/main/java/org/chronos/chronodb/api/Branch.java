@@ -84,4 +84,13 @@ public interface Branch {
 	 * @since 0.6.0
 	 */
 	public IBranchMetadata getMetadata();
+
+	/**
+	 * Checks if this branch is the master branch.
+	 *
+	 * @return <code>true</code> if this is the master branch, otherwise <code>false</code>.
+	 */
+	public default boolean isMaster(){
+		return ChronoDBConstants.MASTER_BRANCH_IDENTIFIER.equals(this.getName());
+	}
 }

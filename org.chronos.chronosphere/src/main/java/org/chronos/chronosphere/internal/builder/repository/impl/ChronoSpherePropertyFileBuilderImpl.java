@@ -1,17 +1,16 @@
 package org.chronos.chronosphere.internal.builder.repository.impl;
 
-import static com.google.common.base.Preconditions.*;
-
-import java.io.File;
-import java.util.Set;
-
-import org.apache.commons.configuration.Configuration;
-import org.apache.commons.configuration.ConfigurationException;
-import org.apache.commons.configuration.PropertiesConfiguration;
+import com.google.common.collect.Sets;
+import org.apache.commons.configuration2.Configuration;
+import org.apache.commons.configuration2.PropertiesConfiguration;
 import org.chronos.chronosphere.api.builder.repository.ChronoSpherePropertyFileBuilder;
 import org.chronos.chronosphere.api.exceptions.ChronoSphereConfigurationException;
 
-import com.google.common.collect.Sets;
+import java.io.File;
+import java.io.FileReader;
+import java.util.Set;
+
+import static com.google.common.base.Preconditions.*;
 
 public class ChronoSpherePropertyFileBuilderImpl
 		extends AbstractChronoSphereFinalizableBuilder<ChronoSpherePropertyFileBuilder>
@@ -24,9 +23,12 @@ public class ChronoSpherePropertyFileBuilderImpl
 		checkArgument(propertiesFile.isFile(),
 				"Precondition violation - argument 'propertiesFile' must refer to a file (not a directory)!");
 		try {
-			Configuration configuration = new PropertiesConfiguration(propertiesFile);
+			PropertiesConfiguration configuration = new PropertiesConfiguration();
+			try(FileReader reader = new FileReader(propertiesFile)){
+				configuration.read(reader);
+			}
 			this.applyConfiguration(configuration);
-		} catch (ConfigurationException e) {
+		} catch (Exception e) {
 			throw new ChronoSphereConfigurationException(
 					"Failed to read properties file '" + propertiesFile.getAbsolutePath() + "'!", e);
 		}

@@ -37,8 +37,8 @@ public class GremlinDoubleMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerEqualsQueryOnIndexedDoubleMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().doubleIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().doubleIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -75,8 +75,8 @@ public class GremlinDoubleMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerNotEqualsQueryOnIndexedDoubleMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().doubleIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().doubleIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -116,8 +116,8 @@ public class GremlinDoubleMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerWithinQueryOnIndexedDoubleMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().doubleIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().doubleIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -156,8 +156,8 @@ public class GremlinDoubleMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerWithoutQueryOnIndexedDoubleMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().doubleIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().doubleIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -196,8 +196,8 @@ public class GremlinDoubleMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerLessThanQueryOnIndexedDoubleMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().doubleIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().doubleIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -237,8 +237,8 @@ public class GremlinDoubleMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerLessOrEqualToThanQueryOnIndexedDoubleMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().doubleIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().doubleIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -262,8 +262,8 @@ public class GremlinDoubleMultivalueTest extends AllChronoGraphBackendsTest {
     @Test
     public void cannotUseMultipleDoubleValuesForEqualityChecking() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().doubleIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().doubleIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         try {

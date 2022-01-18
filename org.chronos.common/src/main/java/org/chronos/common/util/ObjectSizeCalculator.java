@@ -38,7 +38,7 @@ import com.google.common.collect.Sets;
 /**
  * This class was originally contained in the Twitter Commons library. It has been copied and adapted.
  *
- * @author Martin Häusler -- Adaptions for Chronos
+ * @author Martin Haeusler -- Adaptions for Chronos
  * @author Attila Szegedi -- Initial contribution and API
  */
 public class ObjectSizeCalculator {

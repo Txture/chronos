@@ -3,6 +3,7 @@ package org.chronos.chronograph.internal.impl.iterators.builder.states;
 import org.chronos.chronograph.api.iterators.states.AllChangedVertexIdsAndTheirPreviousNeighborhoodState;
 import org.chronos.chronograph.api.structure.ChronoGraph;
 
+import java.util.Collections;
 import java.util.Set;
 
 public class AllChangedVertexIdsAndTheirPreviousNeighborhoodStateImpl extends AllChangedVertexIdsStateImpl implements AllChangedVertexIdsAndTheirPreviousNeighborhoodState {
@@ -20,7 +21,7 @@ public class AllChangedVertexIdsAndTheirPreviousNeighborhoodStateImpl extends Al
         if (this.neighborhoodEdgeIds == null) {
             this.neighborhoodEdgeIds = this.calculatPreviousNeighborhoodEdgeIds(this.getCurrentVertexId());
         }
-        return this.neighborhoodEdgeIds;
+        return Collections.unmodifiableSet(this.neighborhoodEdgeIds);
     }
 
 }

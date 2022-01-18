@@ -4,6 +4,7 @@ import com.google.common.collect.Iterators;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Graph;
+import org.apache.tinkerpop.gremlin.structure.Graph.*;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.util.GraphFactoryClass;
 import org.chronos.chronodb.api.ChronoDBConstants;
@@ -11,6 +12,7 @@ import org.chronos.chronodb.api.DumpOption;
 import org.chronos.chronodb.api.Order;
 import org.chronos.chronograph.api.ChronoGraphFactory;
 import org.chronos.chronograph.api.branch.ChronoGraphBranchManager;
+import org.chronos.chronograph.api.branch.GraphBranch;
 import org.chronos.chronograph.api.history.ChronoGraphHistoryManager;
 import org.chronos.chronograph.api.index.ChronoGraphIndexManager;
 import org.chronos.chronograph.api.iterators.ChronoGraphIterators;
@@ -29,6 +31,7 @@ import java.util.List;
 import java.util.Map.Entry;
 
 import static com.google.common.base.Preconditions.*;
+import static org.apache.tinkerpop.gremlin.structure.Graph.*;
 
 /**
  * The main entry point into the ChronoGraph API. Represents the entire graph instance.
@@ -39,17 +42,83 @@ import static com.google.common.base.Preconditions.*;
  *
  * @author martin.haeusler@uibk.ac.at -- Initial Contribution and API
  */
-@Graph.OptIn(Graph.OptIn.SUITE_STRUCTURE_STANDARD)
-@Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.io.IoGraphTest", method = "shouldReadWriteModernToFileWithHelpers", specific = "graphml", reason = "The Gremlin Test Suite has File I/O issues on Windows.")
-@Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.io.IoGraphTest", method = "shouldReadWriteClassicToFileWithHelpers", specific = "graphml", reason = "The Gremlin Test Suite has File I/O issues on Windows.")
-@Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.io.IoGraphTest", method = "shouldReadWriteModernToFileWithHelpers", specific = "graphson", reason = "The Gremlin Test Suite has File I/O issues on Windows.")
-@Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.io.IoGraphTest", method = "shouldReadWriteClassicToFileWithHelpers", specific = "graphson", reason = "The Gremlin Test Suite has File I/O issues on Windows.")
-@Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.io.IoGraphTest", method = "shouldReadWriteModernToFileWithHelpers", specific = "gryo", reason = "The Gremlin Test Suite has File I/O issues on Windows.")
-@Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.io.IoGraphTest", method = "shouldReadWriteClassicToFileWithHelpers", specific = "gryo", reason = "The Gremlin Test Suite has File I/O issues on Windows.")
-@Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.io.IoTest$GraphMLTest", method = "shouldProperlyEncodeWithGraphML", reason = "The Gremlin Test Suite has File I/O issues on Windows.")
-@Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.GraphConstructionTest", method = "shouldMaintainOriginalConfigurationObjectGivenToFactory", reason = "ChronoGraph internally adds configuration properties, test checks only property count.")
-@Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.TransactionTest", method = "shouldSupportMultipleThreadsOnTheSameTransaction", reason = "ChronoGraph is full ACID.")
-@Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.TransactionTest", method = "shouldNotReuseThreadedTransaction", reason = "ChronoGraph is full ACID.")
+@OptIn(OptIn.SUITE_STRUCTURE_STANDARD)
+@OptIn(OptIn.SUITE_PROCESS_STANDARD)
+@OptOut(
+    test = "org.apache.tinkerpop.gremlin.structure.io.IoGraphTest",
+    method = "shouldReadWriteModernToFileWithHelpers",
+    specific = "graphml",
+    reason = "The Gremlin Test Suite has File I/O issues on Windows."
+)
+@OptOut(
+    test = "org.apache.tinkerpop.gremlin.structure.io.IoGraphTest",
+    method = "shouldReadWriteClassicToFileWithHelpers",
+    specific = "graphml",
+    reason = "The Gremlin Test Suite has File I/O issues on Windows."
+)
+@OptOut(
+    test = "org.apache.tinkerpop.gremlin.structure.io.IoGraphTest",
+    method = "shouldReadWriteModernToFileWithHelpers",
+    specific = "graphson",
+    reason = "The Gremlin Test Suite has File I/O issues on Windows."
+)
+@OptOut(
+    test = "org.apache.tinkerpop.gremlin.structure.io.IoGraphTest",
+    method = "shouldReadWriteClassicToFileWithHelpers",
+    specific = "graphson",
+    reason = "The Gremlin Test Suite has File I/O issues on Windows."
+)
+@OptOut(
+    test = "org.apache.tinkerpop.gremlin.structure.io.IoGraphTest",
+    method = "shouldReadWriteModernToFileWithHelpers",
+    specific = "gryo",
+    reason = "The Gremlin Test Suite has File I/O issues on Windows."
+)
+@OptOut(
+    test = "org.apache.tinkerpop.gremlin.structure.io.IoGraphTest",
+    method = "shouldReadWriteClassicToFileWithHelpers",
+    specific = "gryo",
+    reason = "The Gremlin Test Suite has File I/O issues on Windows."
+)
+@OptOut(
+    test = "org.apache.tinkerpop.gremlin.structure.io.IoTest$GraphMLTest",
+    method = "shouldProperlyEncodeWithGraphML",
+    reason = "The Gremlin Test Suite has File I/O issues on Windows."
+)
+@OptOut(
+    test = "org.apache.tinkerpop.gremlin.structure.GraphConstructionTest",
+    method = "shouldMaintainOriginalConfigurationObjectGivenToFactory",
+    reason = "ChronoGraph internally adds configuration properties, test checks only property count."
+)
+@OptOut(
+    test = "org.apache.tinkerpop.gremlin.structure.TransactionTest",
+    method = "shouldSupportMultipleThreadsOnTheSameTransaction",
+    reason = "ChronoGraph is full ACID. This test can only work by violating ACID."
+)
+@OptOut(
+    test = "org.apache.tinkerpop.gremlin.structure.TransactionTest",
+    method = "shouldNotReuseThreadedTransaction",
+    reason = "ChronoGraph is full ACID. This test can only work by violating ACID."
+)
+@OptOut(
+    test = "org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.SubgraphTest$Traversals",
+    method = "g_V_withSideEffectXsgX_repeatXbothEXcreatedX_subgraphXsgX_outVX_timesX5X_name_dedup",
+    reason = "VertexProperty does not support user supplied identifiers in ChronoGraph, but this test requires that."
+)
+@OptOut(
+    test = "org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.SubgraphTest$Traversals",
+    method = "g_V_withSideEffectXsgX_outEXknowsX_subgraphXsgX_name_capXsgX",
+    reason = "VertexProperty does not support user supplied identifiers in ChronoGraph, but this test requires that."
+)
+@OptOut(
+    test = "org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.EventStrategyProcessTest",
+    method = "shouldUseActualPropertyOfVertexPropertyWhenRemoved",
+    reason = "This test fetches a meta-property from a vertex-property, deletes it, and later" +
+        " asserts that the corresponding event has been fired correctly. To do so, it compares" +
+        " the contents of the event with the original property. As this property was removed," +
+        " the data for comparison is no longer there (Properties in ChronoGraph are mutable)." +
+        " Fixing this would require a major change that makes properties immutable."
+)
 @GraphFactoryClass(ChronoGraphFactoryImpl.class)
 public interface ChronoGraph extends Graph {
 
@@ -146,10 +215,9 @@ public interface ChronoGraph extends Graph {
      *
      * @param id The ID of the vertex. Must not be <code>null</code>. Can be either a {@link String} containing the ID, or the {@link Vertex} itself.
      * @return The vertex with the given ID, or <code>null</code>.
-     *
      * @see #vertices(Object...)
      */
-    public default Vertex vertex(Object id){
+    public default Vertex vertex(Object id) {
         checkNotNull(id, "Precondition violation - argument 'id' must not be NULL!");
         return Iterators.getOnlyElement(this.vertices(id), null);
     }
@@ -163,10 +231,9 @@ public interface ChronoGraph extends Graph {
      *
      * @param id The ID of the edge. Must not be <code>null</code>. Can be either a {@link String} containing the ID, or the {@link Edge} itself.
      * @return The edge with the given ID, or <code>null</code>.
-     *
      * @see #edges(Object...)
      */
-    public default Edge edge(Object id){
+    public default Edge edge(Object id) {
         checkNotNull(id, "Precondition violation - argument 'id' must not be NULL!");
         return Iterators.getOnlyElement(this.edges(id), null);
     }
@@ -191,7 +258,7 @@ public interface ChronoGraph extends Graph {
      * @return An iterator over the history timestamps. May be empty, but never <code>null</code>. The history will be in descending
      * order (highest timestamp first).
      */
-    public default Iterator<Long> getVertexHistory(Object vertexId){
+    public default Iterator<Long> getVertexHistory(Object vertexId) {
         this.tx().readWrite();
         long timestamp = this.tx().getCurrentTransaction().getTimestamp();
         return this.getVertexHistory(vertexId, 0, timestamp, Order.DESCENDING);
@@ -210,11 +277,11 @@ public interface ChronoGraph extends Graph {
      * including (but not after) the transaction timestamp!
      *
      * @param vertexId The id of the vertex to fetch the history timestamps for. Must not be <code>null</code>.
-     * @param order The desired ordering of the history. Must not be <code>null</code>.
+     * @param order    The desired ordering of the history. Must not be <code>null</code>.
      * @return An iterator over the history timestamps. May be empty, but never <code>null</code>. The history will be in descending
      * order (highest timestamp first).
      */
-    public default Iterator<Long> getVertexHistory(Object vertexId, Order order){
+    public default Iterator<Long> getVertexHistory(Object vertexId, Order order) {
         this.tx().readWrite();
         long timestamp = this.tx().getCurrentTransaction().getTimestamp();
         return this.getVertexHistory(vertexId, 0, timestamp, order);
@@ -232,13 +299,13 @@ public interface ChronoGraph extends Graph {
      * <b>NOTE:</b> This method requires an open transaction! The returned history will always be the history up to and
      * including (but not after) the transaction timestamp!
      *
-     * @param vertexId The id of the vertex to fetch the history timestamps for. Must not be <code>null</code>.
+     * @param vertexId   The id of the vertex to fetch the history timestamps for. Must not be <code>null</code>.
      * @param lowerBound The lower bound of timestamps to consider (inclusive). Must be less than or equal to <code>upperBound</code>. Must not be negative.
      * @param upperBound The upper bound of timestamps to consider (inclusive). Must be less than or equal to <code>lowerBound</code>. Must not be negative.
      * @return An iterator over the history timestamps. May be empty, but never <code>null</code>. The history will be in descending
      * order (highest timestamp first).
      */
-    public default Iterator<Long> getVertexHistory(Object vertexId, long lowerBound, long upperBound){
+    public default Iterator<Long> getVertexHistory(Object vertexId, long lowerBound, long upperBound) {
         return this.getVertexHistory(vertexId, lowerBound, upperBound, Order.DESCENDING);
     }
 
@@ -254,10 +321,10 @@ public interface ChronoGraph extends Graph {
      * <b>NOTE:</b> This method requires an open transaction! The returned history will always be the history up to and
      * including (but not after) the transaction timestamp!
      *
-     * @param vertexId The id of the vertex to fetch the history timestamps for. Must not be <code>null</code>.
+     * @param vertexId   The id of the vertex to fetch the history timestamps for. Must not be <code>null</code>.
      * @param lowerBound The lower bound of timestamps to consider (inclusive). Must be less than or equal to <code>upperBound</code>. Must not be negative.
      * @param upperBound The upper bound of timestamps to consider (inclusive). Must be less than or equal to <code>lowerBound</code>. Must not be negative.
-     * @param order The desired ordering of the history. Must not be <code>null</code>.
+     * @param order      The desired ordering of the history. Must not be <code>null</code>.
      * @return An iterator over the history timestamps. May be empty, but never <code>null</code>.
      */
     public Iterator<Long> getVertexHistory(Object vertexId, long lowerBound, long upperBound, Order order);
@@ -276,9 +343,9 @@ public interface ChronoGraph extends Graph {
      *
      * @param vertex The vertex to fetch the history timestamps for. Must not be <code>null</code>.
      * @return An iterator over the history timestamps. May be empty, but never <code>null</code>. The history will be in descending
-     *      order (highest timestamp first).
+     * order (highest timestamp first).
      */
-    public default Iterator<Long> getVertexHistory(Vertex vertex){
+    public default Iterator<Long> getVertexHistory(Vertex vertex) {
         this.tx().readWrite();
         long timestamp = this.tx().getCurrentTransaction().getTimestamp();
         return this.getVertexHistory(vertex.id(), 0, timestamp, Order.DESCENDING);
@@ -296,13 +363,13 @@ public interface ChronoGraph extends Graph {
      * <b>NOTE:</b> This method requires an open transaction! The returned history will always be the history up to and
      * including (but not after) the transaction timestamp!
      *
-     * @param vertex The vertex to fetch the history timestamps for. Must not be <code>null</code>.
+     * @param vertex     The vertex to fetch the history timestamps for. Must not be <code>null</code>.
      * @param lowerBound The lower bound of timestamps to consider (inclusive). Must be less than or equal to <code>upperBound</code>. Must not be negative.
      * @param upperBound The upper bound of timestamps to consider (inclusive). Must be less than or equal to <code>lowerBound</code>. Must not be negative.
      * @return An iterator over the history timestamps. May be empty, but never <code>null</code>. The history will be in descending
-     *      order (highest timestamp first).
+     * order (highest timestamp first).
      */
-    public default Iterator<Long> getVertexHistory(Vertex vertex, long lowerBound, long upperBound){
+    public default Iterator<Long> getVertexHistory(Vertex vertex, long lowerBound, long upperBound) {
         return this.getVertexHistory(vertex.id(), lowerBound, upperBound, Order.DESCENDING);
     }
 
@@ -319,10 +386,10 @@ public interface ChronoGraph extends Graph {
      * including (but not after) the transaction timestamp!
      *
      * @param vertex The vertex to fetch the history timestamps for. Must not be <code>null</code>.
-     * @param order The desired ordering of the history. Must not be <code>null</code>.
+     * @param order  The desired ordering of the history. Must not be <code>null</code>.
      * @return An iterator over the history timestamps. May be empty, but never <code>null</code>.
      */
-    public default Iterator<Long> getVertexHistory(Vertex vertex, Order order){
+    public default Iterator<Long> getVertexHistory(Vertex vertex, Order order) {
         this.tx().readWrite();
         long timestamp = this.tx().getCurrentTransaction().getTimestamp();
         return this.getVertexHistory(vertex.id(), 0, timestamp, order);
@@ -340,13 +407,13 @@ public interface ChronoGraph extends Graph {
      * <b>NOTE:</b> This method requires an open transaction! The returned history will always be the history up to and
      * including (but not after) the transaction timestamp!
      *
-     * @param vertex The vertex to fetch the history timestamps for. Must not be <code>null</code>.
+     * @param vertex     The vertex to fetch the history timestamps for. Must not be <code>null</code>.
      * @param lowerBound The lower bound of timestamps to consider (inclusive). Must be less than or equal to <code>upperBound</code>. Must not be negative.
      * @param upperBound The upper bound of timestamps to consider (inclusive). Must be less than or equal to <code>lowerBound</code>. Must not be negative.
-     * @param order The desired ordering of the history. Must not be <code>null</code>.
+     * @param order      The desired ordering of the history. Must not be <code>null</code>.
      * @return An iterator over the history timestamps. May be empty, but never <code>null</code>.
      */
-    public default Iterator<Long> getVertexHistory(Vertex vertex, long lowerBound, long upperBound, Order order){
+    public default Iterator<Long> getVertexHistory(Vertex vertex, long lowerBound, long upperBound, Order order) {
         return this.getVertexHistory(vertex.id(), lowerBound, upperBound, order);
     }
 
@@ -366,7 +433,7 @@ public interface ChronoGraph extends Graph {
      * @return An iterator over the history timestamps. May be empty, but never <code>null</code>. The history will be in descending
      * order (highest timestamp first).
      */
-    public default Iterator<Long> getEdgeHistory(Object edgeId){
+    public default Iterator<Long> getEdgeHistory(Object edgeId) {
         this.tx().readWrite();
         long timestamp = this.tx().getCurrentTransaction().getTimestamp();
         return this.getEdgeHistory(edgeId, 0, timestamp, Order.DESCENDING);
@@ -385,10 +452,10 @@ public interface ChronoGraph extends Graph {
      * including (but not after) the transaction timestamp!
      *
      * @param edgeId The id of the edge to fetch the history timestamps for. Must not be <code>null</code>.
-     * @param order The desired ordering of the history. Must not be <code>null</code>.
+     * @param order  The desired ordering of the history. Must not be <code>null</code>.
      * @return An iterator over the history timestamps. May be empty, but never <code>null</code>.
      */
-    public default Iterator<Long> getEdgeHistory(Object edgeId, Order order){
+    public default Iterator<Long> getEdgeHistory(Object edgeId, Order order) {
         this.tx().readWrite();
         long timestamp = this.tx().getCurrentTransaction().getTimestamp();
         return this.getEdgeHistory(edgeId, timestamp, 0, order);
@@ -406,13 +473,13 @@ public interface ChronoGraph extends Graph {
      * <b>NOTE:</b> This method requires an open transaction! The returned history will always be the history up to and
      * including (but not after) the transaction timestamp!
      *
-     * @param edgeId The id of the edge to fetch the history timestamps for. Must not be <code>null</code>.
+     * @param edgeId     The id of the edge to fetch the history timestamps for. Must not be <code>null</code>.
      * @param lowerBound The lower bound of timestamps to consider (inclusive). Must be less than or equal to <code>upperBound</code>. Must not be negative.
      * @param upperBound The upper bound of timestamps to consider (inclusive). Must be less than or equal to <code>lowerBound</code>. Must not be negative.
      * @return An iterator over the history timestamps. May be empty, but never <code>null</code>. The history will be in descending
-     *   order (highest timestamp first).
+     * order (highest timestamp first).
      */
-    public default Iterator<Long> getEdgeHistory(Object edgeId, long lowerBound, long upperBound){
+    public default Iterator<Long> getEdgeHistory(Object edgeId, long lowerBound, long upperBound) {
         return this.getEdgeHistory(edgeId, lowerBound, upperBound, Order.DESCENDING);
     }
 
@@ -429,10 +496,10 @@ public interface ChronoGraph extends Graph {
      * <b>NOTE:</b> This method requires an open transaction! The returned history will always be the history up to and
      * including (but not after) the transaction timestamp!
      *
-     * @param edgeId The id of the edge to fetch the history timestamps for. Must not be <code>null</code>.
+     * @param edgeId     The id of the edge to fetch the history timestamps for. Must not be <code>null</code>.
      * @param lowerBound The lower bound of timestamps to consider (inclusive). Must be less than or equal to <code>upperBound</code>. Must not be negative.
      * @param upperBound The upper bound of timestamps to consider (inclusive). Must be less than or equal to <code>lowerBound</code>. Must not be negative.
-     * @param order The desired ordering of the history. Must not be <code>null</code>.
+     * @param order      The desired ordering of the history. Must not be <code>null</code>.
      * @return An iterator over the history timestamps. May be empty, but never <code>null</code>.
      */
     public Iterator<Long> getEdgeHistory(Object edgeId, long lowerBound, long upperBound, Order order);
@@ -451,9 +518,9 @@ public interface ChronoGraph extends Graph {
      *
      * @param edge The edge to fetch the history timestamps for. Must not be <code>null</code>.
      * @return An iterator over the history timestamps. May be empty, but never <code>null</code>. The history will be in descending
-     *   order (highest timestamp first).
+     * order (highest timestamp first).
      */
-    public default Iterator<Long> getEdgeHistory(Edge edge){
+    public default Iterator<Long> getEdgeHistory(Edge edge) {
         this.tx().readWrite();
         long timestamp = this.tx().getCurrentTransaction().getTimestamp();
         return this.getEdgeHistory(edge.id(), 0, timestamp, Order.DESCENDING);
@@ -471,11 +538,11 @@ public interface ChronoGraph extends Graph {
      * <b>NOTE:</b> This method requires an open transaction! The returned history will always be the history up to and
      * including (but not after) the transaction timestamp!
      *
-     * @param edge The edge to fetch the history timestamps for. Must not be <code>null</code>.
+     * @param edge  The edge to fetch the history timestamps for. Must not be <code>null</code>.
      * @param order The desired ordering of the history. Must not be <code>null</code>.
      * @return An iterator over the history timestamps. May be empty, but never <code>null</code>.
      */
-    public default Iterator<Long> getEdgeHistory(Edge edge, Order order){
+    public default Iterator<Long> getEdgeHistory(Edge edge, Order order) {
         this.tx().readWrite();
         long timestamp = this.tx().getCurrentTransaction().getTimestamp();
         return this.getEdgeHistory(edge.id(), 0, timestamp, order);
@@ -493,13 +560,13 @@ public interface ChronoGraph extends Graph {
      * <b>NOTE:</b> This method requires an open transaction! The returned history will always be the history up to and
      * including (but not after) the transaction timestamp!
      *
-     * @param edge The edge to fetch the history timestamps for. Must not be <code>null</code>.
+     * @param edge       The edge to fetch the history timestamps for. Must not be <code>null</code>.
      * @param lowerBound The lower bound of timestamps to consider (inclusive). Must be less than or equal to <code>upperBound</code>. Must not be negative.
      * @param upperBound The upper bound of timestamps to consider (inclusive). Must be less than or equal to <code>lowerBound</code>. Must not be negative.
      * @return An iterator over the history timestamps. May be empty, but never <code>null</code>. The history will be in descending
-     *   order (highest timestamp first).
+     * order (highest timestamp first).
      */
-    public default Iterator<Long> getEdgeHistory(Edge edge, long lowerBound, long upperBound){
+    public default Iterator<Long> getEdgeHistory(Edge edge, long lowerBound, long upperBound) {
         return this.getEdgeHistory(edge.id(), lowerBound, upperBound, Order.DESCENDING);
     }
 
@@ -516,13 +583,13 @@ public interface ChronoGraph extends Graph {
      * including (but not after) the transaction timestamp!
      * </p>
      *
-     * @param edge The edge to fetch the history timestamps for. Must not be <code>null</code>.
+     * @param edge       The edge to fetch the history timestamps for. Must not be <code>null</code>.
      * @param lowerBound The lower bound of timestamps to consider (inclusive). Must be less than or equal to <code>upperBound</code>. Must not be negative.
      * @param upperBound The upper bound of timestamps to consider (inclusive). Must be less than or equal to <code>lowerBound</code>. Must not be negative.
-     * @param order The desired ordering of the history. Must not be <code>null</code>.
+     * @param order      The desired ordering of the history. Must not be <code>null</code>.
      * @return An iterator over the history timestamps. May be empty, but never <code>null</code>.
      */
-    public default Iterator<Long> getEdgeHistory(Edge edge, long lowerBound, long upperBound, Order order){
+    public default Iterator<Long> getEdgeHistory(Edge edge, long lowerBound, long upperBound, Order order) {
         return this.getEdgeHistory(edge.id(), lowerBound, upperBound, order);
     }
 
@@ -659,10 +726,10 @@ public interface ChronoGraph extends Graph {
      * If the <code>from</code> value is greater than the <code>to</code> value, this method always returns an empty
      * iterator.
      *
-     * @param from The lower bound of the time range to look for commits in (inclusive). Must not be negative. Must be
-     *             less than or equal to the timestamp of this transaction.
-     * @param to   The upper bound of the time range to look for commits in (inclusive). Must not be negative. Must be
-     *             less than or equal to the timestamp of this transaction.
+     * @param from                         The lower bound of the time range to look for commits in (inclusive). Must not be negative. Must be
+     *                                     less than or equal to the timestamp of this transaction.
+     * @param to                           The upper bound of the time range to look for commits in (inclusive). Must not be negative. Must be
+     *                                     less than or equal to the timestamp of this transaction.
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return The iterator over the commit timestamps in the given time range, in descending order. May be empty, but
      * never <code>null</code>.
@@ -699,11 +766,11 @@ public interface ChronoGraph extends Graph {
      * If the <code>from</code> value is greater than the <code>to</code> value, this method always returns an empty
      * iterator.
      *
-     * @param branch The name of the branch to consider. Must not be <code>null</code>, must refer to an existing branch.
-     * @param from   The lower bound of the time range to look for commits in (inclusive). Must not be negative. Must be
-     *               less than or equal to the timestamp of this transaction.
-     * @param to     The upper bound of the time range to look for commits in (inclusive). Must not be negative. Must be
-     *               less than or equal to the timestamp of this transaction.
+     * @param branch                       The name of the branch to consider. Must not be <code>null</code>, must refer to an existing branch.
+     * @param from                         The lower bound of the time range to look for commits in (inclusive). Must not be negative. Must be
+     *                                     less than or equal to the timestamp of this transaction.
+     * @param to                           The upper bound of the time range to look for commits in (inclusive). Must not be negative. Must be
+     *                                     less than or equal to the timestamp of this transaction.
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return The iterator over the commit timestamps in the given time range, in descending order. May be empty, but
      * never <code>null</code>.
@@ -742,11 +809,11 @@ public interface ChronoGraph extends Graph {
      * If the <code>from</code> value is greater than the <code>to</code> value, this method always returns an empty
      * iterator.
      *
-     * @param from  The lower bound of the time range to look for commits in (inclusive). Must not be negative. Must be
-     *              less than or equal to the timestamp of this transaction.
-     * @param to    The upper bound of the time range to look for commits in (inclusive). Must not be negative. Must be
-     *              less than or equal to the timestamp of this transaction.
-     * @param order The order of the returned timestamps. Must not be <code>null</code>.
+     * @param from                         The lower bound of the time range to look for commits in (inclusive). Must not be negative. Must be
+     *                                     less than or equal to the timestamp of this transaction.
+     * @param to                           The upper bound of the time range to look for commits in (inclusive). Must not be negative. Must be
+     *                                     less than or equal to the timestamp of this transaction.
+     * @param order                        The order of the returned timestamps. Must not be <code>null</code>.
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return The iterator over the commit timestamps in the given time range. May be empty, but never
      * <code>null</code>.
@@ -785,11 +852,11 @@ public interface ChronoGraph extends Graph {
      * If the <code>from</code> value is greater than the <code>to</code> value, this method always returns an empty
      * iterator.
      *
-     * @param from  The lower bound of the time range to look for commits in (inclusive). Must not be negative. Must be
-     *              less than or equal to the timestamp of this transaction.
-     * @param to    The upper bound of the time range to look for commits in (inclusive). Must not be negative. Must be
-     *              less than or equal to the timestamp of this transaction.
-     * @param order The order of the returned timestamps. Must not be <code>null</code>.
+     * @param from                         The lower bound of the time range to look for commits in (inclusive). Must not be negative. Must be
+     *                                     less than or equal to the timestamp of this transaction.
+     * @param to                           The upper bound of the time range to look for commits in (inclusive). Must not be negative. Must be
+     *                                     less than or equal to the timestamp of this transaction.
+     * @param order                        The order of the returned timestamps. Must not be <code>null</code>.
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return The iterator over the commit timestamps in the given time range. May be empty, but never
      * <code>null</code>.
@@ -827,12 +894,12 @@ public interface ChronoGraph extends Graph {
      * If the <code>from</code> value is greater than the <code>to</code> value, this method always returns an empty
      * iterator.
      *
-     * @param branch The name of the branch to consider. Must not be <code>null</code>, must refer to an existing branch.
-     * @param from   The lower bound of the time range to look for commits in (inclusive). Must not be negative. Must be
-     *               less than or equal to the timestamp of this transaction.
-     * @param to     The upper bound of the time range to look for commits in (inclusive). Must not be negative. Must be
-     *               less than or equal to the timestamp of this transaction.
-     * @param order  The order of the returned timestamps. Must not be <code>null</code>.
+     * @param branch                       The name of the branch to consider. Must not be <code>null</code>, must refer to an existing branch.
+     * @param from                         The lower bound of the time range to look for commits in (inclusive). Must not be negative. Must be
+     *                                     less than or equal to the timestamp of this transaction.
+     * @param to                           The upper bound of the time range to look for commits in (inclusive). Must not be negative. Must be
+     *                                     less than or equal to the timestamp of this transaction.
+     * @param order                        The order of the returned timestamps. Must not be <code>null</code>.
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return The iterator over the commit timestamps in the given time range. May be empty, but never
      * <code>null</code>.
@@ -878,10 +945,10 @@ public interface ChronoGraph extends Graph {
      * Please keep in mind that some commits may not have any metadata attached. In this case, the
      * {@linkplain Entry#getValue() value} component of the {@link Entry} will be set to <code>null</code>.
      *
-     * @param from The lower bound of the time range to look for commits in (inclusive). Must not be negative. Must be
-     *             less than or equal to the timestamp of this transaction.
-     * @param to   The upper bound of the time range to look for commits in (inclusive). Must not be negative. Must be
-     *             less than or equal to the timestamp of this transaction.
+     * @param from                         The lower bound of the time range to look for commits in (inclusive). Must not be negative. Must be
+     *                                     less than or equal to the timestamp of this transaction.
+     * @param to                           The upper bound of the time range to look for commits in (inclusive). Must not be negative. Must be
+     *                                     less than or equal to the timestamp of this transaction.
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return An iterator over the commits in the given time range in descending order. The contained entries have the
      * timestamp as the {@linkplain Entry#getKey() key} component and the associated metadata as their
@@ -931,11 +998,11 @@ public interface ChronoGraph extends Graph {
      * Please keep in mind that some commits may not have any metadata attached. In this case, the
      * {@linkplain Entry#getValue() value} component of the {@link Entry} will be set to <code>null</code>.
      *
-     * @param branch The name of the branch to consider. Must not be <code>null</code>, must refer to an existing branch.
-     * @param from   The lower bound of the time range to look for commits in (inclusive). Must not be negative. Must be
-     *               less than or equal to the timestamp of this transaction.
-     * @param to     The upper bound of the time range to look for commits in (inclusive). Must not be negative. Must be
-     *               less than or equal to the timestamp of this transaction.
+     * @param branch                       The name of the branch to consider. Must not be <code>null</code>, must refer to an existing branch.
+     * @param from                         The lower bound of the time range to look for commits in (inclusive). Must not be negative. Must be
+     *                                     less than or equal to the timestamp of this transaction.
+     * @param to                           The upper bound of the time range to look for commits in (inclusive). Must not be negative. Must be
+     *                                     less than or equal to the timestamp of this transaction.
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return An iterator over the commits in the given time range in descending order. The contained entries have the
      * timestamp as the {@linkplain Entry#getKey() key} component and the associated metadata as their
@@ -988,11 +1055,11 @@ public interface ChronoGraph extends Graph {
      * Please keep in mind that some commits may not have any metadata attached. In this case, the
      * {@linkplain Entry#getValue() value} component of the {@link Entry} will be set to <code>null</code>.
      *
-     * @param from  The lower bound of the time range to look for commits in (inclusive). Must not be negative. Must be
-     *              less than or equal to the timestamp of this transaction.
-     * @param to    The upper bound of the time range to look for commits in (inclusive). Must not be negative. Must be
-     *              less than or equal to the timestamp of this transaction.
-     * @param order The order of the returned commits. Must not be <code>null</code>.
+     * @param from                         The lower bound of the time range to look for commits in (inclusive). Must not be negative. Must be
+     *                                     less than or equal to the timestamp of this transaction.
+     * @param to                           The upper bound of the time range to look for commits in (inclusive). Must not be negative. Must be
+     *                                     less than or equal to the timestamp of this transaction.
+     * @param order                        The order of the returned commits. Must not be <code>null</code>.
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return An iterator over the commits in the given time range. The contained entries have the timestamp as the
      * {@linkplain Entry#getKey() key} component and the associated metadata as their
@@ -1043,12 +1110,12 @@ public interface ChronoGraph extends Graph {
      * Please keep in mind that some commits may not have any metadata attached. In this case, the
      * {@linkplain Entry#getValue() value} component of the {@link Entry} will be set to <code>null</code>.
      *
-     * @param branch The name of the branch to consider. Must not be <code>null</code>, must refer to an existing branch.
-     * @param from   The lower bound of the time range to look for commits in (inclusive). Must not be negative. Must be
-     *               less than or equal to the timestamp of this transaction.
-     * @param to     The upper bound of the time range to look for commits in (inclusive). Must not be negative. Must be
-     *               less than or equal to the timestamp of this transaction.
-     * @param order  The order of the returned commits. Must not be <code>null</code>.
+     * @param branch                       The name of the branch to consider. Must not be <code>null</code>, must refer to an existing branch.
+     * @param from                         The lower bound of the time range to look for commits in (inclusive). Must not be negative. Must be
+     *                                     less than or equal to the timestamp of this transaction.
+     * @param to                           The upper bound of the time range to look for commits in (inclusive). Must not be negative. Must be
+     *                                     less than or equal to the timestamp of this transaction.
+     * @param order                        The order of the returned commits. Must not be <code>null</code>.
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return An iterator over the commits in the given time range. The contained entries have the timestamp as the
      * {@linkplain Entry#getKey() key} component and the associated metadata as their
@@ -1093,14 +1160,14 @@ public interface ChronoGraph extends Graph {
      * {@code getCommitTimestampsPaged(123456, 200, 2, Order.DESCENDING} will return 200 commit timestamps, skipping the
      * 400 latest commit timestamps, which are smaller than 123456.
      *
-     * @param minTimestamp The minimum timestamp to consider (inclusive). All lower timestamps will be excluded from the
-     *                     pagination. Must be less than or equal to the timestamp of this transaction.
-     * @param maxTimestamp The highest timestamp to consider (inclusive). All higher timestamps will be excluded from the
-     *                     pagination. Must be less than or equal to the timestamp of this transaction.
-     * @param pageSize     The size of the page, i.e. the maximum number of elements allowed to be contained in the resulting
-     *                     iterator. Must be greater than zero.
-     * @param pageIndex    The index of the page to retrieve. Must not be negative.
-     * @param order        The desired ordering for the commit timestamps
+     * @param minTimestamp                 The minimum timestamp to consider (inclusive). All lower timestamps will be excluded from the
+     *                                     pagination. Must be less than or equal to the timestamp of this transaction.
+     * @param maxTimestamp                 The highest timestamp to consider (inclusive). All higher timestamps will be excluded from the
+     *                                     pagination. Must be less than or equal to the timestamp of this transaction.
+     * @param pageSize                     The size of the page, i.e. the maximum number of elements allowed to be contained in the resulting
+     *                                     iterator. Must be greater than zero.
+     * @param pageIndex                    The index of the page to retrieve. Must not be negative.
+     * @param order                        The desired ordering for the commit timestamps
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return An iterator that contains the commit timestamps for the requested page. Never <code>null</code>, may be
      * empty. If the requested page does not exist, this iterator will always be empty.
@@ -1147,15 +1214,15 @@ public interface ChronoGraph extends Graph {
      * {@code getCommitTimestampsPaged(123456, 200, 2, Order.DESCENDING} will return 200 commit timestamps, skipping the
      * 400 latest commit timestamps, which are smaller than 123456.
      *
-     * @param branch       The name of the branch to consider. Must not be <code>null</code>, must refer to an existing branch.
-     * @param minTimestamp The minimum timestamp to consider (inclusive). All lower timestamps will be excluded from the
-     *                     pagination. Must be less than or equal to the timestamp of this transaction.
-     * @param maxTimestamp The highest timestamp to consider (inclusive). All higher timestamps will be excluded from the
-     *                     pagination. Must be less than or equal to the timestamp of this transaction.
-     * @param pageSize     The size of the page, i.e. the maximum number of elements allowed to be contained in the resulting
-     *                     iterator. Must be greater than zero.
-     * @param pageIndex    The index of the page to retrieve. Must not be negative.
-     * @param order        The desired ordering for the commit timestamps
+     * @param branch                       The name of the branch to consider. Must not be <code>null</code>, must refer to an existing branch.
+     * @param minTimestamp                 The minimum timestamp to consider (inclusive). All lower timestamps will be excluded from the
+     *                                     pagination. Must be less than or equal to the timestamp of this transaction.
+     * @param maxTimestamp                 The highest timestamp to consider (inclusive). All higher timestamps will be excluded from the
+     *                                     pagination. Must be less than or equal to the timestamp of this transaction.
+     * @param pageSize                     The size of the page, i.e. the maximum number of elements allowed to be contained in the resulting
+     *                                     iterator. Must be greater than zero.
+     * @param pageIndex                    The index of the page to retrieve. Must not be negative.
+     * @param order                        The desired ordering for the commit timestamps
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return An iterator that contains the commit timestamps for the requested page. Never <code>null</code>, may be
      * empty. If the requested page does not exist, this iterator will always be empty.
@@ -1211,14 +1278,14 @@ public interface ChronoGraph extends Graph {
      * the metadata associated with this commit as their second component. The second component can be <code>null</code>
      * if the commit was executed without providing metadata.
      *
-     * @param minTimestamp The minimum timestamp to consider (inclusive). All lower timestamps will be excluded from the
-     *                     pagination. Must be less than or equal to the timestamp of this transaction.
-     * @param maxTimestamp The highest timestamp to consider. All higher timestamps will be excluded from the pagination. Must be
-     *                     less than or equal to the timestamp of this transaction.
-     * @param pageSize     The size of the page, i.e. the maximum number of elements allowed to be contained in the resulting
-     *                     iterator. Must be greater than zero.
-     * @param pageIndex    The index of the page to retrieve. Must not be negative.
-     * @param order        The desired ordering for the commit timestamps
+     * @param minTimestamp                 The minimum timestamp to consider (inclusive). All lower timestamps will be excluded from the
+     *                                     pagination. Must be less than or equal to the timestamp of this transaction.
+     * @param maxTimestamp                 The highest timestamp to consider. All higher timestamps will be excluded from the pagination. Must be
+     *                                     less than or equal to the timestamp of this transaction.
+     * @param pageSize                     The size of the page, i.e. the maximum number of elements allowed to be contained in the resulting
+     *                                     iterator. Must be greater than zero.
+     * @param pageIndex                    The index of the page to retrieve. Must not be negative.
+     * @param order                        The desired ordering for the commit timestamps
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return An iterator that contains the commits for the requested page. Never <code>null</code>, may be empty. If
      * the requested page does not exist, this iterator will always be empty.
@@ -1275,15 +1342,15 @@ public interface ChronoGraph extends Graph {
      * the metadata associated with this commit as their second component. The second component can be <code>null</code>
      * if the commit was executed without providing metadata.
      *
-     * @param branch       The name of the branch to consider. Must not be <code>null</code>, must refer to an existing branch.
-     * @param minTimestamp The minimum timestamp to consider (inclusive). All lower timestamps will be excluded from the
-     *                     pagination. Must be less than or equal to the timestamp of this transaction.
-     * @param maxTimestamp The highest timestamp to consider. All higher timestamps will be excluded from the pagination. Must be
-     *                     less than or equal to the timestamp of this transaction.
-     * @param pageSize     The size of the page, i.e. the maximum number of elements allowed to be contained in the resulting
-     *                     iterator. Must be greater than zero.
-     * @param pageIndex    The index of the page to retrieve. Must not be negative.
-     * @param order        The desired ordering for the commit timestamps
+     * @param branch                       The name of the branch to consider. Must not be <code>null</code>, must refer to an existing branch.
+     * @param minTimestamp                 The minimum timestamp to consider (inclusive). All lower timestamps will be excluded from the
+     *                                     pagination. Must be less than or equal to the timestamp of this transaction.
+     * @param maxTimestamp                 The highest timestamp to consider. All higher timestamps will be excluded from the pagination. Must be
+     *                                     less than or equal to the timestamp of this transaction.
+     * @param pageSize                     The size of the page, i.e. the maximum number of elements allowed to be contained in the resulting
+     *                                     iterator. Must be greater than zero.
+     * @param pageIndex                    The index of the page to retrieve. Must not be negative.
+     * @param order                        The desired ordering for the commit timestamps
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return An iterator that contains the commits for the requested page. Never <code>null</code>, may be empty. If
      * the requested page does not exist, this iterator will always be empty.
@@ -1328,10 +1395,10 @@ public interface ChronoGraph extends Graph {
      * 10). In other words, the result list will always have as many entries as the request <code>count</code>, except
      * when there are not as many commits on the store yet.
      *
-     * @param timestamp The request timestamp around which the commits should be centered. Must not be negative.
-     * @param count     How many commits to retrieve around the request timestamp. By default, the closest
-     *                  <code>count/2</code> commits will be taken on both sides of the request timestamp. Must not be
-     *                  negative.
+     * @param timestamp                    The request timestamp around which the commits should be centered. Must not be negative.
+     * @param count                        How many commits to retrieve around the request timestamp. By default, the closest
+     *                                     <code>count/2</code> commits will be taken on both sides of the request timestamp. Must not be
+     *                                     negative.
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return A list of pairs. The keys are commit timsetamps, the corresponding values are the commit metadata objects
      * (which may be <code>null</code>). The list itself will never be <code>null</code>, but may be empty (if
@@ -1378,12 +1445,12 @@ public interface ChronoGraph extends Graph {
      * 10). In other words, the result list will always have as many entries as the request <code>count</code>, except
      * when there are not as many commits on the store yet.
      *
-     * @param branch    The name of the branch to execute the search on. Must refer to an existing branch, and must in
-     *                  particular not be <code>null</code>.
-     * @param timestamp The request timestamp around which the commits should be centered. Must not be negative.
-     * @param count     How many commits to retrieve around the request timestamp. By default, the closest
-     *                  <code>count/2</code> commits will be taken on both sides of the request timestamp. Must not be
-     *                  negative.
+     * @param branch                       The name of the branch to execute the search on. Must refer to an existing branch, and must in
+     *                                     particular not be <code>null</code>.
+     * @param timestamp                    The request timestamp around which the commits should be centered. Must not be negative.
+     * @param count                        How many commits to retrieve around the request timestamp. By default, the closest
+     *                                     <code>count/2</code> commits will be taken on both sides of the request timestamp. Must not be
+     *                                     negative.
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return A list of pairs. The keys are commit timsetamps, the corresponding values are the commit metadata objects
      * (which may be <code>null</code>). The list itself will never be <code>null</code>, but may be empty (if
@@ -1418,8 +1485,8 @@ public interface ChronoGraph extends Graph {
      * For example, calling {@link #getCommitMetadataBefore(long, int)} with a timestamp and a count of 10, this method
      * will return the latest 10 commits (strictly) before the given request timestamp.
      *
-     * @param timestamp The timestamp to investigate. Must not be negative.
-     * @param count     How many commits to retrieve before the given request timestamp. Must not be negative.
+     * @param timestamp                    The timestamp to investigate. Must not be negative.
+     * @param count                        How many commits to retrieve before the given request timestamp. Must not be negative.
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return A list of pairs. The keys are commit timsetamps, the corresponding values are the commit metadata objects
      * (which may be <code>null</code>). The list itself will never be <code>null</code>, but may be empty (if
@@ -1458,10 +1525,10 @@ public interface ChronoGraph extends Graph {
      * For example, calling {@link #getCommitMetadataBefore(String, long, int)} with a timestamp and a count of 10, this
      * method will return the latest 10 commits (strictly) before the given request timestamp.
      *
-     * @param branch    The name of the branch to execute the search on. Must refer to an existing branch, and must in
-     *                  particular not be <code>null</code>.
-     * @param timestamp The timestamp to investigate. Must not be negative.
-     * @param count     How many commits to retrieve before the given request timestamp. Must not be negative.
+     * @param branch                       The name of the branch to execute the search on. Must refer to an existing branch, and must in
+     *                                     particular not be <code>null</code>.
+     * @param timestamp                    The timestamp to investigate. Must not be negative.
+     * @param count                        How many commits to retrieve before the given request timestamp. Must not be negative.
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return A list of pairs. The keys are commit timsetamps, the corresponding values are the commit metadata objects
      * (which may be <code>null</code>). The list itself will never be <code>null</code>, but may be empty (if
@@ -1496,8 +1563,8 @@ public interface ChronoGraph extends Graph {
      * For example, calling {@link #getCommitMetadataAfter(long, int)} with a timestamp and a count of 10, this method
      * will return the oldest 10 commits (strictly) after the given request timestamp.
      *
-     * @param timestamp The timestamp to investigate. Must not be negative.
-     * @param count     How many commits to retrieve after the given request timestamp. Must not be negative.
+     * @param timestamp                    The timestamp to investigate. Must not be negative.
+     * @param count                        How many commits to retrieve after the given request timestamp. Must not be negative.
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return A list of pairs. The keys are commit timsetamps, the corresponding values are the commit metadata objects
      * (which may be <code>null</code>). The list itself will never be <code>null</code>, but may be empty (if
@@ -1535,10 +1602,10 @@ public interface ChronoGraph extends Graph {
      * For example, calling {@link #getCommitMetadataAfter(String, long, int)} with a timestamp and a count of 10, this
      * method will return the oldest 10 commits (strictly) after the given request timestamp.
      *
-     * @param branch    The name of the branch to execute the search on. Must refer to an existing branch, and must in
-     *                  particular not be <code>null</code>.
-     * @param timestamp The timestamp to investigate. Must not be negative.
-     * @param count     How many commits to retrieve after the given request timestamp. Must not be negative.
+     * @param branch                       The name of the branch to execute the search on. Must refer to an existing branch, and must in
+     *                                     particular not be <code>null</code>.
+     * @param timestamp                    The timestamp to investigate. Must not be negative.
+     * @param count                        How many commits to retrieve after the given request timestamp. Must not be negative.
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return A list of pairs. The keys are commit timsetamps, the corresponding values are the commit metadata objects
      * (which may be <code>null</code>). The list itself will never be <code>null</code>, but may be empty (if
@@ -1581,10 +1648,10 @@ public interface ChronoGraph extends Graph {
      * 10). In other words, the result list will always have as many entries as the request <code>count</code>, except
      * when there are not as many commits on the store yet.
      *
-     * @param timestamp The request timestamp around which the commits should be centered. Must not be negative.
-     * @param count     How many commits to retrieve around the request timestamp. By default, the closest
-     *                  <code>count/2</code> commits will be taken on both sides of the request timestamp. Must not be
-     *                  negative.
+     * @param timestamp                    The request timestamp around which the commits should be centered. Must not be negative.
+     * @param count                        How many commits to retrieve around the request timestamp. By default, the closest
+     *                                     <code>count/2</code> commits will be taken on both sides of the request timestamp. Must not be
+     *                                     negative.
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return A list of timestamps. Never be <code>null</code>, but may be empty (if there are no commits to report).
      * The list is sorted in descending order.
@@ -1628,12 +1695,12 @@ public interface ChronoGraph extends Graph {
      * 10). In other words, the result list will always have as many entries as the request <code>count</code>, except
      * when there are not as many commits on the store yet.
      *
-     * @param branch    The name of the branch to execute the search on. Must refer to an existing branch, and must in
-     *                  particular not be <code>null</code>.
-     * @param timestamp The request timestamp around which the commits should be centered. Must not be negative.
-     * @param count     How many commits to retrieve around the request timestamp. By default, the closest
-     *                  <code>count/2</code> commits will be taken on both sides of the request timestamp. Must not be
-     *                  negative.
+     * @param branch                       The name of the branch to execute the search on. Must refer to an existing branch, and must in
+     *                                     particular not be <code>null</code>.
+     * @param timestamp                    The request timestamp around which the commits should be centered. Must not be negative.
+     * @param count                        How many commits to retrieve around the request timestamp. By default, the closest
+     *                                     <code>count/2</code> commits will be taken on both sides of the request timestamp. Must not be
+     *                                     negative.
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return A list of timestamps. Never be <code>null</code>, but may be empty (if there are no commits to report).
      * The list is sorted in descending order.
@@ -1665,8 +1732,8 @@ public interface ChronoGraph extends Graph {
      * For example, calling {@link #getCommitTimestampsBefore(long, int)} with a timestamp and a count of 10, this
      * method will return the latest 10 commits (strictly) before the given request timestamp.
      *
-     * @param timestamp The timestamp to investigate. Must not be negative.
-     * @param count     How many commits to retrieve before the given request timestamp. Must not be negative.
+     * @param timestamp                    The timestamp to investigate. Must not be negative.
+     * @param count                        How many commits to retrieve before the given request timestamp. Must not be negative.
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return A list of timestamps. Never be <code>null</code>, but may be empty (if there are no commits to report).
      * The list is sorted in descending order.
@@ -1700,10 +1767,10 @@ public interface ChronoGraph extends Graph {
      * For example, calling {@link #getCommitTimestampsBefore(String, long, int)} with a timestamp and a count of 10,
      * this method will return the latest 10 commits (strictly) before the given request timestamp.
      *
-     * @param branch    The name of the branch to execute the search on. Must refer to an existing branch, and must in
-     *                  particular not be <code>null</code>.
-     * @param timestamp The timestamp to investigate. Must not be negative.
-     * @param count     How many commits to retrieve before the given request timestamp. Must not be negative.
+     * @param branch                       The name of the branch to execute the search on. Must refer to an existing branch, and must in
+     *                                     particular not be <code>null</code>.
+     * @param timestamp                    The timestamp to investigate. Must not be negative.
+     * @param count                        How many commits to retrieve before the given request timestamp. Must not be negative.
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return A list of timestamps. Never be <code>null</code>, but may be empty (if there are no commits to report).
      * The list is sorted in descending order.
@@ -1735,8 +1802,8 @@ public interface ChronoGraph extends Graph {
      * For example, calling {@link #getCommitTimestampsAfter(long, int)} with a timestamp and a count of 10, this method
      * will return the oldest 10 commits (strictly) after the given request timestamp.
      *
-     * @param timestamp The timestamp to investigate. Must not be negative.
-     * @param count     How many commits to retrieve after the given request timestamp. Must not be negative.
+     * @param timestamp                    The timestamp to investigate. Must not be negative.
+     * @param count                        How many commits to retrieve after the given request timestamp. Must not be negative.
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return A list of timestamps. Never be <code>null</code>, but may be empty (if there are no commits to report).
      * The list is sorted in descending order.
@@ -1770,10 +1837,10 @@ public interface ChronoGraph extends Graph {
      * For example, calling {@link #getCommitTimestampsAfter(String, long, int)} with a timestamp and a count of 10,
      * this method will return the oldest 10 commits (strictly) after the given request timestamp.
      *
-     * @param branch    The name of the branch to execute the search on. Must refer to an existing branch, and must in
-     *                  particular not be <code>null</code>.
-     * @param timestamp The timestamp to investigate. Must not be negative.
-     * @param count     How many commits to retrieve after the given request timestamp. Must not be negative.
+     * @param branch                       The name of the branch to execute the search on. Must refer to an existing branch, and must in
+     *                                     particular not be <code>null</code>.
+     * @param timestamp                    The timestamp to investigate. Must not be negative.
+     * @param count                        How many commits to retrieve after the given request timestamp. Must not be negative.
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return A list of timestamps. Never be <code>null</code>, but may be empty (if there are no commits to report).
      * The list is sorted in descending order.
@@ -1804,10 +1871,10 @@ public interface ChronoGraph extends Graph {
      * <p>
      * If <code>from</code> is greater than <code>to</code>, this method will always return zero.
      *
-     * @param from The minimum timestamp to include in the search (inclusive). Must not be negative. Must be less than or
-     *             equal to the timestamp of this transaction.
-     * @param to   The maximum timestamp to include in the search (inclusive). Must not be negative. Must be less than or
-     *             equal to the timestamp of this transaction.
+     * @param from                         The minimum timestamp to include in the search (inclusive). Must not be negative. Must be less than or
+     *                                     equal to the timestamp of this transaction.
+     * @param to                           The maximum timestamp to include in the search (inclusive). Must not be negative. Must be less than or
+     *                                     equal to the timestamp of this transaction.
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return The number of commits that have occurred in the specified time range. May be zero, but never negative.
      */
@@ -1838,11 +1905,11 @@ public interface ChronoGraph extends Graph {
      * <p>
      * If <code>from</code> is greater than <code>to</code>, this method will always return zero.
      *
-     * @param branch The name of the branch to consider. Must not be <code>null</code>, must refer to an existing branch.
-     * @param from   The minimum timestamp to include in the search (inclusive). Must not be negative. Must be less than or
-     *               equal to the timestamp of this transaction.
-     * @param to     The maximum timestamp to include in the search (inclusive). Must not be negative. Must be less than or
-     *               equal to the timestamp of this transaction.
+     * @param branch                       The name of the branch to consider. Must not be <code>null</code>, must refer to an existing branch.
+     * @param from                         The minimum timestamp to include in the search (inclusive). Must not be negative. Must be less than or
+     *                                     equal to the timestamp of this transaction.
+     * @param to                           The maximum timestamp to include in the search (inclusive). Must not be negative. Must be less than or
+     *                                     equal to the timestamp of this transaction.
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return The number of commits that have occurred in the specified time range. May be zero, but never negative.
      */
@@ -1862,8 +1929,8 @@ public interface ChronoGraph extends Graph {
      * Counts the total number of commit timestamps on the {@link ChronoDBConstants#MASTER_BRANCH_IDENTIFIER master}
      * branch.
      *
-     * @return The total number of commits in the graph.
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
+     * @return The total number of commits in the graph.
      */
     public default int countCommitTimestamps(final boolean includeSystemInternalCommits) {
         return this.countCommitTimestamps(ChronoDBConstants.MASTER_BRANCH_IDENTIFIER, includeSystemInternalCommits);
@@ -1882,7 +1949,7 @@ public interface ChronoGraph extends Graph {
     /**
      * Counts the total number of commit timestamps in the graph.
      *
-     * @param branch The name of the branch to consider. Must not be <code>null</code>, must refer to an existing branch.
+     * @param branch                       The name of the branch to consider. Must not be <code>null</code>, must refer to an existing branch.
      * @param includeSystemInternalCommits Whether or not to include system-internal commits.
      * @return The total number of commits in the graph.
      */
@@ -2055,7 +2122,7 @@ public interface ChronoGraph extends Graph {
      *
      * @return The iterator builder. Call one of its methods to continue the builder.
      */
-    public default ChronoGraphRootIteratorBuilder createIterator(){
+    public default ChronoGraphRootIteratorBuilder createIterator() {
         return ChronoGraphIterators.createIteratorOn(this);
     }
 
@@ -2071,7 +2138,7 @@ public interface ChronoGraph extends Graph {
      *
      * @return The index manager. Never <code>null</code>.
      */
-    public ChronoGraphIndexManager getIndexManager();
+    public ChronoGraphIndexManager getIndexManagerOnMaster();
 
     /**
      * Returns The index manager for the given branch.
@@ -2079,7 +2146,17 @@ public interface ChronoGraph extends Graph {
      * @param branchName The name of the branch to get the index manager for. Must not be <code>null</code>.
      * @return The index manger for the given branch. Never <code>null</code>.
      */
-    public ChronoGraphIndexManager getIndexManager(String branchName);
+    public ChronoGraphIndexManager getIndexManagerOnBranch(String branchName);
+
+    /**
+     * Returns The index manager for the given branch.
+     *
+     * @param branch The branch to get the index manager for. Must not be <code>null</code>.
+     * @return The index manger for the given branch. Never <code>null</code>.
+     */
+    public default ChronoGraphIndexManager getIndexManagerOnBranch(GraphBranch branch) {
+        return this.getIndexManagerOnBranch(branch.getName());
+    }
 
     // =====================================================================================================================
     // BRANCH MANAGEMENT

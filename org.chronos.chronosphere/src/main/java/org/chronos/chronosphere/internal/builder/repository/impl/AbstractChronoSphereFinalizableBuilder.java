@@ -1,6 +1,6 @@
 package org.chronos.chronosphere.internal.builder.repository.impl;
 
-import org.apache.commons.configuration.Configuration;
+import org.apache.commons.configuration2.Configuration;
 import org.chronos.chronograph.api.structure.ChronoGraph;
 import org.chronos.chronograph.internal.api.configuration.ChronoGraphConfiguration;
 import org.chronos.chronosphere.api.ChronoSphere;

@@ -2,6 +2,7 @@ package org.chronos.chronodb.internal.impl.query.parser.ast;
 
 import static com.google.common.base.Preconditions.*;
 
+import org.chronos.chronodb.api.SecondaryIndex;
 import org.chronos.chronodb.api.query.Condition;
 import org.chronos.chronodb.api.query.ContainmentCondition;
 import org.chronos.chronodb.internal.api.query.searchspec.SearchSpecification;
@@ -50,7 +51,7 @@ public abstract class WhereElement<VALUETYPE, CONDITIONTYPE extends Condition> i
 
 	public abstract WhereElement<VALUETYPE, CONDITIONTYPE> negate();
 
-	public abstract SearchSpecification<?, ?> toSearchSpecification();
+	public abstract SearchSpecification<?, ?> toSearchSpecification(SecondaryIndex index);
 
 	public abstract WhereElement<?, ? extends ContainmentCondition> collapseToInClause(WhereElement<?,?> other);
 

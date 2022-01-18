@@ -2,7 +2,7 @@ package org.chronos.chronograph.internal.impl.structure.graph;
 
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Maps;
-import org.apache.commons.configuration.Configuration;
+import org.apache.commons.configuration2.Configuration;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer;
 import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategies;
@@ -38,6 +38,8 @@ import org.chronos.chronograph.internal.impl.index.ChronoGraphIndexManagerImpl;
 import org.chronos.chronograph.internal.impl.maintenance.ChronoGraphMaintenanceManagerImpl;
 import org.chronos.chronograph.internal.impl.migration.ChronoGraphMigrationChain;
 import org.chronos.chronograph.internal.impl.optimizer.strategy.ChronoGraphStepStrategy;
+import org.chronos.chronograph.internal.impl.optimizer.strategy.FetchValuesFromSecondaryIndexStrategy;
+import org.chronos.chronograph.internal.impl.optimizer.strategy.OrderFiltersStrategy;
 import org.chronos.chronograph.internal.impl.optimizer.strategy.PredicateNormalizationStrategy;
 import org.chronos.chronograph.internal.impl.optimizer.strategy.ReplaceGremlinPredicateWithChronosPredicateStrategy;
 import org.chronos.chronograph.internal.impl.schema.ChronoGraphSchemaManagerImpl;
@@ -49,9 +51,10 @@ import org.chronos.chronograph.internal.impl.transaction.trigger.ChronoGraphTrig
 import org.chronos.chronograph.internal.impl.transaction.trigger.ChronoGraphTriggerManagerInternal;
 import org.chronos.common.autolock.AutoLock;
 import org.chronos.common.configuration.ChronosConfigurationUtil;
-import org.chronos.common.logging.ChronoLogger;
 import org.chronos.common.version.ChronosVersion;
 import org.chronos.common.version.VersionKind;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.Iterator;
@@ -68,11 +71,15 @@ import static com.google.common.base.Preconditions.*;
 
 public class StandardChronoGraph implements ChronoGraphInternal {
 
+    private static final Logger log = LoggerFactory.getLogger(StandardChronoGraph.class);
+
     static {
         TraversalStrategies graphStrategies = TraversalStrategies.GlobalCache.getStrategies(Graph.class).clone();
-        graphStrategies.addStrategies(ChronoGraphStepStrategy.getInstance());
-        graphStrategies.addStrategies(PredicateNormalizationStrategy.getInstance());
-        graphStrategies.addStrategies(ReplaceGremlinPredicateWithChronosPredicateStrategy.getINSTANCE());
+        graphStrategies.addStrategies(ChronoGraphStepStrategy.INSTANCE);
+        graphStrategies.addStrategies(PredicateNormalizationStrategy.INSTANCE);
+        graphStrategies.addStrategies(ReplaceGremlinPredicateWithChronosPredicateStrategy.INSTANCE);
+        graphStrategies.addStrategies(FetchValuesFromSecondaryIndexStrategy.INSTANCE);
+        graphStrategies.addStrategies(OrderFiltersStrategy.INSTANCE);
 
         // TODO PERFORMANCE GRAPH: Titan has a couple more optimizations. See next line.
         // Take a look at: AdjacentVertexFilterOptimizerStrategy, TitanLocalQueryOptimizerStrategy
@@ -104,7 +111,7 @@ public class StandardChronoGraph implements ChronoGraphInternal {
     private final ChronoGraphHistoryManager historyManager;
 
 
-    private final Lock branchLock;
+    private final Object branchLock = new Object();
     private final Map<String, ChronoGraphIndexManager> branchNameToIndexManager;
 
     private final ChronoGraphFeatures features;
@@ -126,7 +133,6 @@ public class StandardChronoGraph implements ChronoGraphInternal {
         this.maintenanceManager = new ChronoGraphMaintenanceManagerImpl(this);
         this.statisticsManager = new ChronoGraphStatisticsManagerImpl(this);
         this.historyManager = new ChronoGraphHistoryManagerImpl(this);
-        this.branchLock = new ReentrantLock(true);
         this.branchNameToIndexManager = Maps.newHashMap();
         this.features = new ChronoGraphFeatures(this);
         this.variables = new ChronoGraphVariablesImpl(this);
@@ -199,17 +205,20 @@ public class StandardChronoGraph implements ChronoGraphInternal {
 
     @Override
     public ChronoGraphTransactionManager tx() {
+        this.assertIsOpen();
         return this.txManager;
     }
 
     @Override
     public long getNow() {
+        this.assertIsOpen();
         return this.getBackingDB().getBranchManager().getMasterBranch().getNow();
     }
 
     @Override
     public long getNow(final String branchName) {
         checkNotNull(branchName, "Precondition violation - argument 'branchName' must not be NULL!");
+        this.assertIsOpen();
         return this.getBackingDB().getBranchManager().getBranch(branchName).getNow();
     }
 
@@ -218,15 +227,15 @@ public class StandardChronoGraph implements ChronoGraphInternal {
     // =====================================================================================================================
 
     @Override
-    public ChronoGraphIndexManager getIndexManager() {
-        return this.getIndexManager(ChronoDBConstants.MASTER_BRANCH_IDENTIFIER);
+    public ChronoGraphIndexManager getIndexManagerOnMaster() {
+        return this.getIndexManagerOnBranch(ChronoDBConstants.MASTER_BRANCH_IDENTIFIER);
     }
 
     @Override
-    public ChronoGraphIndexManager getIndexManager(final String branchName) {
+    public ChronoGraphIndexManager getIndexManagerOnBranch(final String branchName) {
         checkNotNull(branchName, "Precondition violation - argument 'branchName' must not be NULL!");
-        this.branchLock.lock();
-        try {
+        this.assertIsOpen();
+        synchronized (this.branchLock){
             if (this.getBackingDB().getBranchManager().existsBranch(branchName) == false) {
                 throw new IllegalArgumentException("There is no branch named '" + branchName + "'!");
             }
@@ -238,8 +247,6 @@ public class StandardChronoGraph implements ChronoGraphInternal {
                 this.branchNameToIndexManager.put(branchName, indexManager);
             }
             return indexManager;
-        } finally {
-            this.branchLock.unlock();
         }
     }
 
@@ -249,6 +256,7 @@ public class StandardChronoGraph implements ChronoGraphInternal {
 
     @Override
     public ChronoGraphBranchManager getBranchManager() {
+        this.assertIsOpen();
         return this.branchManager;
     }
 
@@ -258,6 +266,7 @@ public class StandardChronoGraph implements ChronoGraphInternal {
 
     @Override
     public ChronoGraphTriggerManagerInternal getTriggerManager() {
+        this.assertIsOpen();
         return this.triggerManager;
     }
 
@@ -267,6 +276,7 @@ public class StandardChronoGraph implements ChronoGraphInternal {
 
     @Override
     public ChronoGraphVariables variables() {
+        this.assertIsOpen();
         return this.variables;
     }
 
@@ -323,7 +333,7 @@ public class StandardChronoGraph implements ChronoGraphInternal {
                 // at least one key has been assigned => graph is not empty.
                 return false;
             }
-            if (!this.getIndexManager().getAllIndices().isEmpty()) {
+            if (!this.getIndexManagerOnMaster().getAllIndicesAtAnyPointInTime().isEmpty()) {
                 // an index has been created => graph is not empty.
                 return false;
             }
@@ -354,6 +364,7 @@ public class StandardChronoGraph implements ChronoGraphInternal {
 
     @Override
     public Optional<ChronosVersion> getStoredChronoGraphVersion() {
+        this.assertIsOpen();
         ChronoDBTransaction tx = this.getBackingDB().tx();
         String keyspace = ChronoGraphConstants.KEYSPACE_MANAGEMENT;
         String key = ChronoGraphConstants.KEYSPACE_MANAGEMENT_KEY__CHRONOGRAPH_VERSION;
@@ -364,6 +375,7 @@ public class StandardChronoGraph implements ChronoGraphInternal {
     @Override
     public void setStoredChronoGraphVersion(final ChronosVersion version) {
         checkNotNull(version, "Precondition violation - argument 'version' must not be NULL!");
+        this.assertIsOpen();
         Optional<ChronosVersion> currentVersion = this.getStoredChronoGraphVersion();
         if (currentVersion.isPresent() && version.isSmallerThan(currentVersion.get())) {
             throw new IllegalArgumentException("Cannot store ChronoGraph version " + version + ": the current version is higher (" + currentVersion + ")!");
@@ -730,7 +742,7 @@ public class StandardChronoGraph implements ChronoGraphInternal {
         } finally {
             boolean deleted = migratedDumpFile.delete();
             if (!deleted) {
-                ChronoLogger.logWarning("Failed to delete temporary dump file: '" + migratedDumpFile.getAbsolutePath() + "'!");
+                log.warn("Failed to delete temporary dump file: '" + migratedDumpFile.getAbsolutePath() + "'!");
             }
         }
     }
@@ -751,6 +763,7 @@ public class StandardChronoGraph implements ChronoGraphInternal {
 
     @Override
     public ChronoDB getBackingDB() {
+        this.assertIsOpen();
         return this.database;
     }
 
@@ -774,4 +787,13 @@ public class StandardChronoGraph implements ChronoGraphInternal {
         return this.features;
     }
 
+    // =================================================================================================================
+    // HELPER METHODS
+    // =================================================================================================================
+
+    private void assertIsOpen(){
+        if(this.isClosed()){
+            throw new IllegalStateException("This ChronoGraph instance has already been closed.");
+        }
+    }
 }

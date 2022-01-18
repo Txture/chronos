@@ -29,6 +29,26 @@ public class DoubleWithoutCP implements BiPredicate<Object, Collection> {
     }
 
     @Override
+    public boolean equals(final Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        DoubleWithoutCP that = (DoubleWithoutCP) o;
+
+        return Double.compare(that.tolerance, tolerance) == 0;
+    }
+
+    @Override
+    public int hashCode() {
+        long temp = Double.doubleToLongBits(tolerance);
+        return (int) (temp ^ (temp >>> 32));
+    }
+
+    @Override
     public String toString() {
         return "Double Without";
     }

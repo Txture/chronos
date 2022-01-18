@@ -4,6 +4,7 @@ import jetbrains.exodus.ByteIterable
 import org.chronos.chronodb.api.key.QualifiedKey
 import org.chronos.chronodb.exodus.kotlin.ext.toByteArray
 import org.chronos.chronodb.exodus.kotlin.ext.toByteIterable
+import org.chronos.chronodb.exodus.secondaryindex.*
 import org.chronos.chronodb.exodus.transaction.ExodusTransaction
 import org.chronos.chronodb.exodus.util.readLong
 import org.chronos.chronodb.exodus.util.readLongsFromBytes
@@ -11,6 +12,8 @@ import org.chronos.chronodb.exodus.util.writeLong
 import org.chronos.chronodb.exodus.util.writeLongsToBytes
 import org.chronos.chronodb.internal.api.Period
 import org.chronos.chronodb.internal.api.query.searchspec.SearchSpecification
+import org.chronos.chronodb.internal.impl.index.cursor.BasicIndexScanCursor
+import org.chronos.chronodb.internal.impl.index.cursor.IndexScanCursor
 
 abstract class SecondaryIndexStore<V, S : SearchSpecification<V, *>> {
 
@@ -18,13 +21,13 @@ abstract class SecondaryIndexStore<V, S : SearchSpecification<V, *>> {
         private const val LONG_BYTES = java.lang.Long.BYTES
     }
 
-    fun insert(tx: ExodusTransaction, indexName: String, keyspace: String, indexValue: V, userKey: String, validFrom: Long, validTo: Long = Long.MAX_VALUE) {
-        val presentValue = this.loadValue(tx, indexName, keyspace, indexValue, userKey)
+    fun insert(tx: ExodusTransaction, indexId: String, keyspace: String, indexValue: V, userKey: String, validFrom: Long, validTo: Long = Long.MAX_VALUE) {
+        val presentValue = this.loadValue(tx, indexId, keyspace, indexValue, userKey)
         val longs = if (presentValue == null) {
             writeLongsToBytes(listOf(validFrom, validTo))
         } else {
             val presentBytes = presentValue.toByteArray()
-            check(presentBytes.size % (LONG_BYTES * 2) == 0) { "Invariant error: list of timestamps is of uneven size! Index: '${indexName}', User Key: '${userKey}', Original Value: '${indexValue}'" }
+            check(presentBytes.size % (LONG_BYTES * 2) == 0) { "Invariant error: list of timestamps is of uneven size! Index: '${indexId}', User Key: '${userKey}', Original Value: '${indexValue}'" }
             if (readLong(presentBytes, presentBytes.size - LONG_BYTES * 2) == Long.MAX_VALUE) {
                 // the last period is open-ended, no need to change anything
                 // (this should never happen and is just a safe-guard)
@@ -38,20 +41,20 @@ abstract class SecondaryIndexStore<V, S : SearchSpecification<V, *>> {
             newBytes
         }
         val timestamps = longs.toByteIterable()
-        this.storeEntry(tx, indexName, keyspace, indexValue, userKey, timestamps)
+        this.storeEntry(tx, indexId, keyspace, indexValue, userKey, timestamps)
     }
 
-    fun terminateValidity(tx: ExodusTransaction, indexName: String, keyspace: String, indexValue: V, userKey: String, timestamp: Long, lowerBound: Long): Boolean {
-        val presentValue = loadValue(tx, indexName, keyspace, indexValue, userKey)
+    fun terminateValidity(tx: ExodusTransaction, indexId: String, keyspace: String, indexValue: V, userKey: String, timestamp: Long, lowerBound: Long): Boolean {
+        val presentValue = loadValue(tx, indexId, keyspace, indexValue, userKey)
         if (presentValue == null) {
             // There is no entry for the old index value in our branch. This means that this indexed
             // value was never touched in our branch. To "simulate" a validity termination, we
             // insert a new index entry which is valid from the lower bound to our current timestamp.
-            this.insert(tx, indexName, keyspace, indexValue, userKey, lowerBound, timestamp)
+            this.insert(tx, indexId, keyspace, indexValue, userKey, lowerBound, timestamp)
             return true
         } else {
             val presentBytes = presentValue.toByteArray()
-            check(presentBytes.size % (LONG_BYTES * 2) == 0) { "Invariant error: list of timestamps is of uneven size! Index: '${indexName}', User Key: '${userKey}', Original Value: '${indexValue}'" }
+            check(presentBytes.size % (LONG_BYTES * 2) == 0) { "Invariant error: list of timestamps is of uneven size! Index: '${indexId}', User Key: '${userKey}', Original Value: '${indexValue}'" }
             val lastPeriod = readLastPeriod(presentBytes)
             when {
                 lastPeriod.lowerBound >= timestamp -> {
@@ -61,7 +64,7 @@ abstract class SecondaryIndexStore<V, S : SearchSpecification<V, *>> {
                     // Therefore, if lowerbound == upper bound, then the entry needs
                     // to be deleted instead. This situation can appear during incremental
                     // commits.
-                    this.deleteValue(tx, indexName, keyspace, indexValue, userKey)
+                    this.deleteValue(tx, indexId, keyspace, indexValue, userKey)
                     return true
                 }
                 lastPeriod.upperBound < Long.MAX_VALUE -> {
@@ -73,7 +76,7 @@ abstract class SecondaryIndexStore<V, S : SearchSpecification<V, *>> {
                     // terminate the previous period
                     writeLong(presentBytes, timestamp, presentBytes.size - LONG_BYTES)
                     val newBytes = presentBytes.toByteIterable()
-                    this.storeEntry(tx, indexName, keyspace, indexValue, userKey, newBytes)
+                    this.storeEntry(tx, indexId, keyspace, indexValue, userKey, newBytes)
                     return true
                 }
                 else -> return false
@@ -110,7 +113,7 @@ abstract class SecondaryIndexStore<V, S : SearchSpecification<V, *>> {
                 }
                 val longs = readLongsFromBytes(cursor.value.toByteArray())
                 val partitionedPairs = longs.asSequence().windowed(2, 2, false) { list -> Period.createRange(list[0], list[1]) }
-                        .partition { period -> (period.contains(timestamp) && period.isOpenEnded) || (period.isBefore(timestamp) && !period.contains(timestamp)) }
+                    .partition { period -> (period.contains(timestamp) && period.isOpenEnded) || (period.isBefore(timestamp) && !period.contains(timestamp)) }
                 val okPeriods = partitionedPairs.first
                 val problematicPeriods = partitionedPairs.second
                 if (problematicPeriods.isNotEmpty()) {
@@ -139,27 +142,28 @@ abstract class SecondaryIndexStore<V, S : SearchSpecification<V, *>> {
         }
     }
 
-    protected fun allEntries(tx: ExodusTransaction,  storeName: String, parseKey: (ByteArray) -> SecondaryIndexKey<V>, consumer: RawIndexEntryConsumer<V>){
+    protected fun allEntries(tx: ExodusTransaction, storeName: String, parseKey: (ByteArray) -> SecondaryIndexKey<V>, consumer: RawIndexEntryConsumer<V>) {
         tx.withCursorOn(storeName) { cursor ->
-            while(cursor.next){
+            while (cursor.next) {
                 val indexKey = parseKey(cursor.key.toByteArray())
                 val indexedValue = indexKey.indexValuePlain
                 val primaryKey = indexKey.primaryKeyPlain
                 val longs = readLongsFromBytes(cursor.value.toByteArray())
                 // every pair of longs creates one period
-                if(longs.size.rem(2) != 0){
+                if (longs.size.rem(2) != 0) {
                     throw IllegalStateException("Found index entry with odd number of validity timestamps: ${primaryKey}->${indexedValue}, timestamps: ${longs}")
                 }
                 val periods = mutableListOf<Period>()
-                for(i in 0 until longs.size step 2){
+                for (i in 0 until longs.size step 2) {
                     val lowerBound = longs[i]
-                    val upperBound = longs[i+1]
+                    val upperBound = longs[i + 1]
                     periods += Period.createRange(lowerBound, upperBound)
                 }
                 consumer(storeName, primaryKey, indexedValue, periods)
             }
         }
     }
+
 
     abstract fun allEntries(tx: ExodusTransaction, keyspace: String, propertyName: String, consumer: RawIndexEntryConsumer<V>)
 

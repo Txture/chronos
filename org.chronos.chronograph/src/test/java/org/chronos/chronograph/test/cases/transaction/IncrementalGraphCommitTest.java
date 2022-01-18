@@ -95,7 +95,7 @@ public class IncrementalGraphCommitTest extends AllChronoGraphBackendsTest {
     @Test
     public void incrementalCommitTransactionCanReadItsOwnModificationsInIndexer() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("name").build();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("name").acrossAllTimestamps().build();
         try {
             g.addVertex("name", "one");
             g.addVertex("name", "two");
@@ -133,7 +133,7 @@ public class IncrementalGraphCommitTest extends AllChronoGraphBackendsTest {
     @InstantiateChronosWith(property = ChronoDBConfiguration.QUERY_CACHE_MAX_SIZE, value = "20")
     public void incrementalCommitTransactionCanReadItsOwnModificationsInIndexerWithQueryCaching() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("name").build();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("name").acrossAllTimestamps().build();
         try {
             g.addVertex("name", "one");
             g.addVertex("name", "two");
@@ -341,8 +341,8 @@ public class IncrementalGraphCommitTest extends AllChronoGraphBackendsTest {
     @SuppressWarnings("unused")
     public void secondaryIndexingIsCorrectDuringIncrementalCommit() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("firstName").build();
-        g.getIndexManager().create().stringIndex().onVertexProperty("lastName").build();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("firstName").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("lastName").acrossAllTimestamps().build();
         g.tx().commit();
         try {
             // add three persons

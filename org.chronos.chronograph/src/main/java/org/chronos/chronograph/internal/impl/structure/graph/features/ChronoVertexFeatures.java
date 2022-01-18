@@ -1,6 +1,7 @@
 package org.chronos.chronograph.internal.impl.structure.graph.features;
 
 import org.apache.tinkerpop.gremlin.structure.Graph;
+import org.apache.tinkerpop.gremlin.structure.Graph.Features.VertexFeatures;
 import org.apache.tinkerpop.gremlin.structure.Graph.Features.VertexPropertyFeatures;
 import org.chronos.chronograph.internal.api.structure.ChronoGraphInternal;
 
@@ -44,6 +45,11 @@ class ChronoVertexFeatures extends AbstractChronoGraphFeature implements Graph.F
 
 	@Override
 	public boolean supportsNumericIds() {
+		return false;
+	}
+
+	@Override
+	public boolean supportsNullPropertyValues() {
 		return false;
 	}
 

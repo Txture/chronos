@@ -5,6 +5,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.apache.commons.io.FileUtils;
 import org.chronos.chronodb.api.ChronoDB;
+import org.chronos.chronodb.api.ChronoDBConstants;
 import org.chronos.chronodb.api.ChronoDBTransaction;
 import org.chronos.chronodb.api.DumpOption;
 import org.chronos.chronodb.api.dump.ChronoConverter;
@@ -77,12 +78,12 @@ public class DBDumpTest extends AllChronoDBBackendsTest {
         tx.commit();
         long writeTimestamp1 = tx.getTimestamp();
 
-        this.sleep(5);
+        sleep(5);
 
         // create a branch
         db.getBranchManager().createBranch("MyBranch");
 
-        this.sleep(5);
+        sleep(5);
 
         // insert some data into the branch
         tx = db.tx("MyBranch");
@@ -90,12 +91,12 @@ public class DBDumpTest extends AllChronoDBBackendsTest {
         tx.commit();
         long writeTimestamp2 = tx.getTimestamp();
 
-        this.sleep(5);
+        sleep(5);
 
         // create a sub-branch
         db.getBranchManager().createBranch("MyBranch", "MySubBranch");
 
-        this.sleep(5);
+        sleep(5);
 
         // commit something in the master branch
         tx = db.tx();
@@ -149,24 +150,24 @@ public class DBDumpTest extends AllChronoDBBackendsTest {
         tx.put("MyKeyspace", "second", 456);
         tx.commit();
 
-        this.sleep(5);
+        sleep(5);
 
         // create a branch
         db.getBranchManager().createBranch("MyBranch");
 
-        this.sleep(5);
+        sleep(5);
 
         // insert some data into the branch
         tx = db.tx("MyBranch");
         tx.put("Math", "Pi", 31415);
         tx.commit();
 
-        this.sleep(5);
+        sleep(5);
 
         // create a sub-branch
         db.getBranchManager().createBranch("MyBranch", "MySubBranch");
 
-        this.sleep(5);
+        sleep(5);
 
         // commit something in the master branch
         tx = db.tx();
@@ -201,9 +202,24 @@ public class DBDumpTest extends AllChronoDBBackendsTest {
     @Test
     public void canExportAndImportIndexers() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("firstname", new FirstNameIndexer());
-        db.getIndexManager().addIndexer("lastname", new LastNameIndexer());
-        db.getIndexManager().addIndexer("nickname", new NicknameIndexer());
+        db.getIndexManager().createIndex()
+            .withName("firstname")
+            .withIndexer(new FirstNameIndexer())
+            .onMaster()
+            .acrossAllTimestamps()
+            .build();
+        db.getIndexManager().createIndex()
+            .withName("lastname")
+            .withIndexer(new LastNameIndexer())
+            .onMaster()
+            .acrossAllTimestamps()
+            .build();
+        db.getIndexManager().createIndex()
+            .withName("nickname")
+            .withIndexer(new NicknameIndexer())
+            .onMaster()
+            .acrossAllTimestamps()
+            .build();
         db.getIndexManager().reindexAll();
 
         long afterFirstCommit = -1L;
@@ -319,9 +335,21 @@ public class DBDumpTest extends AllChronoDBBackendsTest {
     @Test
     public void canReadWriteZippedDump() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("firstname", new FirstNameIndexer());
-        db.getIndexManager().addIndexer("lastname", new LastNameIndexer());
-        db.getIndexManager().addIndexer("nickname", new NicknameIndexer());
+        db.getIndexManager().createIndex().withName("firstname")
+            .withIndexer(new FirstNameIndexer())
+            .onMaster()
+            .acrossAllTimestamps()
+            .build();
+        db.getIndexManager().createIndex().withName("lastname")
+            .withIndexer(new LastNameIndexer())
+            .onMaster()
+            .acrossAllTimestamps()
+            .build();
+        db.getIndexManager().createIndex().withName("nickname")
+            .withIndexer(new NicknameIndexer())
+            .onMaster()
+            .acrossAllTimestamps()
+            .build();
         db.getIndexManager().reindexAll();
         { // add test data
             ChronoDBTransaction tx = db.tx();

@@ -83,272 +83,288 @@ class ExodusChronoDBConfiguration : ChronoDBBaseConfiguration() {
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.CIPHER_ID]
          */
-        const val EXODUS_CIPHER_ID =EXODUS_PREFIX + "cipherId"
+        const val EXODUS_CIPHER_ID = EXODUS_PREFIX + "cipherId"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.CIPHER_KEY]
          */
-        const val EXODUS_CIPHER_KEY =EXODUS_PREFIX + "cipherKey"
+        const val EXODUS_CIPHER_KEY = EXODUS_PREFIX + "cipherKey"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.CIPHER_BASIC_IV]
          */
-        const val EXODUS_CIPHER_BASIC_IV =EXODUS_PREFIX + "cipherBasicIV"
+        const val EXODUS_CIPHER_BASIC_IV = EXODUS_PREFIX + "cipherBasicIV"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.LOG_DURABLE_WRITE]
          */
-        const val EXODUS_LOG_DURABLE_WRITE =EXODUS_PREFIX + "log.durableWrite"
+        const val EXODUS_LOG_DURABLE_WRITE = EXODUS_PREFIX + "log.durableWrite"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.LOG_FILE_SIZE]
          */
-        const val EXODUS_LOG_FILE_SIZE =EXODUS_PREFIX + "log.fileSize"
+        const val EXODUS_LOG_FILE_SIZE = EXODUS_PREFIX + "log.fileSize"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.LOG_LOCK_TIMEOUT]
          */
-        const val EXODUS_LOG_LOCK_TIMEOUT =EXODUS_PREFIX + "log.lockTimeout"
+        const val EXODUS_LOG_LOCK_TIMEOUT = EXODUS_PREFIX + "log.lockTimeout"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.LOG_LOCK_ID]
          */
-        const val EXODUS_LOG_LOCK_ID =EXODUS_PREFIX + "log.lockID"
+        const val EXODUS_LOG_LOCK_ID = EXODUS_PREFIX + "log.lockID"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.LOG_CACHE_PAGE_SIZE]
          */
-        const val EXODUS_LOG_CACHE_PAGE_SIZE =EXODUS_PREFIX + "log.cache.pageSize"
+        const val EXODUS_LOG_CACHE_PAGE_SIZE = EXODUS_PREFIX + "log.cache.pageSize"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.LOG_CACHE_OPEN_FILES]
          */
-        const val EXODUS_LOG_CACHE_OPEN_FILES =EXODUS_PREFIX + "log.cache.openFilesCount"
+        const val EXODUS_LOG_CACHE_OPEN_FILES = EXODUS_PREFIX + "log.cache.openFilesCount"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.LOG_CACHE_USE_NIO]
          */
-        const val EXODUS_LOG_CACHE_USE_NIO =EXODUS_PREFIX + "log.cache.useNIO"
+        const val EXODUS_LOG_CACHE_USE_NIO = EXODUS_PREFIX + "log.cache.useNIO"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.LOG_CACHE_FREE_PHYSICAL_MEMORY_THRESHOLD]
          */
-        const val EXODUS_LOG_CACHE_FREE_PHYSICAL_MEMORY_THRESHOLD =EXODUS_PREFIX + "log.cache.freePhysicalMemoryThreshold"
+        const val EXODUS_LOG_CACHE_FREE_PHYSICAL_MEMORY_THRESHOLD = EXODUS_PREFIX + "log.cache.freePhysicalMemoryThreshold"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.LOG_CACHE_SHARED]
          */
-        const val EXODUS_LOG_CACHE_SHARED =EXODUS_PREFIX + "log.cache.shared"
+        const val EXODUS_LOG_CACHE_SHARED = EXODUS_PREFIX + "log.cache.shared"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.LOG_CACHE_NON_BLOCKING]
          */
-        const val EXODUS_LOG_CACHE_NON_BLOCKING =EXODUS_PREFIX + "log.cache.nonBlocking"
+        const val EXODUS_LOG_CACHE_NON_BLOCKING = EXODUS_PREFIX + "log.cache.nonBlocking"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.LOG_CACHE_GENERATION_COUNT]
          */
-        const val EXODUS_LOG_CACHE_GENERATION_COUNT =EXODUS_PREFIX + "log.cache.generationCount"
+        const val EXODUS_LOG_CACHE_GENERATION_COUNT = EXODUS_PREFIX + "log.cache.generationCount"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.LOG_CACHE_READ_AHEAD_MULTIPLE]
          */
-        const val EXODUS_LOG_CACHE_READ_AHEAD_MULTIPLE =EXODUS_PREFIX + "log.cache.readAheadMultiple"
+        const val EXODUS_LOG_CACHE_READ_AHEAD_MULTIPLE = EXODUS_PREFIX + "log.cache.readAheadMultiple"
+
+        /**
+         * @see [jetbrains.exodus.env.EnvironmentConfig.LOG_CACHE_USE_SOFT_REFERENCES]
+         */
+        const val EXODUS_LOG_CACHE_USE_SOFT_REFERENCES = EXODUS_PREFIX + "log.cache.useSoftReferences"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.LOG_CLEAN_DIRECTORY_EXPECTED]
          */
-        const val EXODUS_LOG_CLEAN_DIRECTORY_EXPECTED =EXODUS_PREFIX + "log.cleanDirectoryExpected"
+        const val EXODUS_LOG_CLEAN_DIRECTORY_EXPECTED = EXODUS_PREFIX + "log.cleanDirectoryExpected"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.LOG_CLEAR_INVALID]
          */
-        const val EXODUS_LOG_CLEAR_INVALID =EXODUS_PREFIX + "log.clearInvalid"
+        const val EXODUS_LOG_CLEAR_INVALID = EXODUS_PREFIX + "log.clearInvalid"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.LOG_SYNC_PERIOD]
          */
-        const val EXODUS_LOG_SYNC_PERIOD =EXODUS_PREFIX + "log.syncPeriod"
+        const val EXODUS_LOG_SYNC_PERIOD = EXODUS_PREFIX + "log.syncPeriod"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.LOG_FULL_FILE_READ_ONLY]
          */
-        const val EXODUS_LOG_FULL_FILE_READ_ONLY =EXODUS_PREFIX + "log.fullFileReadonly"
+        const val EXODUS_LOG_FULL_FILE_READ_ONLY = EXODUS_PREFIX + "log.fullFileReadonly"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.LOG_DATA_READER_WRITER_PROVIDER]
          */
-        const val EXODUS_LOG_DATA_READER_WRITER_PROVIDER =EXODUS_PREFIX + "log.readerWriterProvider"
+        const val EXODUS_LOG_DATA_READER_WRITER_PROVIDER = EXODUS_PREFIX + "log.readerWriterProvider"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.ENV_IS_READONLY]
          */
-        const val EXODUS_ENV_IS_READONLY =EXODUS_PREFIX + "env.isReadonly"
+        const val EXODUS_ENV_IS_READONLY = EXODUS_PREFIX + "env.isReadonly"
+
+        /**
+         * @see [jetbrains.exodus.env.EnvironmentConfig.ENV_COMPACT_ON_OPEN]
+         */
+        const val EXODUS_ENV_COMPACT_ON_OPEN = EXODUS_PREFIX + "env.compactOnOpen"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.ENV_FAIL_FAST_IN_READONLY]
          */
-        const val EXODUS_ENV_FAIL_FAST_IN_READONLY =EXODUS_PREFIX + "env.failFastInReadonly"
+        const val EXODUS_ENV_FAIL_FAST_IN_READONLY = EXODUS_PREFIX + "env.failFastInReadonly"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.ENV_READONLY_EMPTY_STORES]
          */
-        const val EXODUS_ENV_READONLY_EMPTY_STORES =EXODUS_PREFIX + "env.readonly.emptyStores"
+        const val EXODUS_ENV_READONLY_EMPTY_STORES = EXODUS_PREFIX + "env.readonly.emptyStores"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.ENV_STOREGET_CACHE_SIZE]
          */
-        const val EXODUS_ENV_STOREGET_CACHE_SIZE =EXODUS_PREFIX + "env.storeGetCacheSize"
+        const val EXODUS_ENV_STOREGET_CACHE_SIZE = EXODUS_PREFIX + "env.storeGetCacheSize"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.ENV_STOREGET_CACHE_MIN_TREE_SIZE]
          */
-        const val EXODUS_ENV_STOREGET_CACHE_MIN_TREE_SIZE =EXODUS_PREFIX + "env.storeGetCache.minTreeSize"
+        const val EXODUS_ENV_STOREGET_CACHE_MIN_TREE_SIZE = EXODUS_PREFIX + "env.storeGetCache.minTreeSize"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.ENV_STOREGET_CACHE_MAX_VALUE_SIZE]
          */
-        const val EXODUS_ENV_STOREGET_CACHE_MAX_VALUE_SIZE =EXODUS_PREFIX + "env.storeGetCache.maxValueSize"
+        const val EXODUS_ENV_STOREGET_CACHE_MAX_VALUE_SIZE = EXODUS_PREFIX + "env.storeGetCache.maxValueSize"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.ENV_CLOSE_FORCEDLY]
          */
-        const val EXODUS_ENV_CLOSE_FORCEDLY =EXODUS_PREFIX + "env.closeForcedly"
+        const val EXODUS_ENV_CLOSE_FORCEDLY = EXODUS_PREFIX + "env.closeForcedly"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.ENV_TXN_REPLAY_TIMEOUT]
          */
-        const val EXODUS_ENV_TXN_REPLAY_TIMEOUT =EXODUS_PREFIX + "env.txn.replayTimeout"
+        const val EXODUS_ENV_TXN_REPLAY_TIMEOUT = EXODUS_PREFIX + "env.txn.replayTimeout"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.ENV_TXN_REPLAY_MAX_COUNT]
          */
-        const val EXODUS_ENV_TXN_REPLAY_MAX_COUNT =EXODUS_PREFIX + "env.txn.replayMaxCount"
+        const val EXODUS_ENV_TXN_REPLAY_MAX_COUNT = EXODUS_PREFIX + "env.txn.replayMaxCount"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.ENV_TXN_DOWNGRADE_AFTER_FLUSH]
          */
-        const val EXODUS_ENV_TXN_DOWNGRADE_AFTER_FLUSH =EXODUS_PREFIX + "env.txn.downgradeAfterFlush"
+        const val EXODUS_ENV_TXN_DOWNGRADE_AFTER_FLUSH = EXODUS_PREFIX + "env.txn.downgradeAfterFlush"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.ENV_TXN_SINGLE_THREAD_WRITES]
          */
-        const val EXODUS_ENV_TXN_SINGLE_THREAD_WRITES =EXODUS_PREFIX + "env.txn.singleThreadWrites"
+        const val EXODUS_ENV_TXN_SINGLE_THREAD_WRITES = EXODUS_PREFIX + "env.txn.singleThreadWrites"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.ENV_MAX_PARALLEL_TXNS]
          */
-        const val EXODUS_ENV_MAX_PARALLEL_TXNS =EXODUS_PREFIX + "env.maxParallelTxns"
+        const val EXODUS_ENV_MAX_PARALLEL_TXNS = EXODUS_PREFIX + "env.maxParallelTxns"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.ENV_MAX_PARALLEL_READONLY_TXNS]
          */
-        const val EXODUS_ENV_MAX_PARALLEL_READONLY_TXNS =EXODUS_PREFIX + "env.maxParallelReadonlyTxns"
+        const val EXODUS_ENV_MAX_PARALLEL_READONLY_TXNS = EXODUS_PREFIX + "env.maxParallelReadonlyTxns"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.ENV_MONITOR_TXNS_TIMEOUT]
          */
-        const val EXODUS_ENV_MONITOR_TXNS_TIMEOUT =EXODUS_PREFIX + "env.monitorTxns.timeout"
+        const val EXODUS_ENV_MONITOR_TXNS_TIMEOUT = EXODUS_PREFIX + "env.monitorTxns.timeout"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.ENV_MONITOR_TXNS_EXPIRATION_TIMEOUT]
          */
-        const val EXODUS_ENV_MONITOR_TXNS_EXPIRATION_TIMEOUT =EXODUS_PREFIX + "env.monitorTxns.expirationTimeout"
+        const val EXODUS_ENV_MONITOR_TXNS_EXPIRATION_TIMEOUT = EXODUS_PREFIX + "env.monitorTxns.expirationTimeout"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.ENV_MONITOR_TXNS_CHECK_FREQ]
          */
-        const val EXODUS_ENV_MONITOR_TXNS_CHECK_FREQ =EXODUS_PREFIX + "env.monitorTxns.checkFreq"
+        const val EXODUS_ENV_MONITOR_TXNS_CHECK_FREQ = EXODUS_PREFIX + "env.monitorTxns.checkFreq"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.ENV_GATHER_STATISTICS]
          */
-        const val EXODUS_ENV_GATHER_STATISTICS =EXODUS_PREFIX + "env.gatherStatistics"
+        const val EXODUS_ENV_GATHER_STATISTICS = EXODUS_PREFIX + "env.gatherStatistics"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.TREE_MAX_PAGE_SIZE]
          */
-        const val EXODUS_TREE_MAX_PAGE_SIZE =EXODUS_PREFIX + "tree.maxPageSize"
+        const val EXODUS_TREE_MAX_PAGE_SIZE = EXODUS_PREFIX + "tree.maxPageSize"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.TREE_DUP_MAX_PAGE_SIZE]
          */
-        const val EXODUS_TREE_DUP_MAX_PAGE_SIZE =EXODUS_PREFIX + "tree.dupMaxPageSize"
+        const val EXODUS_TREE_DUP_MAX_PAGE_SIZE = EXODUS_PREFIX + "tree.dupMaxPageSize"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.GC_ENABLED]
          */
-        const val EXODUS_GC_ENABLED =EXODUS_PREFIX + "gc.enabled"
+        const val EXODUS_GC_ENABLED = EXODUS_PREFIX + "gc.enabled"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.GC_START_IN]
          */
-        const val EXODUS_GC_START_IN =EXODUS_PREFIX + "gc.startIn"
+        const val EXODUS_GC_START_IN = EXODUS_PREFIX + "gc.startIn"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.GC_MIN_UTILIZATION]
          */
-        const val EXODUS_GC_MIN_UTILIZATION =EXODUS_PREFIX + "gc.minUtilization"
+        const val EXODUS_GC_MIN_UTILIZATION = EXODUS_PREFIX + "gc.minUtilization"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.GC_RENAME_FILES]
          */
-        const val EXODUS_GC_RENAME_FILES =EXODUS_PREFIX + "gc.renameFiles"
+        const val EXODUS_GC_RENAME_FILES = EXODUS_PREFIX + "gc.renameFiles"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.GC_MIN_FILE_AGE]
          */
-        const val EXODUS_GC_MIN_FILE_AGE =EXODUS_PREFIX + "gc.fileMinAge"
+        const val EXODUS_GC_MIN_FILE_AGE = EXODUS_PREFIX + "gc.fileMinAge"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.GC_FILES_INTERVAL]
          */
-        const val EXODUS_GC_FILES_INTERVAL =EXODUS_PREFIX + "gc.filesInterval"
+        const val EXODUS_GC_FILES_INTERVAL = EXODUS_PREFIX + "gc.filesInterval"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.GC_RUN_PERIOD]
          */
-        const val EXODUS_GC_RUN_PERIOD =EXODUS_PREFIX + "gc.runPeriod"
+        const val EXODUS_GC_RUN_PERIOD = EXODUS_PREFIX + "gc.runPeriod"
+
+        /**
+         * @see [jetbrains.exodus.env.EnvironmentConfig.GC_RUN_EVERY]
+         */
+        const val EXODUS_GC_RUN_EVERY = EXODUS_PREFIX + "gc.runEvery"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.GC_UTILIZATION_FROM_SCRATCH]
          */
-        const val EXODUS_GC_UTILIZATION_FROM_SCRATCH =EXODUS_PREFIX + "gc.utilization.fromScratch"
+        const val EXODUS_GC_UTILIZATION_FROM_SCRATCH = EXODUS_PREFIX + "gc.utilization.fromScratch"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.GC_UTILIZATION_FROM_FILE]
          */
-        const val EXODUS_GC_UTILIZATION_FROM_FILE =EXODUS_PREFIX + "gc.utilization.fromFile"
+        const val EXODUS_GC_UTILIZATION_FROM_FILE = EXODUS_PREFIX + "gc.utilization.fromFile"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.GC_USE_EXCLUSIVE_TRANSACTION]
          */
-        const val EXODUS_GC_USE_EXCLUSIVE_TRANSACTION =EXODUS_PREFIX + "gc.useExclusiveTransaction"
+        const val EXODUS_GC_USE_EXCLUSIVE_TRANSACTION = EXODUS_PREFIX + "gc.useExclusiveTransaction"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.GC_TRANSACTION_ACQUIRE_TIMEOUT]
          */
-        const val EXODUS_GC_TRANSACTION_ACQUIRE_TIMEOUT =EXODUS_PREFIX + "gc.transactionAcquireTimeout"
+        const val EXODUS_GC_TRANSACTION_ACQUIRE_TIMEOUT = EXODUS_PREFIX + "gc.transactionAcquireTimeout"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.GC_TRANSACTION_TIMEOUT]
          */
-        const val EXODUS_GC_TRANSACTION_TIMEOUT =EXODUS_PREFIX + "gc.transactionTimeout"
+        const val EXODUS_GC_TRANSACTION_TIMEOUT = EXODUS_PREFIX + "gc.transactionTimeout"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.GC_FILES_DELETION_DELAY]
          */
-        const val EXODUS_GC_FILES_DELETION_DELAY =EXODUS_PREFIX + "gc.filesDeletionDelay"
+        const val EXODUS_GC_FILES_DELETION_DELAY = EXODUS_PREFIX + "gc.filesDeletionDelay"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.MANAGEMENT_ENABLED]
          */
-        const val EXODUS_MANAGEMENT_ENABLED =EXODUS_PREFIX + "managementEnabled"
+        const val EXODUS_MANAGEMENT_ENABLED = EXODUS_PREFIX + "managementEnabled"
 
         /**
          * @see [jetbrains.exodus.env.EnvironmentConfig.MANAGEMENT_OPERATIONS_RESTRICTED]
          */
-        const val EXODUS_MANAGEMENT_OPERATIONS_RESTRICTED =EXODUS_PREFIX + "management.operationsRestricted"
+        const val EXODUS_MANAGEMENT_OPERATIONS_RESTRICTED = EXODUS_PREFIX + "management.operationsRestricted"
+
 
     }
 
@@ -439,6 +455,10 @@ class ExodusChronoDBConfiguration : ChronoDBBaseConfiguration() {
     var exodusLogCacheReadAheadMultiple: Int? = null
 
     @Suppress("unused") // used in 'extractExodusConfiguration()'.
+    @Parameter(key = EXODUS_LOG_CACHE_USE_SOFT_REFERENCES, optional = true)
+    var exodusLogCacheUseSoftReferences: Boolean? = null
+
+    @Suppress("unused") // used in 'extractExodusConfiguration()'.
     @Parameter(key = EXODUS_LOG_CLEAN_DIRECTORY_EXPECTED, optional = true)
     var exodusLogCleanDirectoryExpected: Boolean? = null
 
@@ -463,6 +483,10 @@ class ExodusChronoDBConfiguration : ChronoDBBaseConfiguration() {
     var exodusEnvIsReadOnly: Boolean? = null
 
     @Suppress("unused") // used in 'extractExodusConfiguration()'.
+    @Parameter(key = EXODUS_ENV_COMPACT_ON_OPEN, optional = true)
+    var exodusEnvCompactOnOpen: Boolean? = null
+
+    @Suppress("unused") // used in 'extractExodusConfiguration()'.
     @Parameter(key = EXODUS_ENV_FAIL_FAST_IN_READONLY, optional = true)
     var exodusEnvFailFastInReadOnly: Boolean? = null
 
@@ -472,7 +496,7 @@ class ExodusChronoDBConfiguration : ChronoDBBaseConfiguration() {
 
     @Suppress("unused") // used in 'extractExodusConfiguration()'.
     @Parameter(key = EXODUS_ENV_STOREGET_CACHE_SIZE, optional = true)
-    var exodusEnvStoreGetCacheSize: Integer? = null
+    var exodusEnvStoreGetCacheSize: Int? = null
 
     @Suppress("unused") // used in 'extractExodusConfiguration()'.
     @Parameter(key = EXODUS_ENV_STOREGET_CACHE_MIN_TREE_SIZE, optional = true)
@@ -492,7 +516,7 @@ class ExodusChronoDBConfiguration : ChronoDBBaseConfiguration() {
 
     @Suppress("unused") // used in 'extractExodusConfiguration()'.
     @Parameter(key = EXODUS_ENV_TXN_REPLAY_MAX_COUNT, optional = true)
-    var exodusEnvTxnReplayMaxCount: Integer? = null
+    var exodusEnvTxnReplayMaxCount: Int? = null
 
     @Suppress("unused") // used in 'extractExodusConfiguration()'.
     @Parameter(key = EXODUS_ENV_TXN_DOWNGRADE_AFTER_FLUSH, optional = true)
@@ -563,6 +587,10 @@ class ExodusChronoDBConfiguration : ChronoDBBaseConfiguration() {
     var exodusGcRunPeriod: Int? = null
 
     @Suppress("unused") // used in 'extractExodusConfiguration()'.
+    @Parameter(key = EXODUS_GC_RUN_EVERY, optional = true)
+    var exodusGcRunEvery: Int? = null
+
+    @Suppress("unused") // used in 'extractExodusConfiguration()'.
     @Parameter(key = EXODUS_GC_UTILIZATION_FROM_SCRATCH, optional = true)
     var exodusGcUtilizationFromScratch: Boolean? = null
 
@@ -596,8 +624,8 @@ class ExodusChronoDBConfiguration : ChronoDBBaseConfiguration() {
 
     fun extractExodusConfiguration(): Map<String, Any> {
         val map = mutableMapOf<String, Any>()
-        for(optionMetadata in this.metadata){
-            if(optionMetadata.key.startsWith(EXODUS_PREFIX)){
+        for (optionMetadata in this.metadata) {
+            if (optionMetadata.key.startsWith(EXODUS_PREFIX)) {
                 val exodusKey = optionMetadata.key.removePrefix(ChronoDBConfiguration.NS_DOT)
                 val value = optionMetadata.getValue(this) ?: continue
                 map[exodusKey] = value

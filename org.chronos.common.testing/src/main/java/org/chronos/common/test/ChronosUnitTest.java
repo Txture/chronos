@@ -1,7 +1,6 @@
 package org.chronos.common.test;
 
 import org.apache.commons.io.FileUtils;
-import org.chronos.common.logging.ChronoLogger;
 import org.chronos.common.util.ReflectionUtils;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -140,7 +139,7 @@ public abstract class ChronosUnitTest {
         try {
             Thread.sleep(millis);
         } catch (InterruptedException e) {
-            ChronoLogger.logError("Thread interrupted while sleeping!", e);
+            log.error("Thread interrupted while sleeping!", e);
         }
     }
 

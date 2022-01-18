@@ -5,6 +5,7 @@ import static com.google.common.base.Preconditions.*;
 import java.util.Map;
 import java.util.Set;
 
+import org.chronos.chronodb.api.SecondaryIndex;
 import org.chronos.chronodb.api.key.ChronoIdentifier;
 import org.chronos.chronodb.internal.impl.index.ChronoIndexDocumentModificationsImpl;
 
@@ -132,17 +133,17 @@ public interface ChronoIndexDocumentModifications {
 	 *
 	 * @param identifier
 	 *            The {@link ChronoIdentifier} to which the new document should refer. Must not be <code>null</code>.
-	 * @param indexName
+	 * @param index
 	 *            The name of the index to which the new document belongs. Must not be <code>null</code>.
 	 * @param indexValue
 	 *            The indexed value to store in the new document. Must not be <code>null</code>.
 	 */
-	public default void addDocumentAddition(final ChronoIdentifier identifier, final String indexName,
+	public default void addDocumentAddition(final ChronoIdentifier identifier, final SecondaryIndex index,
                                             final Object indexValue) {
 		checkNotNull(identifier, "Precondition violation - argument 'identifier' must not be NULL!");
-		checkNotNull(indexName, "Precondition violation - argument 'indexName' must not be NULL!");
+		checkNotNull(index, "Precondition violation - argument 'index' must not be NULL!");
 		checkNotNull(indexValue, "Precondition violation - argument 'indexValue' must not be NULL!");
-		this.addDocumentCreation(DocumentAddition.create(identifier, indexName, indexValue));
+		this.addDocumentCreation(DocumentAddition.create(identifier, index, indexValue));
 	}
 
 	/**

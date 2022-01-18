@@ -8,7 +8,7 @@ public class FailOnAllVerticesIterationHandler implements AllVerticesIterationHa
 
     @Override
     public void onAllVerticesIteration() {
-        fail("Required iteration over all Vertices!");
+        fail("Required iteration over all Vertices which is not supposed to happen in this test!");
     }
 
 }

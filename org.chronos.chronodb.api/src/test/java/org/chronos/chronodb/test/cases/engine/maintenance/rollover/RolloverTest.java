@@ -5,6 +5,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.chronos.chronodb.api.Branch;
 import org.chronos.chronodb.api.ChronoDB;
+import org.chronos.chronodb.api.ChronoDBConstants;
 import org.chronos.chronodb.api.ChronoDBTransaction;
 import org.chronos.chronodb.api.Order;
 import org.chronos.chronodb.api.key.QualifiedKey;
@@ -233,11 +234,11 @@ public class RolloverTest extends AllChronoDBBackendsTest {
     public void secondaryIndexingWorksWithBasicRollover() {
         ChronoDB db = this.getChronoDB();
         this.assumeRolloverIsSupported(db);
-        db.getIndexManager().addIndexer("firstName", PersonIndexer.firstName());
-        db.getIndexManager().addIndexer("lastName", PersonIndexer.lastName());
-        db.getIndexManager().addIndexer("favoriteColor", PersonIndexer.favoriteColor());
-        db.getIndexManager().addIndexer("hobbies", PersonIndexer.hobbies());
-        db.getIndexManager().addIndexer("pets", PersonIndexer.pets());
+        db.getIndexManager().createIndex().withName("firstName").withIndexer(PersonIndexer.firstName()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().createIndex().withName("lastName").withIndexer(PersonIndexer.lastName()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().createIndex().withName("favoriteColor").withIndexer(PersonIndexer.favoriteColor()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().createIndex().withName("hobbies").withIndexer(PersonIndexer.hobbies()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().createIndex().withName("pets").withIndexer(PersonIndexer.pets()).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
 
         // add a couple of persons

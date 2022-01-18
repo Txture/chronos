@@ -1,21 +1,28 @@
 package org.chronos.chronodb.inmemory;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Maps;
-import com.google.common.collect.SetMultimap;
-import com.google.common.collect.Sets;
-import org.chronos.chronodb.api.ChronoDB;
-import org.chronos.chronodb.api.exceptions.UnknownIndexException;
-import org.chronos.chronodb.api.indexing.Indexer;
+import com.google.common.collect.*;
+import org.chronos.chronodb.api.Branch;
+import org.chronos.chronodb.api.ChronoDBConstants;
+import org.chronos.chronodb.api.Order;
+import org.chronos.chronodb.api.SecondaryIndex;
+import org.chronos.chronodb.api.TextCompare;
 import org.chronos.chronodb.api.key.ChronoIdentifier;
+import org.chronos.chronodb.internal.api.ChronoDBInternal;
+import org.chronos.chronodb.internal.api.Period;
 import org.chronos.chronodb.internal.api.index.*;
 import org.chronos.chronodb.internal.api.query.searchspec.SearchSpecification;
 import org.chronos.chronodb.internal.impl.engines.base.AbstractDocumentBasedIndexManagerBackend;
-import org.chronos.common.base.CCC;
-import org.chronos.common.logging.ChronoLogger;
-import org.chronos.common.logging.LogLevel;
+import org.chronos.chronodb.internal.impl.index.AbstractIndexManager;
+import org.chronos.chronodb.internal.impl.index.SecondaryIndexImpl;
+import org.chronos.chronodb.internal.impl.index.cursor.BasicIndexScanCursor;
+import org.chronos.chronodb.internal.impl.index.cursor.DeltaResolvingScanCursor;
+import org.chronos.chronodb.internal.impl.index.cursor.IndexScanCursor;
+import org.chronos.chronodb.internal.impl.index.cursor.RawIndexCursor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -26,94 +33,72 @@ import static com.google.common.base.Preconditions.*;
 
 public class InMemoryIndexManagerBackend extends AbstractDocumentBasedIndexManagerBackend {
 
-    /**
-     * Index name -> Index Documents
-     */
-    protected final SetMultimap<String, ChronoIndexDocument> indexNameToDocuments;
+    private static final Logger log = LoggerFactory.getLogger(InMemoryIndexManagerBackend.class);
+
 
     /**
-     * Index name -> Branch Name -> Keyspace Name -> Key -> Index Documents
+     * Index -> Index Documents
      */
-    protected final Map<String, Map<String, Map<String, SetMultimap<String, ChronoIndexDocument>>>> documents;
+    protected final SetMultimap<SecondaryIndex, ChronoIndexDocument> indexToDocuments;
+
+    /**
+     * Index -> Keyspace Name -> Key -> Index Documents
+     */
+    protected final Map<SecondaryIndex, Map<String, SetMultimap<String, ChronoIndexDocument>>> documents;
 
     /**
      * Index name -> indexers
      */
-    protected final SetMultimap<String, Indexer<?>> indexNameToIndexers;
-
-    protected final Map<String, Boolean> indexNameToDirtyFlag;
+    protected final Set<SecondaryIndexImpl> allIndices = Sets.newHashSet();
 
     // =================================================================================================================
     // CONSTRUCTOR
     // =================================================================================================================
 
-    public InMemoryIndexManagerBackend(final ChronoDB owningDB) {
+    public InMemoryIndexManagerBackend(final ChronoDBInternal owningDB) {
         super(owningDB);
-        this.indexNameToDocuments = HashMultimap.create();
+        this.indexToDocuments = HashMultimap.create();
         this.documents = Maps.newHashMap();
-        this.indexNameToIndexers = HashMultimap.create();
-        this.indexNameToDirtyFlag = Maps.newHashMap();
     }
 
     // =================================================================================================================
     // INDEXER MANAGEMENT
     // =================================================================================================================
 
-    @Override
-    public SetMultimap<String, Indexer<?>> loadIndexersFromPersistence() {
-        return HashMultimap.create(this.indexNameToIndexers);
+    public Set<SecondaryIndexImpl> loadIndexersFromPersistence() {
+        return Collections.unmodifiableSet(this.allIndices);
     }
 
-    @Override
-    public void persistIndexers(final SetMultimap<String, Indexer<?>> indexNameToIndexers) {
-        this.indexNameToIndexers.clear();
-        this.indexNameToIndexers.putAll(indexNameToIndexers);
-    }
-
-    @Override
-    public void deleteIndexAndIndexers(final String indexName) {
-        this.indexNameToIndexers.removeAll(indexName);
-        this.documents.remove(indexName);
-        this.indexNameToDocuments.removeAll(indexName);
+    public void persistIndexers(final Set<SecondaryIndexImpl> indices) {
+        this.allIndices.clear();
+        this.allIndices.addAll(indices);
     }
 
     @Override
     public void deleteAllIndexContents() {
         this.documents.clear();
-        this.indexNameToDocuments.clear();
+        this.indexToDocuments.clear();
     }
 
-    @Override
     public void deleteAllIndicesAndIndexers() {
-        this.indexNameToIndexers.clear();
+        this.allIndices.clear();
         this.documents.clear();
-        this.indexNameToDocuments.clear();
+        this.indexToDocuments.clear();
     }
 
     @Override
-    public void deleteIndexContents(final String indexName) {
-        this.documents.remove(indexName);
-        this.indexNameToDocuments.removeAll(indexName);
+    public void deleteIndexContents(final SecondaryIndex index) {
+        this.documents.remove(index);
+        this.indexToDocuments.removeAll(index);
     }
 
-    @Override
-    public void persistIndexer(final String indexName, final Indexer<?> indexer) {
-        this.indexNameToIndexers.put(indexName, indexer);
+    public void deleteIndexContentsAndIndex(final SecondaryIndex index) {
+        this.deleteIndexContents(index);
+        this.allIndices.remove((SecondaryIndexImpl) index);
     }
 
-    // =================================================================================================================
-    // INDEX DIRTY FLAG MANAGEMENT
-    // =================================================================================================================
-
-    @Override
-    public Map<String, Boolean> loadIndexStates() {
-        return Collections.unmodifiableMap(this.indexNameToDirtyFlag);
-    }
-
-    @Override
-    public void persistIndexDirtyStates(final Map<String, Boolean> indexStates) {
-        this.indexNameToDirtyFlag.clear();
-        this.indexNameToDirtyFlag.putAll(indexStates);
+    public void persistIndex(final SecondaryIndexImpl index) {
+        this.allIndices.add(index);
     }
 
     // =================================================================================================================
@@ -126,8 +111,9 @@ public class InMemoryIndexManagerBackend extends AbstractDocumentBasedIndexManag
         if (indexModifications.isEmpty()) {
             return;
         }
-        if (CCC.MIN_LOG_LEVEL.isLessThanOrEqualTo(LogLevel.TRACE)) {
-            ChronoLogger.logTrace("Applying index modifications: " + indexModifications);
+
+        if (log.isTraceEnabled()) {
+            log.trace("Applying index modifications: " + indexModifications);
         }
         for (DocumentValidityTermination termination : indexModifications.getDocumentValidityTerminations()) {
             ChronoIndexDocument document = termination.getDocument();
@@ -135,21 +121,24 @@ public class InMemoryIndexManagerBackend extends AbstractDocumentBasedIndexManag
             this.terminateDocumentValidity(document, timestamp);
         }
         for (DocumentAddition creation : indexModifications.getDocumentCreations()) {
-            this.addDocument(creation.getDocumentToAdd());
+            ChronoIndexDocument document = creation.getDocumentToAdd();
+            this.addDocument(document);
         }
         for (DocumentDeletion deletion : indexModifications.getDocumentDeletions()) {
             ChronoIndexDocument document = deletion.getDocumentToDelete();
             String branchName = document.getBranch();
-            String indexName = document.getIndexName();
-            // remove from index-name-to-documents map
-            this.indexNameToDocuments.remove(indexName, document);
-            // remove from general documents map
-            Map<String, Map<String, SetMultimap<String, ChronoIndexDocument>>> branchToKeyspaceToKey = this.documents
-                .get(indexName);
-            if (branchToKeyspaceToKey == null) {
+            SecondaryIndex index = document.getIndex();
+            if (!index.getBranch().equals(branchName)) {
                 continue;
             }
-            Map<String, SetMultimap<String, ChronoIndexDocument>> keyspaceToKey = branchToKeyspaceToKey.get(branchName);
+            if (!index.getValidPeriod().contains(document.getValidFromTimestamp())) {
+                continue;
+            }
+            // remove from index-name-to-documents map
+            this.indexToDocuments.remove(index, document);
+            // remove from general documents map
+            Map<String, SetMultimap<String, ChronoIndexDocument>> keyspaceToKey = this.documents
+                .get(index);
             if (keyspaceToKey == null) {
                 continue;
             }
@@ -167,16 +156,16 @@ public class InMemoryIndexManagerBackend extends AbstractDocumentBasedIndexManag
 
     @Override
     protected Set<ChronoIndexDocument> getDocumentsTouchedAtOrAfterTimestamp(final long timestamp,
-                                                                             final Set<String> branches) {
+                                                                             final Set<SecondaryIndex> indices) {
         checkArgument(timestamp >= 0, "Precondition violation - argument 'timestamp' must not be negative!");
         Set<ChronoIndexDocument> resultSet = Sets.newHashSet();
-        if (branches != null && branches.isEmpty()) {
-            // no branches are requested, so the result set is empty by definition.
+        if (indices != null && indices.isEmpty()) {
+            // no indices are requested, so the result set is empty by definition.
             return resultSet;
         }
-        for (ChronoIndexDocument document : this.indexNameToDocuments.values()) {
-            if (branches != null && branches.contains(document.getBranch()) == false) {
-                // the branch of the document is not in the set of requested branches -> ignore the document
+        for (ChronoIndexDocument document : this.indexToDocuments.values()) {
+            if (indices != null && indices.contains(document.getIndex()) == false) {
+                // the index of the document is not in the set of requested indices -> ignore the document
                 continue;
             }
             if (document.getValidFromTimestamp() >= timestamp) {
@@ -196,16 +185,16 @@ public class InMemoryIndexManagerBackend extends AbstractDocumentBasedIndexManag
     // =================================================================================================================
 
     @Override
-    public Map<String, SetMultimap<Object, ChronoIndexDocument>> getMatchingBranchLocalDocuments(
+    public Map<SecondaryIndex, SetMultimap<Object, ChronoIndexDocument>> getMatchingBranchLocalDocuments(
         final ChronoIdentifier chronoIdentifier) {
         checkNotNull(chronoIdentifier, "Precondition violation - argument 'chronoIdentifier' must not be NULL!");
-        Map<String, SetMultimap<Object, ChronoIndexDocument>> indexToIndexedValueToDocument = Maps.newHashMap();
-        for (Entry<String, Map<String, Map<String, SetMultimap<String, ChronoIndexDocument>>>> entry : this.documents
-            .entrySet()) {
-            String indexName = entry.getKey();
-            Map<String, Map<String, SetMultimap<String, ChronoIndexDocument>>> branchToKeyspaceToKey = entry.getValue();
-            Map<String, SetMultimap<String, ChronoIndexDocument>> keyspaceToKey = branchToKeyspaceToKey
-                .get(chronoIdentifier.getBranchName());
+        Map<SecondaryIndex, SetMultimap<Object, ChronoIndexDocument>> indexToIndexedValueToDocument = Maps.newHashMap();
+        for (Entry<SecondaryIndex, Map<String, SetMultimap<String, ChronoIndexDocument>>> entry : this.documents.entrySet()) {
+            SecondaryIndex index = entry.getKey();
+            if (!index.getValidPeriod().contains(chronoIdentifier.getTimestamp())) {
+                continue;
+            }
+            Map<String, SetMultimap<String, ChronoIndexDocument>> keyspaceToKey = entry.getValue();
             if (keyspaceToKey == null) {
                 continue;
             }
@@ -219,10 +208,10 @@ public class InMemoryIndexManagerBackend extends AbstractDocumentBasedIndexManag
             }
             for (ChronoIndexDocument document : documents) {
                 Object indexedValue = document.getIndexedValue();
-                SetMultimap<Object, ChronoIndexDocument> indexedValueToDocuments = indexToIndexedValueToDocument.get(indexName);
+                SetMultimap<Object, ChronoIndexDocument> indexedValueToDocuments = indexToIndexedValueToDocument.get(index);
                 if (indexedValueToDocuments == null) {
                     indexedValueToDocuments = HashMultimap.create();
-                    indexToIndexedValueToDocument.put(indexName, indexedValueToDocuments);
+                    indexToIndexedValueToDocument.put(index, indexedValueToDocuments);
                 }
                 indexedValueToDocuments.put(indexedValue, document);
             }
@@ -230,27 +219,81 @@ public class InMemoryIndexManagerBackend extends AbstractDocumentBasedIndexManag
         return indexToIndexedValueToDocument;
     }
 
+    @Override
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public IndexScanCursor<?> createCursorOnIndex(
+        final Branch branch,
+        final long timestamp,
+        final SecondaryIndex index,
+        final String keyspace,
+        final String indexName,
+        final Order order,
+        final TextCompare textCompare,
+        final Set<String> keys
+    ) {
+        checkArgument(index.getBranch().equals(branch.getName()),
+            "Precondition violation - argument 'index' refers to a different branch than the given argument 'branch'!"
+        );
+
+        // TODO: this is GOD AWFUL. We really need to redo the inmemory backend...
+        Set<ChronoIndexDocument> documents = this.indexToDocuments.get(index);
+        List<IndexEntry> indexContents = Multimaps.index(
+            documents, doc -> new IndexKey((Comparable<?>) doc.getIndexedValue(), doc.getKey())
+        ).asMap().entrySet().stream().map(entry -> {
+            IndexKey key = entry.getKey();
+            List<Period> validPeriods = entry.getValue().stream()
+                .map(ChronoIndexDocument::getValidPeriod)
+                .sorted()
+                .collect(Collectors.toList());
+            return new IndexEntry(key, validPeriods);
+        }).sorted(IndexEntry.createComparator(textCompare)).collect(Collectors.toList());
+        if(order == Order.DESCENDING){
+            indexContents = Lists.reverse(indexContents);
+        }
+        RawIndexCursor<?> rawCursor = new RawInMemoryIndexCursor(indexContents.iterator(), order);
+        if (branch.getName().equals(ChronoDBConstants.MASTER_BRANCH_IDENTIFIER)) {
+            // on the master branch, we can use the simple scans as we don't have
+            // to watch out for deltas.
+
+            IndexScanCursor<?> cursor = new BasicIndexScanCursor(rawCursor, timestamp);
+            if (keys != null) {
+                cursor = cursor.filter(k -> keys.contains(k.getSecond()));
+            }
+            return cursor;
+        }
+
+        // create the cursor on the parent
+        Branch parentBranch = branch.getOrigin();
+        long parentTimestamp = Math.min(timestamp, branch.getBranchingTimestamp());
+
+        AbstractIndexManager indexManager = (AbstractIndexManager) this.owningDB.getIndexManager();
+        IndexScanCursor<?> parentCursor = indexManager.createCursor(parentTimestamp, parentBranch, keyspace, indexName, order, textCompare, keys);
+
+        IndexScanCursor<?> scanCursor = new DeltaResolvingScanCursor(parentCursor, timestamp, rawCursor);
+        if (keys != null) {
+            scanCursor = scanCursor.filter(k -> keys.contains(k.getSecond()));
+        }
+        return scanCursor;
+    }
+
     // =================================================================================================================
     // INTERNAL HELPER METHODS
     // =================================================================================================================
 
     @Override
-    protected Set<ChronoIndexDocument> getMatchingBranchLocalDocuments(final long timestamp, final String branchName, final String keyspace,
-                                                                       final SearchSpecification<?,?> searchSpec) {
+    protected Set<ChronoIndexDocument> getMatchingBranchLocalDocuments(
+        final long timestamp,
+        final String branchName,
+        final String keyspace,
+        final SearchSpecification<?, ?> searchSpec
+    ) {
         checkArgument(timestamp >= 0,
             "Precondition violation - argument 'timestamp' must be >= 0 (value: " + timestamp + ")!");
         checkNotNull(branchName, "Precondition violation - argument 'branchName' must not be NULL!");
         checkNotNull(searchSpec, "Precondition violation - argument 'searchSpec' must not be NULL!");
-        String indexName = searchSpec.getProperty();
-        if (this.indexNameToIndexers.containsKey(indexName) == false) {
-            throw new UnknownIndexException("There is no index named '" + indexName + "'!");
-        }
-        Map<String, Map<String, SetMultimap<String, ChronoIndexDocument>>> branchToKeyspace = this.documents
-            .get(indexName);
-        if (branchToKeyspace == null || branchToKeyspace.isEmpty()) {
-            return Collections.emptySet();
-        }
-        Map<String, SetMultimap<String, ChronoIndexDocument>> keyspaceToKeyToDoc = branchToKeyspace.get(branchName);
+        SecondaryIndex index = searchSpec.getIndex();
+
+        Map<String, SetMultimap<String, ChronoIndexDocument>> keyspaceToKeyToDoc = this.documents.get(index);
         if (keyspaceToKeyToDoc == null || keyspaceToKeyToDoc.isEmpty()) {
             return Collections.emptySet();
         }
@@ -264,21 +307,14 @@ public class InMemoryIndexManagerBackend extends AbstractDocumentBasedIndexManag
 
     @Override
     protected Set<ChronoIndexDocument> getTerminatedBranchLocalDocuments(final long timestamp, final String branchName, final String keyspace,
-                                                                         final SearchSpecification<?,?> searchSpec) {
+                                                                         final SearchSpecification<?, ?> searchSpec) {
         checkArgument(timestamp >= 0,
             "Precondition violation - argument 'timestamp' must be >= 0 (value: " + timestamp + ")!");
         checkNotNull(branchName, "Precondition violation - argument 'branchName' must not be NULL!");
         checkNotNull(searchSpec, "Precondition violation - argument 'searchSpec' must not be NULL!");
-        String indexName = searchSpec.getProperty();
-        if (this.indexNameToIndexers.containsKey(indexName) == false) {
-            throw new UnknownIndexException("There is no index named '" + indexName + "'!");
-        }
-        Map<String, Map<String, SetMultimap<String, ChronoIndexDocument>>> branchToKeyspace = this.documents
-            .get(indexName);
-        if (branchToKeyspace == null || branchToKeyspace.isEmpty()) {
-            return Collections.emptySet();
-        }
-        Map<String, SetMultimap<String, ChronoIndexDocument>> keyspaceToKeyToDoc = branchToKeyspace.get(branchName);
+        SecondaryIndex index = searchSpec.getIndex();
+
+        Map<String, SetMultimap<String, ChronoIndexDocument>> keyspaceToKeyToDoc = this.documents.get(index);
         if (keyspaceToKeyToDoc == null || keyspaceToKeyToDoc.isEmpty()) {
             return Collections.emptySet();
         }
@@ -319,22 +355,15 @@ public class InMemoryIndexManagerBackend extends AbstractDocumentBasedIndexManag
     }
 
     protected void addDocument(final ChronoIndexDocument document) {
-        String indexName = document.getIndexName();
-        this.indexNameToDocuments.put(indexName, document);
+        SecondaryIndex index = document.getIndex();
+        this.indexToDocuments.put(index, document);
         String branch = document.getBranch();
         String keyspace = document.getKeyspace();
         String key = document.getKey();
-        Map<String, Map<String, SetMultimap<String, ChronoIndexDocument>>> branchToKeyspaceToKeyToDocs = this.documents
-            .get(indexName);
-        if (branchToKeyspaceToKeyToDocs == null) {
-            branchToKeyspaceToKeyToDocs = Maps.newHashMap();
-            this.documents.put(indexName, branchToKeyspaceToKeyToDocs);
-        }
-        Map<String, SetMultimap<String, ChronoIndexDocument>> keyspaceToDocuments = branchToKeyspaceToKeyToDocs
-            .get(branch);
+        Map<String, SetMultimap<String, ChronoIndexDocument>> keyspaceToDocuments = this.documents.get(index);
         if (keyspaceToDocuments == null) {
             keyspaceToDocuments = Maps.newHashMap();
-            branchToKeyspaceToKeyToDocs.put(branch, keyspaceToDocuments);
+            this.documents.put(index, keyspaceToDocuments);
         }
         SetMultimap<String, ChronoIndexDocument> keyToDocuments = keyspaceToDocuments.get(keyspace);
         if (keyToDocuments == null) {

@@ -4,6 +4,7 @@ import static com.google.common.base.Preconditions.*;
 
 import java.util.UUID;
 
+import org.chronos.chronodb.api.SecondaryIndex;
 import org.chronos.chronodb.api.key.ChronoIdentifier;
 import org.chronos.chronodb.internal.api.index.ChronoIndexDocument;
 
@@ -15,7 +16,7 @@ public class ChronoIndexDocumentImpl implements ChronoIndexDocument {
 
 	private final String documentId;
 	private final String branch;
-	private final String indexName;
+	private final SecondaryIndex index;
 	private final String keyspace;
 	private final String key;
 	private final Object indexedValue;
@@ -26,21 +27,21 @@ public class ChronoIndexDocumentImpl implements ChronoIndexDocument {
 	// CONSTRUCTOR
 	// =================================================================================================================
 
-	public ChronoIndexDocumentImpl(final ChronoIdentifier identifier, final String indexName, final Object indexValue) {
-		this(indexName, identifier.getBranchName(), identifier.getKeyspace(), identifier.getKey(), indexValue,
+	public ChronoIndexDocumentImpl(final ChronoIdentifier identifier, final SecondaryIndex index, final Object indexValue) {
+		this(index, identifier.getBranchName(), identifier.getKeyspace(), identifier.getKey(), indexValue,
 				identifier.getTimestamp());
 	}
 
-	public ChronoIndexDocumentImpl(final String indexName, final String branchName, final String keyspace,
+	public ChronoIndexDocumentImpl(final SecondaryIndex index, final String branchName, final String keyspace,
 			final String key, final Object indexedValue,
 			final long validFrom) {
-		this(UUID.randomUUID().toString(), indexName, branchName, keyspace, key, indexedValue, validFrom, Long.MAX_VALUE);
+		this(UUID.randomUUID().toString(), index, branchName, keyspace, key, indexedValue, validFrom, Long.MAX_VALUE);
 	}
 
-	public ChronoIndexDocumentImpl(final String id, final String indexName, final String branchName,
+	public ChronoIndexDocumentImpl(final String id, final SecondaryIndex index, final String branchName,
 			final String keyspace, final String key, final Object indexedValue, final long validFrom, final long validTo) {
 		checkNotNull(id, "Precondition violation - argument 'id' must not be NULL!");
-		checkNotNull(indexName, "Precondition violation - argument 'indexName' must not be NULL!");
+		checkNotNull(index, "Precondition violation - argument 'index' must not be NULL!");
 		checkNotNull(branchName, "Precondition violation - argument 'branchName' must not be NULL!");
 		checkNotNull(keyspace, "Precondition violation - argument 'keyspace' must not be NULL!");
 		checkNotNull(key, "Precondition violation - argument 'key' must not be NULL!");
@@ -51,7 +52,7 @@ public class ChronoIndexDocumentImpl implements ChronoIndexDocument {
 				"Precondition violation - argument 'validTo' must be >= 0 (value: " + validTo + ")!");
 		checkArgument(validFrom < validTo, "Precondition violation - argument 'validTo' must be > 'validFrom'!");
 		this.documentId = id;
-		this.indexName = indexName;
+		this.index = index;
 		this.branch = branchName;
 		this.keyspace = keyspace;
 		this.key = key;
@@ -70,8 +71,8 @@ public class ChronoIndexDocumentImpl implements ChronoIndexDocument {
 	}
 
 	@Override
-	public String getIndexName() {
-		return this.indexName;
+	public SecondaryIndex getIndex() {
+		return this.index;
 	}
 
 	@Override
@@ -152,7 +153,7 @@ public class ChronoIndexDocumentImpl implements ChronoIndexDocument {
 	public String toString() {
 		StringBuilder builder = new StringBuilder();
 		builder.append("IndexDoc['");
-		builder.append(this.getIndexName());
+		builder.append(this.getIndex());
 		builder.append("'->'");
 		builder.append(this.getKeyspace());
 		builder.append("'->'");

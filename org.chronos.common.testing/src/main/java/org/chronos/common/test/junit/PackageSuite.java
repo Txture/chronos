@@ -4,13 +4,15 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.reflect.ClassPath;
-import org.chronos.common.logging.ChronoLogger;
+import org.chronos.common.configuration.ChronosConfigurationUtil;
 import org.junit.Test;
 import org.junit.experimental.categories.Categories.ExcludeCategory;
 import org.junit.experimental.categories.Category;
 import org.junit.runners.Suite;
 import org.junit.runners.model.InitializationError;
 import org.junit.runners.model.RunnerBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
@@ -22,6 +24,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class PackageSuite extends Suite {
+
+    private static final Logger log = LoggerFactory.getLogger(PackageSuite.class);
+
 
     public PackageSuite(final Class<?> suiteClass, final RunnerBuilder builder) throws InitializationError {
         super(builder, suiteClass, getSuiteClasses(suiteClass));
@@ -56,7 +61,7 @@ public class PackageSuite extends Suite {
                     .map(ci -> ci.load()).collect(Collectors.toSet());
                 resultSet.addAll(topLevelClasses);
             } catch (IOException e) {
-                ChronoLogger.logError("Failed to scan packages for classes!", e);
+                log.error("Failed to scan packages for classes!", e);
             }
         }
         return resultSet;

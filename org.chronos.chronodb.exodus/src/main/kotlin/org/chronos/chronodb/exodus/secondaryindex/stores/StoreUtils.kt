@@ -1,9 +1,6 @@
 package org.chronos.chronodb.exodus.secondaryindex.stores
 
 import jetbrains.exodus.ByteIterable
-import org.chronos.chronodb.internal.api.query.searchspec.SearchSpecification
-import org.chronos.common.base.CCC
-import org.chronos.common.logging.ChronoLogger
 
 object StoreUtils {
 

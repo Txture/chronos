@@ -20,7 +20,8 @@ import org.chronos.chronodb.internal.impl.dump.meta.ChronoDBDumpMetadata;
 import org.chronos.chronodb.internal.impl.dump.meta.IndexerDumpMetadata;
 import org.chronos.chronodb.internal.impl.temporal.ChronoIdentifierImpl;
 import org.chronos.chronodb.internal.util.ChronosFileUtils;
-import org.chronos.common.logging.ChronoLogger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.lang.reflect.Field;
@@ -47,6 +48,8 @@ import static com.google.common.base.Preconditions.*;
  * @author martin.haeusler@uibk.ac.at -- Initial Contribution and API
  */
 public class ChronoDBDumpFormat {
+
+    private static final Logger log = LoggerFactory.getLogger(ChronoDBDumpFormat.class);
 
     /**
      * The default alias name for the {@link ChronoDBDumpMetadata} class.
@@ -124,7 +127,7 @@ public class ChronoDBDumpFormat {
                 Alias value = (Alias) field.get(null);
                 aliases.add(value);
             } catch (IllegalArgumentException | IllegalAccessException e) {
-                ChronoLogger.logError("Failed to collect aliases", e);
+                log.error("Failed to collect aliases", e);
             }
         }
         return aliases;
@@ -491,7 +494,7 @@ public class ChronoDBDumpFormat {
         }
 
         /**
-         * Fills the internal {@link next buffer} field to answer the {@link #hasNext()} method.
+         * Fills the internal {@link #next} buffer field to answer the {@link #hasNext()} method.
          *
          * <p>
          * If {@link #next} is <code>null</code> after calling this method, the end of the wrapped input stream has been

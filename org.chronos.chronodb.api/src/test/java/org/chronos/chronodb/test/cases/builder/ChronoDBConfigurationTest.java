@@ -2,10 +2,15 @@ package org.chronos.chronodb.test.cases.builder;
 
 import org.chronos.chronodb.api.ChronoDB;
 import org.chronos.chronodb.inmemory.InMemoryChronoDB;
+import org.chronos.chronodb.internal.api.ChronoDBConfiguration;
+import org.chronos.chronodb.internal.api.ChronoDBInternal;
+import org.chronos.chronodb.internal.api.cache.ChronoDBCache;
 import org.chronos.chronodb.internal.impl.cache.bogus.ChronoDBBogusCache;
+import org.chronos.chronodb.internal.impl.cache.headfirst.HeadFirstCache;
 import org.chronos.chronodb.test.base.ChronoDBUnitTest;
 import org.chronos.common.exceptions.ChronosConfigurationException;
 import org.chronos.common.test.junit.categories.IntegrationTest;
+import org.junit.Assert;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -54,6 +59,22 @@ public class ChronoDBConfigurationTest extends ChronoDBUnitTest {
         } catch (ChronosConfigurationException expected) {
             // pass
         }
+    }
+
+    @Test
+    public void canConfigureHeadFirstCache() {
+        ChronoDB db = ChronoDB.FACTORY.create().database(InMemoryChronoDB.BUILDER)
+            .withProperty(ChronoDBConfiguration.CACHING_ENABLED,"true")
+            .withProperty(ChronoDBConfiguration.CACHE_TYPE,"head-first")
+            .withProperty(ChronoDBConfiguration.CACHE_MAX_SIZE, "100")
+            .withProperty(ChronoDBConfiguration.CACHE_HEADFIRST_PREFERRED_BRANCH, "master")
+            .withProperty(ChronoDBConfiguration.CACHE_HEADFIRST_PREFERRED_KEYSPACE, "vertex")
+            .build();
+        ChronoDBCache cache = db.getCache();
+        assertTrue(cache instanceof HeadFirstCache);
+        HeadFirstCache hfc = (HeadFirstCache) cache;
+        assertEquals("master", hfc.getPreferredBranch());
+        assertEquals("vertex", hfc.getPreferredKeyspace());
     }
 
     private void assertHasCache(final ChronoDB db) {

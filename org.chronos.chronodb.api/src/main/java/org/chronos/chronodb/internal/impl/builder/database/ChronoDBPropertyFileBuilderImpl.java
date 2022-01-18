@@ -5,7 +5,7 @@ import static com.google.common.base.Preconditions.*;
 import java.io.File;
 import java.util.Iterator;
 
-import org.apache.commons.configuration.Configuration;
+import org.apache.commons.configuration2.Configuration;
 import org.chronos.chronodb.api.builder.database.ChronoDBPropertyFileBuilder;
 
 public class ChronoDBPropertyFileBuilderImpl extends AbstractChronoDBFinalizableBuilder<ChronoDBPropertyFileBuilder>

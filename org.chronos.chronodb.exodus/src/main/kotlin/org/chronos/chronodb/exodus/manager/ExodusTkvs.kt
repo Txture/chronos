@@ -1,8 +1,9 @@
 package org.chronos.chronodb.exodus.manager
 
-import com.google.common.collect.*
+import com.google.common.collect.Sets
 import jetbrains.exodus.ByteIterable
 import jetbrains.exodus.bindings.BooleanBinding
+import mu.KotlinLogging
 import org.chronos.chronodb.api.ChronoDBConstants
 import org.chronos.chronodb.exodus.ExodusChronoDB
 import org.chronos.chronodb.exodus.ExodusDataMatrixUtil
@@ -20,20 +21,22 @@ import org.chronos.chronodb.internal.impl.engines.base.AbstractTemporalKeyValueS
 import org.chronos.chronodb.internal.impl.engines.base.WriteAheadLogToken
 import org.chronos.chronodb.internal.impl.temporal.UnqualifiedTemporalEntry
 import org.chronos.chronodb.internal.impl.temporal.UnqualifiedTemporalKey
-import org.chronos.common.logging.ChronoLogger.logTrace
-import java.util.concurrent.locks.Lock
-import java.util.concurrent.locks.ReentrantLock
-import kotlin.concurrent.withLock
 
 class ExodusTkvs : AbstractTemporalKeyValueStore {
+
+    companion object {
+
+        private val log = KotlinLogging.logger {}
+
+    }
 
     private val commitMetadataStore: CommitMetadataStore
     private var cachedNowTimestamp: Long
     private val owningDB: ExodusChronoDB
         get() = super.getOwningDB() as ExodusChronoDB
 
+    private val walTokenCacheLock = Object()
     private var walTokenCache: WriteAheadLogToken? = null
-    private val walTokenCacheLock: Lock = ReentrantLock(true)
 
     // =================================================================================================================
     // CONSTRUCTOR
@@ -92,7 +95,7 @@ class ExodusTkvs : AbstractTemporalKeyValueStore {
     }
 
     private fun initializeWalTokenCache() {
-        this.walTokenCacheLock.withLock {
+        synchronized(this.walTokenCacheLock) {
             val serializationManager = this.owningDB.serializationManager
             this.walTokenCache = this.withGlobalReadOnlyTransaction { tx ->
                 tx.get(ChronoDBStoreLayout.STORE_NAME__BRANCH_TO_WAL, this.owningBranch.name)
@@ -102,7 +105,7 @@ class ExodusTkvs : AbstractTemporalKeyValueStore {
     }
 
     override fun getWriteAheadLogTokenIfExists(): WriteAheadLogToken? {
-        this.walTokenCacheLock.withLock {
+        synchronized(this.walTokenCacheLock) {
             return this.walTokenCache
         }
     }
@@ -112,7 +115,7 @@ class ExodusTkvs : AbstractTemporalKeyValueStore {
     }
 
     override fun performWriteAheadLog(token: WriteAheadLogToken) {
-        this.walTokenCacheLock.withLock {
+        synchronized(this.walTokenCacheLock) {
             this.withGlobalReadWriteTransaction { tx ->
                 val serialForm = this.owningDB.serializationManager.serialize(token).toByteIterable()
                 tx.put(ChronoDBStoreLayout.STORE_NAME__BRANCH_TO_WAL, this.owningBranch.name, serialForm)
@@ -123,7 +126,7 @@ class ExodusTkvs : AbstractTemporalKeyValueStore {
     }
 
     override fun clearWriteAheadLogToken() {
-        this.walTokenCacheLock.withLock {
+        synchronized(this.walTokenCacheLock) {
             this.withGlobalReadWriteTransaction { tx ->
                 tx.delete(ChronoDBStoreLayout.STORE_NAME__BRANCH_TO_WAL, this.owningBranch.name)
                 tx.commit()
@@ -363,11 +366,11 @@ class ExodusTkvs : AbstractTemporalKeyValueStore {
         this.withGlobalReadWriteTransaction { tx ->
             val branchName = this.owningBranch.name
             if (NavigationIndex.existsBranch(tx, branchName)) {
-                logTrace("Branch '$branchName' already exists.")
+                log.trace { "Branch '$branchName' already exists." }
             } else {
                 val keyspaceName = ChronoDBConstants.DEFAULT_KEYSPACE_NAME
                 val tableName = MatrixUtils.generateRandomName()
-                logTrace("Creating branch: [$branchName, $keyspaceName, $tableName]")
+                log.trace { "Creating branch: [$branchName, $keyspaceName, $tableName]" }
                 NavigationIndex.insert(tx, branchName, keyspaceName, tableName, 0L)
                 tx.commit()
             }
@@ -385,8 +388,7 @@ class ExodusTkvs : AbstractTemporalKeyValueStore {
                 val matrix = TemporalExodusMatrix(owningDB.globalChunkManager,
                     branchName, matrixTableName, keyspace, timestamp)
                 this.keyspaceToMatrix[keyspace] = matrix
-                logTrace("Registering keyspace '" + keyspace + "' matrix in branch '" + branchName + "': "
-                    + matrixTableName)
+                log.trace { "Registering keyspace '$keyspace' matrix in branch '$branchName': $matrixTableName" }
             }
             tx.commit()
         }

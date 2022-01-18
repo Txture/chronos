@@ -40,9 +40,4 @@ public class ChronoGraphVertexIndex extends AbstractChronoGraphIndex implements 
 		return "Index[Vertex, " + this.getIndexedProperty() + "]";
 	}
 
-	@Override
-	public Indexer<?> createIndexer() {
-		return new VertexRecordPropertyIndexer(this.getIndexedProperty());
-	}
-
 }

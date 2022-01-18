@@ -13,6 +13,7 @@ import org.chronos.chronograph.api.builder.query.CP;
 import org.chronos.chronograph.api.index.ChronoGraphIndexManager;
 import org.chronos.chronograph.api.structure.ChronoGraph;
 import org.chronos.chronograph.test.base.AllChronoGraphBackendsTest;
+import org.hamcrest.MatcherAssert;
 import org.junit.Test;
 
 import java.util.Set;
@@ -70,9 +71,9 @@ public class GremlinTest extends AllChronoGraphBackendsTest {
     @Test
     public void multipleHasClausesWorksOnIndexedVertexProperty() {
         ChronoGraph graph = this.getGraph();
-        ChronoGraphIndexManager indexManager = graph.getIndexManager();
-        indexManager.create().stringIndex().onVertexProperty("name").build();
-        indexManager.create().stringIndex().onVertexProperty("kind").build();
+        ChronoGraphIndexManager indexManager = graph.getIndexManagerOnMaster();
+        indexManager.create().stringIndex().onVertexProperty("name").acrossAllTimestamps().build();
+        indexManager.create().stringIndex().onVertexProperty("kind").acrossAllTimestamps().build();
         indexManager.reindexAll();
         Vertex vExpected = graph.addVertex("kind", "person", "name", "Martin");
         graph.addVertex("kind", "person", "name", "Thomas");
@@ -108,9 +109,9 @@ public class GremlinTest extends AllChronoGraphBackendsTest {
     @Test
     public void multipleHasClausesWorksOnMixedIndexedVertexProperty() {
         ChronoGraph graph = this.getGraph();
-        ChronoGraphIndexManager indexManager = graph.getIndexManager();
+        ChronoGraphIndexManager indexManager = graph.getIndexManagerOnMaster();
         // do not index 'name', but index 'kind'
-        indexManager.create().stringIndex().onVertexProperty("kind").build();
+        indexManager.create().stringIndex().onVertexProperty("kind").acrossAllTimestamps().build();
         indexManager.reindexAll();
         Vertex vExpected = graph.addVertex("kind", "person", "name", "Martin");
         graph.addVertex("kind", "person", "name", "Thomas");
@@ -129,9 +130,9 @@ public class GremlinTest extends AllChronoGraphBackendsTest {
     @Test
     public void multipleHasClausesWorksOnIndexedEdgeProperty() {
         ChronoGraph graph = this.getGraph();
-        ChronoGraphIndexManager indexManager = graph.getIndexManager();
-        indexManager.create().stringIndex().onEdgeProperty("a").build();
-        indexManager.create().stringIndex().onEdgeProperty("b").build();
+        ChronoGraphIndexManager indexManager = graph.getIndexManagerOnMaster();
+        indexManager.create().stringIndex().onEdgeProperty("a").acrossAllTimestamps().build();
+        indexManager.create().stringIndex().onEdgeProperty("b").acrossAllTimestamps().build();
         indexManager.reindexAll();
         Vertex v1 = graph.addVertex();
         Vertex v2 = graph.addVertex();
@@ -153,9 +154,9 @@ public class GremlinTest extends AllChronoGraphBackendsTest {
     @Test
     public void multipleHasClausesWorksOnMixedEdgeProperty() {
         ChronoGraph graph = this.getGraph();
-        ChronoGraphIndexManager indexManager = graph.getIndexManager();
+        ChronoGraphIndexManager indexManager = graph.getIndexManagerOnMaster();
         // do not index 'a', but index 'b'
-        indexManager.create().stringIndex().onEdgeProperty("b").build();
+        indexManager.create().stringIndex().onEdgeProperty("b").acrossAllTimestamps().build();
         indexManager.reindexAll();
         Vertex v1 = graph.addVertex();
         Vertex v2 = graph.addVertex();
@@ -255,85 +256,85 @@ public class GremlinTest extends AllChronoGraphBackendsTest {
         graph.addVertex(T.label, "Person", "firstname", "Jane", "lastname", "Doe");
         graph.addVertex(T.label, "Person", "firstname", "Jack", "lastname", "Smith");
         graph.addVertex(T.label, "Person", "firstname", "Sarah", "lastname", "Doe");
-        assertThat(graph.traversal().V().has("firstname", CP.startsWith("J")).values("firstname").toSet(), containsInAnyOrder("John","Jack", "Jane"));
-        assertThat(graph.traversal().V().has("firstname", CP.startsWithIgnoreCase("ja")).values("firstname").toSet(), containsInAnyOrder("Jack", "Jane"));
-        assertThat(graph.traversal().V().has("firstname", CP.notStartsWith("J")).values("firstname").toSet(), containsInAnyOrder("Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.notStartsWithIgnoreCase("ja")).values("firstname").toSet(), containsInAnyOrder("John", "Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.endsWith("n")).values("firstname").toSet(), containsInAnyOrder("John"));
-        assertThat(graph.traversal().V().has("firstname", CP.endsWithIgnoreCase("K")).values("firstname").toSet(), containsInAnyOrder("Jack"));
-        assertThat(graph.traversal().V().has("firstname", CP.notEndsWith("n")).values("firstname").toSet(), containsInAnyOrder("Jane", "Jack", "Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.notEndsWithIgnoreCase("K")).values("firstname").toSet(), containsInAnyOrder("John", "Jane", "Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.contains("a")).values("firstname").toSet(), containsInAnyOrder("Jane", "Jack", "Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.notContains("a")).values("firstname").toSet(), containsInAnyOrder("John"));
-        assertThat(graph.traversal().V().has("firstname", CP.containsIgnoreCase("AN")).values("firstname").toSet(), containsInAnyOrder("Jane"));
-        assertThat(graph.traversal().V().has("firstname", CP.notContainsIgnoreCase("AN")).values("firstname").toSet(), containsInAnyOrder("John", "Jack", "Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.matchesRegex("J.*n.*")).values("firstname").toSet(), containsInAnyOrder("John", "Jane"));
-        assertThat(graph.traversal().V().has("firstname", CP.notMatchesRegex("J.*n.*")).values("firstname").toSet(), containsInAnyOrder("Jack", "Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.matchesRegexIgnoreCase("j.*n.*")).values("firstname").toSet(), containsInAnyOrder("John", "Jane"));
-        assertThat(graph.traversal().V().has("firstname", CP.notMatchesRegexIgnoreCase("j.*n.*")).values("firstname").toSet(), containsInAnyOrder("Jack", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.startsWith("J")).values("firstname").toSet(), containsInAnyOrder("John","Jack", "Jane"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.startsWithIgnoreCase("ja")).values("firstname").toSet(), containsInAnyOrder("Jack", "Jane"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notStartsWith("J")).values("firstname").toSet(), containsInAnyOrder("Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notStartsWithIgnoreCase("ja")).values("firstname").toSet(), containsInAnyOrder("John", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.endsWith("n")).values("firstname").toSet(), containsInAnyOrder("John"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.endsWithIgnoreCase("K")).values("firstname").toSet(), containsInAnyOrder("Jack"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notEndsWith("n")).values("firstname").toSet(), containsInAnyOrder("Jane", "Jack", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notEndsWithIgnoreCase("K")).values("firstname").toSet(), containsInAnyOrder("John", "Jane", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.contains("a")).values("firstname").toSet(), containsInAnyOrder("Jane", "Jack", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notContains("a")).values("firstname").toSet(), containsInAnyOrder("John"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.containsIgnoreCase("AN")).values("firstname").toSet(), containsInAnyOrder("Jane"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notContainsIgnoreCase("AN")).values("firstname").toSet(), containsInAnyOrder("John", "Jack", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.matchesRegex("J.*n.*")).values("firstname").toSet(), containsInAnyOrder("John", "Jane"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notMatchesRegex("J.*n.*")).values("firstname").toSet(), containsInAnyOrder("Jack", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.matchesRegexIgnoreCase("j.*n.*")).values("firstname").toSet(), containsInAnyOrder("John", "Jane"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notMatchesRegexIgnoreCase("j.*n.*")).values("firstname").toSet(), containsInAnyOrder("Jack", "Sarah"));
 
         graph.tx().commit();
-        assertThat(graph.traversal().V().has("firstname", CP.startsWith("J")).values("firstname").toSet(), containsInAnyOrder("John","Jack", "Jane"));
-        assertThat(graph.traversal().V().has("firstname", CP.startsWithIgnoreCase("ja")).values("firstname").toSet(), containsInAnyOrder("Jack", "Jane"));
-        assertThat(graph.traversal().V().has("firstname", CP.notStartsWith("J")).values("firstname").toSet(), containsInAnyOrder("Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.notStartsWithIgnoreCase("ja")).values("firstname").toSet(), containsInAnyOrder("John", "Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.endsWith("n")).values("firstname").toSet(), containsInAnyOrder("John"));
-        assertThat(graph.traversal().V().has("firstname", CP.endsWithIgnoreCase("K")).values("firstname").toSet(), containsInAnyOrder("Jack"));
-        assertThat(graph.traversal().V().has("firstname", CP.notEndsWith("n")).values("firstname").toSet(), containsInAnyOrder("Jane", "Jack", "Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.notEndsWithIgnoreCase("K")).values("firstname").toSet(), containsInAnyOrder("John", "Jane", "Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.contains("a")).values("firstname").toSet(), containsInAnyOrder("Jane", "Jack", "Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.notContains("a")).values("firstname").toSet(), containsInAnyOrder("John"));
-        assertThat(graph.traversal().V().has("firstname", CP.containsIgnoreCase("AN")).values("firstname").toSet(), containsInAnyOrder("Jane"));
-        assertThat(graph.traversal().V().has("firstname", CP.notContainsIgnoreCase("AN")).values("firstname").toSet(), containsInAnyOrder("John", "Jack", "Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.matchesRegex("J.*n.*")).values("firstname").toSet(), containsInAnyOrder("John", "Jane"));
-        assertThat(graph.traversal().V().has("firstname", CP.notMatchesRegex("J.*n.*")).values("firstname").toSet(), containsInAnyOrder("Jack", "Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.matchesRegexIgnoreCase("j.*n.*")).values("firstname").toSet(), containsInAnyOrder("John", "Jane"));
-        assertThat(graph.traversal().V().has("firstname", CP.notMatchesRegexIgnoreCase("j.*n.*")).values("firstname").toSet(), containsInAnyOrder("Jack", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.startsWith("J")).values("firstname").toSet(), containsInAnyOrder("John","Jack", "Jane"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.startsWithIgnoreCase("ja")).values("firstname").toSet(), containsInAnyOrder("Jack", "Jane"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notStartsWith("J")).values("firstname").toSet(), containsInAnyOrder("Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notStartsWithIgnoreCase("ja")).values("firstname").toSet(), containsInAnyOrder("John", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.endsWith("n")).values("firstname").toSet(), containsInAnyOrder("John"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.endsWithIgnoreCase("K")).values("firstname").toSet(), containsInAnyOrder("Jack"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notEndsWith("n")).values("firstname").toSet(), containsInAnyOrder("Jane", "Jack", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notEndsWithIgnoreCase("K")).values("firstname").toSet(), containsInAnyOrder("John", "Jane", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.contains("a")).values("firstname").toSet(), containsInAnyOrder("Jane", "Jack", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notContains("a")).values("firstname").toSet(), containsInAnyOrder("John"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.containsIgnoreCase("AN")).values("firstname").toSet(), containsInAnyOrder("Jane"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notContainsIgnoreCase("AN")).values("firstname").toSet(), containsInAnyOrder("John", "Jack", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.matchesRegex("J.*n.*")).values("firstname").toSet(), containsInAnyOrder("John", "Jane"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notMatchesRegex("J.*n.*")).values("firstname").toSet(), containsInAnyOrder("Jack", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.matchesRegexIgnoreCase("j.*n.*")).values("firstname").toSet(), containsInAnyOrder("John", "Jane"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notMatchesRegexIgnoreCase("j.*n.*")).values("firstname").toSet(), containsInAnyOrder("Jack", "Sarah"));
     }
 
     @Test
     public void canExecuteGraphIndexQueriesWithStringPredicatesWithIndices(){
         ChronoGraph graph = this.getGraph();
-        graph.getIndexManager().create().stringIndex().onVertexProperty("firstname").build();
-        graph.getIndexManager().create().stringIndex().onVertexProperty("lastname").build();
-        graph.getIndexManager().reindexAll();
+        graph.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("firstname").acrossAllTimestamps().build();
+        graph.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("lastname").acrossAllTimestamps().build();
+        graph.getIndexManagerOnMaster().reindexAll();
         graph.addVertex(T.label, "Person", "firstname", "John", "lastname", "Doe");
         graph.addVertex(T.label, "Person", "firstname", "Jane", "lastname", "Doe");
         graph.addVertex(T.label, "Person", "firstname", "Jack", "lastname", "Smith");
         graph.addVertex(T.label, "Person", "firstname", "Sarah", "lastname", "Doe");
-        assertThat(graph.traversal().V().has("firstname", CP.startsWith("J")).values("firstname").toSet(), containsInAnyOrder("John","Jack", "Jane"));
-        assertThat(graph.traversal().V().has("firstname", CP.startsWithIgnoreCase("ja")).values("firstname").toSet(), containsInAnyOrder("Jack", "Jane"));
-        assertThat(graph.traversal().V().has("firstname", CP.notStartsWith("J")).values("firstname").toSet(), containsInAnyOrder("Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.notStartsWithIgnoreCase("ja")).values("firstname").toSet(), containsInAnyOrder("John", "Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.endsWith("n")).values("firstname").toSet(), containsInAnyOrder("John"));
-        assertThat(graph.traversal().V().has("firstname", CP.endsWithIgnoreCase("K")).values("firstname").toSet(), containsInAnyOrder("Jack"));
-        assertThat(graph.traversal().V().has("firstname", CP.notEndsWith("n")).values("firstname").toSet(), containsInAnyOrder("Jane", "Jack", "Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.notEndsWithIgnoreCase("K")).values("firstname").toSet(), containsInAnyOrder("John", "Jane", "Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.contains("a")).values("firstname").toSet(), containsInAnyOrder("Jane", "Jack", "Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.notContains("a")).values("firstname").toSet(), containsInAnyOrder("John"));
-        assertThat(graph.traversal().V().has("firstname", CP.containsIgnoreCase("AN")).values("firstname").toSet(), containsInAnyOrder("Jane"));
-        assertThat(graph.traversal().V().has("firstname", CP.notContainsIgnoreCase("AN")).values("firstname").toSet(), containsInAnyOrder("John", "Jack", "Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.matchesRegex("J.*n.*")).values("firstname").toSet(), containsInAnyOrder("John", "Jane"));
-        assertThat(graph.traversal().V().has("firstname", CP.notMatchesRegex("J.*n.*")).values("firstname").toSet(), containsInAnyOrder("Jack", "Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.matchesRegexIgnoreCase("j.*n.*")).values("firstname").toSet(), containsInAnyOrder("John", "Jane"));
-        assertThat(graph.traversal().V().has("firstname", CP.notMatchesRegexIgnoreCase("j.*n.*")).values("firstname").toSet(), containsInAnyOrder("Jack", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.startsWith("J")).values("firstname").toSet(), containsInAnyOrder("John","Jack", "Jane"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.startsWithIgnoreCase("ja")).values("firstname").toSet(), containsInAnyOrder("Jack", "Jane"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notStartsWith("J")).values("firstname").toSet(), containsInAnyOrder("Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notStartsWithIgnoreCase("ja")).values("firstname").toSet(), containsInAnyOrder("John", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.endsWith("n")).values("firstname").toSet(), containsInAnyOrder("John"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.endsWithIgnoreCase("K")).values("firstname").toSet(), containsInAnyOrder("Jack"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notEndsWith("n")).values("firstname").toSet(), containsInAnyOrder("Jane", "Jack", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notEndsWithIgnoreCase("K")).values("firstname").toSet(), containsInAnyOrder("John", "Jane", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.contains("a")).values("firstname").toSet(), containsInAnyOrder("Jane", "Jack", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notContains("a")).values("firstname").toSet(), containsInAnyOrder("John"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.containsIgnoreCase("AN")).values("firstname").toSet(), containsInAnyOrder("Jane"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notContainsIgnoreCase("AN")).values("firstname").toSet(), containsInAnyOrder("John", "Jack", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.matchesRegex("J.*n.*")).values("firstname").toSet(), containsInAnyOrder("John", "Jane"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notMatchesRegex("J.*n.*")).values("firstname").toSet(), containsInAnyOrder("Jack", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.matchesRegexIgnoreCase("j.*n.*")).values("firstname").toSet(), containsInAnyOrder("John", "Jane"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notMatchesRegexIgnoreCase("j.*n.*")).values("firstname").toSet(), containsInAnyOrder("Jack", "Sarah"));
 
         graph.tx().commit();
-        assertThat(graph.traversal().V().has("firstname", CP.startsWith("J")).values("firstname").toSet(), containsInAnyOrder("John","Jack", "Jane"));
-        assertThat(graph.traversal().V().has("firstname", CP.startsWithIgnoreCase("ja")).values("firstname").toSet(), containsInAnyOrder("Jack", "Jane"));
-        assertThat(graph.traversal().V().has("firstname", CP.notStartsWith("J")).values("firstname").toSet(), containsInAnyOrder("Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.notStartsWithIgnoreCase("ja")).values("firstname").toSet(), containsInAnyOrder("John", "Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.endsWith("n")).values("firstname").toSet(), containsInAnyOrder("John"));
-        assertThat(graph.traversal().V().has("firstname", CP.endsWithIgnoreCase("K")).values("firstname").toSet(), containsInAnyOrder("Jack"));
-        assertThat(graph.traversal().V().has("firstname", CP.notEndsWith("n")).values("firstname").toSet(), containsInAnyOrder("Jane", "Jack", "Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.notEndsWithIgnoreCase("K")).values("firstname").toSet(), containsInAnyOrder("John", "Jane", "Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.contains("a")).values("firstname").toSet(), containsInAnyOrder("Jane", "Jack", "Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.notContains("a")).values("firstname").toSet(), containsInAnyOrder("John"));
-        assertThat(graph.traversal().V().has("firstname", CP.containsIgnoreCase("AN")).values("firstname").toSet(), containsInAnyOrder("Jane"));
-        assertThat(graph.traversal().V().has("firstname", CP.notContainsIgnoreCase("AN")).values("firstname").toSet(), containsInAnyOrder("John", "Jack", "Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.matchesRegex("J.*n.*")).values("firstname").toSet(), containsInAnyOrder("John", "Jane"));
-        assertThat(graph.traversal().V().has("firstname", CP.notMatchesRegex("J.*n.*")).values("firstname").toSet(), containsInAnyOrder("Jack", "Sarah"));
-        assertThat(graph.traversal().V().has("firstname", CP.matchesRegexIgnoreCase("j.*n.*")).values("firstname").toSet(), containsInAnyOrder("John", "Jane"));
-        assertThat(graph.traversal().V().has("firstname", CP.notMatchesRegexIgnoreCase("j.*n.*")).values("firstname").toSet(), containsInAnyOrder("Jack", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.startsWith("J")).values("firstname").toSet(), containsInAnyOrder("John","Jack", "Jane"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.startsWithIgnoreCase("ja")).values("firstname").toSet(), containsInAnyOrder("Jack", "Jane"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notStartsWith("J")).values("firstname").toSet(), containsInAnyOrder("Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notStartsWithIgnoreCase("ja")).values("firstname").toSet(), containsInAnyOrder("John", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.endsWith("n")).values("firstname").toSet(), containsInAnyOrder("John"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.endsWithIgnoreCase("K")).values("firstname").toSet(), containsInAnyOrder("Jack"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notEndsWith("n")).values("firstname").toSet(), containsInAnyOrder("Jane", "Jack", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notEndsWithIgnoreCase("K")).values("firstname").toSet(), containsInAnyOrder("John", "Jane", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.contains("a")).values("firstname").toSet(), containsInAnyOrder("Jane", "Jack", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notContains("a")).values("firstname").toSet(), containsInAnyOrder("John"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.containsIgnoreCase("AN")).values("firstname").toSet(), containsInAnyOrder("Jane"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notContainsIgnoreCase("AN")).values("firstname").toSet(), containsInAnyOrder("John", "Jack", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.matchesRegex("J.*n.*")).values("firstname").toSet(), containsInAnyOrder("John", "Jane"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notMatchesRegex("J.*n.*")).values("firstname").toSet(), containsInAnyOrder("Jack", "Sarah"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.matchesRegexIgnoreCase("j.*n.*")).values("firstname").toSet(), containsInAnyOrder("John", "Jane"));
+        MatcherAssert.assertThat(graph.traversal().V().has("firstname", CP.notMatchesRegexIgnoreCase("j.*n.*")).values("firstname").toSet(), containsInAnyOrder("Jack", "Sarah"));
     }
 }

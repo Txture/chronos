@@ -2,7 +2,6 @@ package org.chronos.chronograph.test.cases.record
 
 import com.google.common.collect.Lists
 import com.google.common.collect.Sets
-import org.apache.tinkerpop.gremlin.process.traversal.step.util.WithOptions.list
 import org.apache.tinkerpop.gremlin.structure.Direction
 import org.apache.tinkerpop.gremlin.structure.T
 import org.chronos.chronodb.api.ChronoDB
@@ -18,6 +17,9 @@ import org.junit.Assert.*
 import org.junit.Test
 import org.junit.experimental.categories.Category
 import java.util.*
+
+import org.hamcrest.MatcherAssert.assertThat
+
 
 @Category(UnitTest::class)
 class RecordBuilderTest {

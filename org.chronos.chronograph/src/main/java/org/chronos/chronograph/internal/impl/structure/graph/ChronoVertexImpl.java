@@ -1,7 +1,13 @@
 package org.chronos.chronograph.internal.impl.structure.graph;
 
 import com.google.common.base.Objects;
-import com.google.common.collect.*;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.SetMultimap;
+import com.google.common.collect.Sets;
+import com.google.common.collect.Streams;
 import org.apache.tinkerpop.gremlin.structure.Direction;
 import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Graph;
@@ -21,10 +27,9 @@ import org.chronos.chronograph.api.structure.record.IVertexPropertyRecord;
 import org.chronos.chronograph.api.structure.record.IVertexRecord;
 import org.chronos.chronograph.api.transaction.ChronoGraphTransaction;
 import org.chronos.chronograph.internal.ChronoGraphConstants;
-import org.chronos.chronograph.internal.api.configuration.ChronoGraphConfiguration;
 import org.chronos.chronograph.internal.api.structure.ChronoGraphInternal;
 import org.chronos.chronograph.internal.api.transaction.ChronoGraphTransactionInternal;
-import org.chronos.chronograph.internal.impl.structure.record.*;
+import org.chronos.chronograph.internal.impl.structure.record.EdgeTargetRecordWithLabel;
 import org.chronos.chronograph.internal.impl.structure.record2.EdgeTargetRecord2;
 import org.chronos.chronograph.internal.impl.structure.record3.VertexRecord3;
 import org.chronos.chronograph.internal.impl.util.ChronoGraphElementUtil;
@@ -33,18 +38,26 @@ import org.chronos.chronograph.internal.impl.util.ChronoId;
 import org.chronos.chronograph.internal.impl.util.ChronoProxyUtil;
 import org.chronos.chronograph.internal.impl.util.PredefinedVertexProperty;
 import org.chronos.common.exceptions.UnknownEnumLiteralException;
-import org.chronos.common.logging.ChronoLogger;
-import org.chronos.common.logging.LogLevel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
-import java.util.*;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.google.common.base.Preconditions.*;
+import static org.chronos.common.logging.ChronosLogMarker.*;
 
 public class ChronoVertexImpl extends AbstractChronoElement implements Vertex, ChronoVertex {
+
+    private static final Logger log = LoggerFactory.getLogger(ChronoVertexImpl.class);
 
     // =================================================================================================================
     // FIELDS
@@ -224,13 +237,9 @@ public class ChronoVertexImpl extends AbstractChronoElement implements Vertex, C
                 List<EdgeTargetRecordWithLabel> outgoingEdges = vertexRecord.getOutgoingEdges(edgeLabels);
                 List<EdgeTargetRecordWithLabel> incomingEdges = vertexRecord.getIncomingEdges(edgeLabels);
                 return Stream.concat(
-                    outgoingEdges.stream().map(this::loadOutgoingEdgeTargetRecord),
-                    incomingEdges.stream().map(this::loadIncomingEdgeTargetRecord)
-                )
-                    // distinct protects us against returning self edges twice
-                    .distinct()
-                    // note that this is a lazy operation
-                    .iterator();
+                        outgoingEdges.stream().map(this::loadOutgoingEdgeTargetRecord),
+                        incomingEdges.stream().map(this::loadIncomingEdgeTargetRecord)
+                    ).iterator();
             case IN:
                 return Iterators.transform(vertexRecord.getIncomingEdges(edgeLabels).iterator(), this::loadIncomingEdgeTargetRecord);
             case OUT:
@@ -250,52 +259,49 @@ public class ChronoVertexImpl extends AbstractChronoElement implements Vertex, C
                     // that no concurrent modification excpetions should ever be thrown when iterating over edges
                     // in a single-threaded program.
 
-                    // also note that we do NOT want self-edges (e.g. v1->v1) to appear twice. Therefore, we use
-                    // a set to eliminate duplicates. Furthermore, Gremlin wants ot have out-edges before in-edges
-                    // in the iterator, so we use a linked hash set, as it preserves insertion order.
-                    Set<Edge> edges = Sets.newLinkedHashSet();
+                    int expectedSize = this.labelToOutgoingEdges.size() + this.labelToIncomingEdges.size();
+                    List<Edge> edges = Lists.newArrayListWithExpectedSize(expectedSize);
+                    // Gremlin wants ot have out-edges before in-edges in the iterator.
                     edges.addAll(this.labelToOutgoingEdges.values());
                     edges.addAll(this.labelToIncomingEdges.values());
                     return edges.iterator();
                 } else {
                     // return the ones with matching labels
-                    Set<Edge> edges = Sets.newLinkedHashSet();
-                    for (String edgeLabel : edgeLabels) {
-                        edges.addAll(this.labelToOutgoingEdges.get(edgeLabel));
-                        edges.addAll(this.labelToIncomingEdges.get(edgeLabel));
-                    }
+                    List<Edge> edges = Stream.of(edgeLabels).distinct().flatMap(edgeLabel ->
+                        Streams.concat(
+                            this.labelToOutgoingEdges.get(edgeLabel).stream(),
+                            this.labelToIncomingEdges.get(edgeLabel).stream()
+                        )
+                    ).collect(Collectors.toList());
                     return edges.iterator();
                 }
             case IN:
                 if (edgeLabels == null || edgeLabels.length <= 0) {
                     // return all
                     // note that we wrap the internal collections in new hash sets; gremlin specification states
-                    // that no concurrent modification excpetions should ever be thrown when iterating over edges
+                    // that no concurrent modification exceptions should ever be thrown when iterating over edges
                     // in a single-threaded program.
-                    Iterator iterator = Sets.newHashSet(this.labelToIncomingEdges.values()).iterator();
-                    return iterator;
+                    return Lists.newArrayList(this.labelToIncomingEdges.values()).iterator();
                 } else {
                     // return the ones with matching labels
-                    Set<Edge> edges = Sets.newHashSet();
-                    for (String edgeLabel : edgeLabels) {
-                        edges.addAll(this.labelToIncomingEdges.get(edgeLabel));
-                    }
-                    return edges.iterator();
+                    List<Edge> list = Stream.of(edgeLabels)
+                        .flatMap(label -> this.labelToIncomingEdges.get(label).stream())
+                        .collect(Collectors.toList());
+                    return list.iterator();
                 }
             case OUT:
                 if (edgeLabels == null || edgeLabels.length <= 0) {
                     // return all
                     // note that we wrap the internal collections in new hash sets; gremlin specification states
-                    // that no concurrent modification excpetions should ever be thrown when iterating over edges
+                    // that no concurrent modification exceptions should ever be thrown when iterating over edges
                     // in a single-threaded program.
-                    return Sets.newHashSet(this.labelToOutgoingEdges.values()).iterator();
+                    return Lists.newArrayList(this.labelToOutgoingEdges.values()).iterator();
                 } else {
                     // return the ones with matching labels
-                    Set<Edge> edges = Sets.newHashSet();
-                    for (String edgeLabel : edgeLabels) {
-                        edges.addAll(this.labelToOutgoingEdges.get(edgeLabel));
-                    }
-                    return edges.iterator();
+                    List<Edge> list = Stream.of(edgeLabels)
+                        .flatMap(label -> this.labelToOutgoingEdges.get(label).stream())
+                        .collect(Collectors.toList());
+                    return list.iterator();
                 }
             default:
                 throw new UnknownEnumLiteralException(direction);
@@ -322,7 +328,7 @@ public class ChronoVertexImpl extends AbstractChronoElement implements Vertex, C
     }
 
     @Override
-    public <V> V value(final String key){
+    public <V> V value(final String key) {
         this.checkAccess();
         // note: this is more efficient than the standard implementation in TinkerPop
         // because it avoids the creation of an iterator via #properties(key).
@@ -612,10 +618,10 @@ public class ChronoVertexImpl extends AbstractChronoElement implements Vertex, C
             this.labelToIncomingEdges = null;
             this.labelToOutgoingEdges = null;
             this.properties = null;
-            if(vRecord != null){
+            if (vRecord != null) {
                 this.recordReference = new WeakReference<>(vRecord);
                 this.updateLifecycleStatus(ElementLifecycleEvent.RELOADED_FROM_DB_AND_IN_SYNC);
-            }else{
+            } else {
                 this.recordReference = null;
                 this.updateLifecycleStatus(ElementLifecycleEvent.RELOADED_FROM_DB_AND_NO_LONGER_EXISTENT);
             }
@@ -660,12 +666,12 @@ public class ChronoVertexImpl extends AbstractChronoElement implements Vertex, C
         }
     }
 
-    protected IVertexRecord getRecord(){
-        if(this.recordReference == null){
+    protected IVertexRecord getRecord() {
+        if (this.recordReference == null) {
             return null;
         }
         IVertexRecord record = this.recordReference.get();
-        if(record == null){
+        if (record == null) {
             // reload
             ChronoGraphTransactionStatistics.getInstance().incrementNumberOfVertexRecordRefetches();
             record = this.owningTransaction.loadVertexRecord(this.id);
@@ -674,17 +680,27 @@ public class ChronoVertexImpl extends AbstractChronoElement implements Vertex, C
         return record;
     }
 
+    @Override
+    public boolean isLazy() {
+        if (this.recordReference == null) {
+            // the record is NULL, therefore it has been loaded.
+            return false;
+        } else {
+            // the record is non-NULL, therefore it has yet to
+            // be loaded and this vertex is lazy.
+            return true;
+        }
+    }
+
     // =====================================================================================================================
     // DEBUG OUTPUT
     // =====================================================================================================================
 
 
     private void logPropertyChange(final String key, final Object value) {
-        ChronoGraphConfiguration config = this.graph.getChronoGraphConfiguration();
-        if (!config.isGraphModificationLoggingActive()) {
+        if (!log.isTraceEnabled(CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS)) {
             return;
         }
-        LogLevel logLevel = config.getGraphModificationLogLevel();
         // prepare some debug output
         StringBuilder messageBuilder = new StringBuilder();
         messageBuilder.append(ChronoGraphLoggingUtil.createLogHeader(this.owningTransaction));
@@ -707,15 +723,13 @@ public class ChronoVertexImpl extends AbstractChronoElement implements Vertex, C
         messageBuilder.append(" (Object ID: ");
         messageBuilder.append(System.identityHashCode(this));
         messageBuilder.append(")");
-        ChronoLogger.log(logLevel, messageBuilder.toString());
+        log.trace(CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS, messageBuilder.toString());
     }
 
     private void logVertexRemove() {
-        ChronoGraphConfiguration config = this.graph.getChronoGraphConfiguration();
-        if (!config.isGraphModificationLoggingActive()) {
+        if (!log.isTraceEnabled(CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS)) {
             return;
         }
-        LogLevel logLevel = config.getGraphModificationLogLevel();
         // prepare some debug output
         StringBuilder messageBuilder = new StringBuilder();
         messageBuilder.append(ChronoGraphLoggingUtil.createLogHeader(this.owningTransaction));
@@ -724,15 +738,13 @@ public class ChronoVertexImpl extends AbstractChronoElement implements Vertex, C
         messageBuilder.append(" (Object ID: ");
         messageBuilder.append(System.identityHashCode(this));
         messageBuilder.append(")");
-        ChronoLogger.log(logLevel, messageBuilder.toString());
+        log.trace(CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS, messageBuilder.toString());
     }
 
     private void logPropertyRemove(final String key) {
-        ChronoGraphConfiguration config = this.graph.getChronoGraphConfiguration();
-        if (!config.isGraphModificationLoggingActive()) {
+        if (!log.isTraceEnabled(CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS)) {
             return;
         }
-        LogLevel logLevel = config.getGraphModificationLogLevel();
         // prepare some debug output
         StringBuilder messageBuilder = new StringBuilder();
         messageBuilder.append(ChronoGraphLoggingUtil.createLogHeader(this.owningTransaction));
@@ -743,16 +755,14 @@ public class ChronoVertexImpl extends AbstractChronoElement implements Vertex, C
         messageBuilder.append(" (Object ID: ");
         messageBuilder.append(System.identityHashCode(this));
         messageBuilder.append(")");
-        ChronoLogger.log(logLevel, messageBuilder.toString());
+        log.trace(CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS, messageBuilder.toString());
     }
 
     private void logAddEdge(final Vertex inVertex, final String edgeId, final boolean userProvidedId,
                             final String label) {
-        ChronoGraphConfiguration config = this.graph.getChronoGraphConfiguration();
-        if (!config.isGraphModificationLoggingActive()) {
+        if (!log.isTraceEnabled(CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS)) {
             return;
         }
-        LogLevel logLevel = config.getGraphModificationLogLevel();
         // prepare some debug output
         StringBuilder messageBuilder = new StringBuilder();
         messageBuilder.append(ChronoGraphLoggingUtil.createLogHeader(this.owningTransaction));
@@ -775,7 +785,7 @@ public class ChronoVertexImpl extends AbstractChronoElement implements Vertex, C
         messageBuilder.append("' and label '");
         messageBuilder.append(label);
         messageBuilder.append("'");
-        ChronoLogger.log(logLevel, messageBuilder.toString());
+        log.trace(CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS, messageBuilder.toString());
     }
 
     // =================================================================================================================

@@ -1,5 +1,7 @@
 package org.chronos.chronograph.api.builder.query;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.apache.tinkerpop.gremlin.process.traversal.P;
 import org.chronos.chronodb.internal.impl.query.TextMatchMode;
 import org.chronos.chronograph.internal.impl.query.ChronoCompare;
@@ -7,7 +9,9 @@ import org.chronos.chronograph.internal.impl.query.ChronoStringCompare;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.function.BiPredicate;
+import java.util.stream.Collectors;
 
 public class CP<V> extends P<V> {
 
@@ -17,6 +21,12 @@ public class CP<V> extends P<V> {
 
     public static <V> CP<V> cEq(Object value) {
         if(value instanceof Collection){
+            if(((Collection<?>)value).isEmpty()){
+                // gremlin standard: if an empty collection is passed
+                // to "eq" it means that the predicate matches NOTHING.
+                return new CP(ChronoCompare.EQ, Collections.emptySet());
+            }
+            // in general, collection values are not allowed.
             throw new IllegalArgumentException("Error in has clause: 'equals' with a collection value is not supported! If required, use .filter(...) with a lambda expression instead.");
         }
         return new CP(ChronoCompare.EQ, value);
@@ -183,24 +193,32 @@ public class CP<V> extends P<V> {
         return new CP(ChronoStringCompare.STRING_NOT_MATCHES_REGEX_IGNORE_CASE, value);
     }
 
+    public static CP<String> withinIgnoreCase(String... values){
+        return withinIgnoreCase(Lists.newArrayList(values));
+    }
+
     @SuppressWarnings("unchecked")
     public static CP<String> withinIgnoreCase(Collection<String> values){
-        return new CP(new StringWithinCP(TextMatchMode.CASE_INSENSITIVE), values);
+        return new CP(new StringWithinCP(TextMatchMode.CASE_INSENSITIVE), values.stream().map(String::toLowerCase).collect(Collectors.toSet()));
+    }
+
+    public static CP<String> withoutIgnoreCase(String... values){
+        return withoutIgnoreCase(Lists.newArrayList(values));
     }
 
     @SuppressWarnings("unchecked")
     public static CP<String> withoutIgnoreCase(Collection<String> values){
-        return new CP(new StringWithoutCP(TextMatchMode.CASE_INSENSITIVE), values);
+        return new CP(new StringWithoutCP(TextMatchMode.CASE_INSENSITIVE), values.stream().map(String::toLowerCase).collect(Collectors.toSet()));
     }
 
     @SuppressWarnings("unchecked")
     public static CP<Double> within(Collection<Double> values, double tolerance){
-        return new CP(new DoubleWithinCP(tolerance), values);
+        return new CP(new DoubleWithinCP(tolerance), Sets.newHashSet(values));
     }
 
     @SuppressWarnings("unchecked")
     public static CP<Double> without(Collection<Double> values, double tolerance){
-        return new CP(new DoubleWithoutCP(tolerance), values);
+        return new CP(new DoubleWithoutCP(tolerance), Sets.newHashSet(values));
     }
 
     @SuppressWarnings("unchecked")

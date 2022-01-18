@@ -5,4 +5,5 @@ import org.chronos.chronodb.internal.api.ChronoDBInternal;
 public interface ChronosMigration<DBTYPE extends ChronoDBInternal> {
 
 	public void execute(DBTYPE chronoDB);
+
 }

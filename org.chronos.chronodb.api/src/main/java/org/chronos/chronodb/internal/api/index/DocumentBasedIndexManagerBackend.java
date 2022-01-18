@@ -4,20 +4,19 @@ import java.util.Collection;
 import java.util.Map;
 
 import org.chronos.chronodb.api.Branch;
+import org.chronos.chronodb.api.SecondaryIndex;
 import org.chronos.chronodb.api.key.ChronoIdentifier;
 import org.chronos.chronodb.internal.api.query.searchspec.SearchSpecification;
 
 import com.google.common.collect.SetMultimap;
 
 /**
- * An {@link IndexManagerBackend} that uses the concept of {@linkplain ChronoIndexDocument index documents}.
- *
  * <p>
  * The basic idea of this kind of indexing comes from Apache Lucene. The document analogy was adapted for ChronoDB indexing.
  *
  * @author martin.haeusler@uibk.ac.at -- Initial Contribution and API
  */
-public interface DocumentBasedIndexManagerBackend extends IndexManagerBackend {
+public interface DocumentBasedIndexManagerBackend {
 
 	// =================================================================================================================
 	// INDEXER MANAGEMENT
@@ -34,10 +33,10 @@ public interface DocumentBasedIndexManagerBackend extends IndexManagerBackend {
 	/**
 	 * Deletes the contents of the index with the given name.
 	 *
-	 * @param indexName
-	 *            The name of the index to delete the contents for. Must not be <code>null</code>.
+	 * @param index
+	 *            The index to delete the contents for. Must not be <code>null</code>.
 	 */
-	public void deleteIndexContents(String indexName);
+	public void deleteIndexContents(SecondaryIndex index);
 
 	// =================================================================================================================
 	// INDEX DOCUMENT MANAGEMENT
@@ -85,7 +84,7 @@ public interface DocumentBasedIndexManagerBackend extends IndexManagerBackend {
 	 *            The identifier to get the index documents for. Must not be <code>null</code>.
 	 * @return A mapping from indexer name to a map from indexed value to the index document that holds this value. May be empty, but never <code>null</code>.
 	 */
-	public Map<String, SetMultimap<Object, ChronoIndexDocument>> getMatchingBranchLocalDocuments(
+	public Map<SecondaryIndex, SetMultimap<Object, ChronoIndexDocument>> getMatchingBranchLocalDocuments(
         ChronoIdentifier chronoIdentifier);
 
 }

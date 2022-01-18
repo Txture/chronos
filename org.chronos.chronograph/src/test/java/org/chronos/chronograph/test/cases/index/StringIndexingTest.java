@@ -26,9 +26,9 @@ public class StringIndexingTest extends AllChronoGraphBackendsTest {
     @Test
     public void indexCreationWorks() {
         ChronoGraph g = this.getGraph();
-        ChronoGraphIndex index = g.getIndexManager().create().stringIndex().onVertexProperty("name").build();
+        ChronoGraphIndex index = g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("name").acrossAllTimestamps().build();
         assertNotNull(index);
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().reindexAll();
         g.tx().commit();
 
         Vertex v = g.addVertex("name", "Martin");
@@ -45,23 +45,23 @@ public class StringIndexingTest extends AllChronoGraphBackendsTest {
     @Test
     public void canDropIndex() {
         ChronoGraph g = this.getGraph();
-        ChronoGraphIndex index = g.getIndexManager().create().stringIndex().onVertexProperty("name").build();
+        ChronoGraphIndex index = g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("name").acrossAllTimestamps().build();
         assertNotNull(index);
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().reindexAll();
 
-        assertTrue(g.getIndexManager().isVertexPropertyIndexed("name"));
+        assertTrue(g.getIndexManagerOnMaster().isVertexPropertyIndexedAtAnyPointInTime("name"));
 
-        g.getIndexManager().dropIndex(index);
+        g.getIndexManagerOnMaster().dropIndex(index);
 
-        assertFalse(g.getIndexManager().isVertexPropertyIndexed("name"));
+        assertFalse(g.getIndexManagerOnMaster().isVertexPropertyIndexedAtAnyPointInTime("name"));
     }
 
     @Test
     public void canCreateMultipleIndices() {
         ChronoGraph g = this.getGraph();
-        ChronoGraphIndex index = g.getIndexManager().create().stringIndex().onVertexProperty("name").build();
+        ChronoGraphIndex index = g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("name").acrossAllTimestamps().build();
         assertNotNull(index);
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().reindexAll();
 
         Vertex v = g.addVertex("name", "Martin");
         Vertex vJohn = g.addVertex("name", "John", "description", "foo");
@@ -69,16 +69,16 @@ public class StringIndexingTest extends AllChronoGraphBackendsTest {
 
         g.tx().commit();
 
-        assertTrue(g.getIndexManager().isVertexPropertyIndexed("name"));
+        assertTrue(g.getIndexManagerOnMaster().isVertexPropertyIndexedAtAnyPointInTime("name"));
         // find by case-sensitive search
         assertEquals(v, Iterables.getOnlyElement(g.traversal().V().has("name", "Martin").toSet()));
 
-        ChronoGraphIndex descriptionIndex = g.getIndexManager().create().stringIndex().onVertexProperty("description").build();
+        ChronoGraphIndex descriptionIndex = g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("description").acrossAllTimestamps().build();
         assertNotNull(descriptionIndex);
         g.tx().commit();
 
-        assertTrue(g.getIndexManager().isVertexPropertyIndexed("name"));
-        assertTrue(g.getIndexManager().isVertexPropertyIndexed("description"));
+        assertTrue(g.getIndexManagerOnMaster().isVertexPropertyIndexedAtAnyPointInTime("name"));
+        assertTrue(g.getIndexManagerOnMaster().isVertexPropertyIndexedAtAnyPointInTime("description"));
         assertEquals(v, Iterables.getOnlyElement(g.traversal().V().has("name", "Martin").toSet()));
         assertEquals(vJohn, Iterables.getOnlyElement(g.traversal().V().has("description", "foo").toSet()));
 
@@ -87,8 +87,8 @@ public class StringIndexingTest extends AllChronoGraphBackendsTest {
     @Test
     public void renamingElementWorks() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("name").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("name").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         Vertex v1 = g.addVertex("name", "Test");
         Vertex v2 = g.addVertex("name", "John");
@@ -119,8 +119,8 @@ public class StringIndexingTest extends AllChronoGraphBackendsTest {
     @Test
     public void renamingElementInIncrementalCommitWorks() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("name").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("name").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         Vertex v1 = g.addVertex("name", "Test");
         Vertex v2 = g.addVertex("name", "John");
@@ -155,8 +155,8 @@ public class StringIndexingTest extends AllChronoGraphBackendsTest {
     @SuppressWarnings("unused")
     public void queryingTransientStateWithIndexWorks() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("color").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("color").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
         g.tx().open();
         Vertex v0 = g.addVertex("color", "red");
         Vertex v1 = g.addVertex("color", "green");
@@ -185,8 +185,8 @@ public class StringIndexingTest extends AllChronoGraphBackendsTest {
     @SuppressWarnings("unused")
     public void indexingOfMultiplicityManyValuesWorks() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("colors").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("colors").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         Vertex v0 = g.addVertex("colors", Sets.newHashSet("red", "green", "blue"));
@@ -203,9 +203,9 @@ public class StringIndexingTest extends AllChronoGraphBackendsTest {
     @Test
     public void t_EntityTest1() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("Name").build();
-        g.getIndexManager().create().stringIndex().onVertexProperty("Kind").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("Name").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("Kind").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         // g.tx().commitIncremental();
@@ -243,10 +243,10 @@ public class StringIndexingTest extends AllChronoGraphBackendsTest {
     @InstantiateChronosWith(property = ChronoDBConfiguration.QUERY_CACHE_MAX_SIZE, value = "20")
     public void deleteTest() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("firstName").build();
-        g.getIndexManager().create().stringIndex().onVertexProperty("lastName").build();
-        g.getIndexManager().create().stringIndex().onEdgeProperty("kind").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("firstName").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("lastName").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().create().stringIndex().onEdgeProperty("kind").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         Vertex v1 = g.addVertex("firstName", "John", "lastName", "Doe");
         Vertex v2 = g.addVertex("firstName", "Jane", "lastName", "Doe");
@@ -293,9 +293,9 @@ public class StringIndexingTest extends AllChronoGraphBackendsTest {
     @InstantiateChronosWith(property = ChronoDBConfiguration.QUERY_CACHE_MAX_SIZE, value = "20")
     public void massiveDeleteTest() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("firstName").build();
-        g.getIndexManager().create().stringIndex().onVertexProperty("lastName").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("firstName").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("lastName").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         Set<String> vertexIds = Sets.newHashSet();
         for (int i = 0; i < 10_000; i++) {
@@ -333,9 +333,9 @@ public class StringIndexingTest extends AllChronoGraphBackendsTest {
     @InstantiateChronosWith(property = ChronoDBConfiguration.QUERY_CACHE_MAX_SIZE, value = "20")
     public void trackingDownTheGhostVertexTest() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("kind").build();
-        g.getIndexManager().create().stringIndex().onVertexProperty("name").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("kind").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("name").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.addVertex("kind", "person", "name", "John");
         g.addVertex("kind", "person", "name", "Jane");
@@ -382,9 +382,9 @@ public class StringIndexingTest extends AllChronoGraphBackendsTest {
     @InstantiateChronosWith(property = ChronoDBConfiguration.QUERY_CACHE_MAX_SIZE, value = "20")
     public void secondaryIndexingRemoveTestWithBranching() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("kind").build();
-        g.getIndexManager().create().stringIndex().onVertexProperty("name").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("kind").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("name").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         Object johnsId = g.addVertex("kind", "person", "name", "John").id();
         Object janesId = g.addVertex("kind", "person", "name", "Jane").id();

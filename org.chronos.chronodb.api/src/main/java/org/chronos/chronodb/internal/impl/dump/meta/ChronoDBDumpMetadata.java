@@ -38,7 +38,7 @@ public class ChronoDBDumpMetadata extends ChronoDBDumpElement {
     /**
      * The indexers and corresponding metadata.
      */
-    private Set<IndexerDumpMetadata> indexerMetadata = Sets.newHashSet();
+    private Set<IIndexerDumpMetadata> indexerMetadata = Sets.newHashSet();
     /**
      * The dateback operation log.
      */
@@ -90,14 +90,14 @@ public class ChronoDBDumpMetadata extends ChronoDBDumpElement {
         return this.branchMetadata;
     }
 
-    public Set<IndexerDumpMetadata> getIndexerDumpMetadata() {
+    public Set<IIndexerDumpMetadata> getIndexerDumpMetadata() {
         return this.indexerMetadata;
     }
 
     public Set<DatebackLog> getDatebackLog(){
         if(this.datebackLog == null){
             // some dumps maybe do not contain this data, and
-            // deserializers might assing NULL to the field. Just
+            // deserializers might assign NULL to the field. Just
             // to be safe, let's re-initialize the list in this case.
             this.datebackLog = Sets.newHashSet();
         }

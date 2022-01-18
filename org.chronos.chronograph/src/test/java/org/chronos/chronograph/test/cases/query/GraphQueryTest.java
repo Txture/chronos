@@ -89,7 +89,7 @@ public class GraphQueryTest extends AllChronoGraphBackendsTest {
     @Test
     public void canFindStringWithTrailingWhitespace() {
         ChronoGraph graph = this.getGraph();
-        graph.getIndexManager().create().stringIndex().onVertexProperty("name").build();
+        graph.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("name").acrossAllTimestamps().build();
         graph.addVertex("name", "John ");
         graph.addVertex("name", "John");
         graph.tx().commit();
@@ -101,7 +101,7 @@ public class GraphQueryTest extends AllChronoGraphBackendsTest {
     @Test
     public void canFindStringWithLeadingWhitespace() {
         ChronoGraph graph = this.getGraph();
-        graph.getIndexManager().create().stringIndex().onVertexProperty("name").build();
+        graph.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("name").acrossAllTimestamps().build();
         graph.addVertex("name", " John");
         graph.addVertex("name", "John");
         graph.tx().commit();
@@ -124,9 +124,9 @@ public class GraphQueryTest extends AllChronoGraphBackendsTest {
         // is specified by the TinkerPop standard.
 
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().create().stringIndex().onEdgeProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().create().stringIndex().onEdgeProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
         Vertex a = g.addVertex(T.id, "a", "p", "1");
         Vertex b = g.addVertex(T.id, "b", "p", "2");
         Vertex c = g.addVertex(T.id, "c", "p", "1");
@@ -162,11 +162,11 @@ public class GraphQueryTest extends AllChronoGraphBackendsTest {
                                             final boolean performCommit) {
         ChronoGraph g = this.getGraph();
         if (indexName) {
-            g.getIndexManager().create().stringIndex().onVertexProperty("name").build();
+            g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("name").acrossAllTimestamps().build();
             g.tx().commit();
         }
         if (indexAge) {
-            g.getIndexManager().create().stringIndex().onVertexProperty("age").build();
+            g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("age").acrossAllTimestamps().build();
             g.tx().commit();
         }
         Vertex vMartin = g.addVertex("name", "Martin", "age", 26);
@@ -230,11 +230,11 @@ public class GraphQueryTest extends AllChronoGraphBackendsTest {
                                                final boolean performCommit) {
         ChronoGraph g = this.getGraph();
         if (indexName) {
-            g.getIndexManager().create().stringIndex().onVertexProperty("name").build();
+            g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("name").acrossAllTimestamps().build();
             g.tx().commit();
         }
         if (indexAge) {
-            g.getIndexManager().create().stringIndex().onVertexProperty("age").build();
+            g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("age").acrossAllTimestamps().build();
             g.tx().commit();
         }
         Vertex vMartin = g.addVertex("name", "Martin", "age", 26);

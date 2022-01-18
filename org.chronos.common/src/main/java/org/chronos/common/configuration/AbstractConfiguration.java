@@ -8,8 +8,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.apache.commons.configuration.BaseConfiguration;
-import org.apache.commons.configuration.Configuration;
+import org.apache.commons.configuration2.BaseConfiguration;
+import org.apache.commons.configuration2.Configuration;
 import org.chronos.common.configuration.annotation.Parameter;
 import org.chronos.common.util.ReflectionUtils;
 
@@ -30,7 +30,7 @@ public abstract class AbstractConfiguration implements ChronosConfiguration {
 			this.metadataCache = fields.stream().map(field -> new ParameterMetadata(field)).collect(Collectors.toSet());
 			this.metadataCache = Collections.unmodifiableSet(this.metadataCache);
 		}
-		return this.metadataCache;
+		return Collections.unmodifiableSet(this.metadataCache);
 	}
 
 	public ParameterMetadata getMetadataOfParameter(final String parameterKey) {

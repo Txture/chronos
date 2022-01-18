@@ -16,7 +16,7 @@ import static com.google.common.base.Preconditions.*;
  *            The type of values produced by this indexer.
  */
 @PersistentClass("kryo")
-public abstract class AbstractRecordPropertyIndexer2<T> implements Indexer<T> {
+public abstract class AbstractRecordPropertyIndexer2<T> implements GraphPropertyIndexer<T> {
 
 	protected String propertyName;
 
@@ -27,6 +27,15 @@ public abstract class AbstractRecordPropertyIndexer2<T> implements Indexer<T> {
 	protected AbstractRecordPropertyIndexer2(final String propertyName) {
 		checkNotNull(propertyName, "Precondition violation - argument 'propertyName' must not be NULL!");
 		this.propertyName = propertyName;
+	}
+
+	public String getPropertyName(){
+		return this.propertyName;
+	}
+
+	@Override
+	public String getGraphElementPropertyName() {
+		return this.propertyName;
 	}
 
 	@Override

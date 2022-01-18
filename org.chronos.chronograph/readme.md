@@ -2,77 +2,11 @@
 
 ChronoGraph is a [TinkerPop](http://tinkerpop.apache.org/) Graph Database with support for content versioning.
 
-For a conceptual overview, please see our [article in Software and Systems Modeling](https://link.springer.com/content/pdf/10.1007/s10270-019-00725-0.pdf). If you want to dig right into the code and start using ChronoGraph, read on.
+# Getting Started
 
-## Core Fatures
-
-- TinkerPop-compliant Graph Database with content versioning and branching support (see table below)
-- Secondary Index Support
-- Full ACID transactions
-- Query the history of your graph at any point in the past
-
-## Getting Started
-
-First of all, you need to include ChronoGraph in your JDK project. You can use your favourite dependency
-management tool; all dependencies are provided at Maven Central.
-
-You need three artifacts:
-
-- `org.chronos.chronodb.api` contains the ChronoDB Java API and the reference in-memory backend.
-- `org.chronos.chronodb.exodus` contains the default persistent backend implementation.
-- `org.chronos.chronograph` contains the graph abstraction layer.
-
-### Gradle
-
-```gradle
-dependencies {
-  implementation 'com.github.martinhaeusler:org.chronos.chronodb.api:1.0.0'
-  implementation 'com.github.martinhaeusler:org.chronos.chronodb.exodus:1.0.0'
-  implementation 'com.github.martinhaeusler:org.chronos.chronograph:1.0.0'
-}
-```
-
-... or, with the Gradle Kotlin DSL:
-
-```kotlin
-implementation("com.github.martinhaeusler:org.chronos.chronodb.api:1.0.0")
-implementation("com.github.martinhaeusler:org.chronos.chronodb.exodus:1.0.0")
-implementation("com.github.martinhaeusler:org.chronos.chronograph:1.0.0")
-```
-
-### Maven
-
-```xml
-<dependency>
-  <groupId>com.github.martinhaeusler</groupId>
-  <artifactId>org.chronos.chronodb.api</artifactId>
-  <version>1.0.0</version>
-</dependency>
-<dependency>
-  <groupId>com.github.martinhaeusler</groupId>
-  <artifactId>org.chronos.chronodb.exodus</artifactId>
-  <version>1.0.0</version>
-</dependency>
-<dependency>
-  <groupId>com.github.martinhaeusler</groupId>
-  <artifactId>org.chronos.chronograph</artifactId>
-  <version>1.0.0</version>
-</dependency>
-```
-
-## Building from Source
-
-If you would rather build everything from source, simply run:
-
-```sh
-./gradlew build
-```
-
-... from the **root** directory to run a standard gradle build of all artifacts.
+## Including ChronoGraph in your project
 
 ## Creating a new ChronoGraph instance
-
-> Language Note: all code below is provided in Java. However, using Kotlin is fully supported and recommended.
 
 There are several options for creating a new ChronoGraph instance. The easiest one is using the builder syntax:
 

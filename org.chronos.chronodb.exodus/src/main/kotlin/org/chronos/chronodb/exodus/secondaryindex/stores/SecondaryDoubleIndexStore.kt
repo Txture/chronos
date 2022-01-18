@@ -10,7 +10,6 @@ import org.chronos.chronodb.api.query.Condition
 import org.chronos.chronodb.api.query.DoubleContainmentCondition
 import org.chronos.chronodb.api.query.NumberCondition
 import org.chronos.chronodb.exodus.kotlin.ext.parseAsDouble
-import org.chronos.chronodb.exodus.kotlin.ext.parseAsString
 import org.chronos.chronodb.exodus.kotlin.ext.toByteArray
 import org.chronos.chronodb.exodus.kotlin.ext.toByteIterable
 import org.chronos.chronodb.exodus.layout.ChronoDBStoreLayout
@@ -19,10 +18,8 @@ import org.chronos.chronodb.exodus.secondaryindex.stores.IndexScanConfiguration.
 import org.chronos.chronodb.exodus.secondaryindex.stores.IndexScanConfiguration.ScanStrategy.SCAN_UNTIL_END
 import org.chronos.chronodb.exodus.secondaryindex.stores.IndexScanConfiguration.ScanStrategy.STOP_AT_FIRST_MISMATCH
 import org.chronos.chronodb.exodus.transaction.ExodusTransaction
-import org.chronos.chronodb.exodus.util.readLongsFromBytes
 import org.chronos.chronodb.internal.api.query.searchspec.ContainmentDoubleSearchSpecification
 import org.chronos.chronodb.internal.api.query.searchspec.DoubleSearchSpecification
-import org.chronos.chronodb.internal.api.query.searchspec.LongSearchSpecification
 import java.util.regex.Pattern
 import kotlin.math.absoluteValue
 
@@ -41,25 +38,25 @@ object SecondaryDoubleIndexStore : SecondaryIndexStore<Double, DoubleSearchSpeci
     // PUBLIC API
     // =================================================================================================================
 
-    fun getIndexNameForStoreName(storeName: String): String? {
-        val nameWithoutPrefix = if(storeName.startsWith(ChronoDBStoreLayout.STORE_NAME_PREFIX__SECONDARY_INDEX_DOUBLE)){
-            storeName.removePrefix(ChronoDBStoreLayout.STORE_NAME_PREFIX__SECONDARY_INDEX_DOUBLE)
-        }else {
+    fun getIndexIdForStoreName(storeName: String): String? {
+        return this.parseStoreNameOrNull(storeName)?.second
+    }
+
+    private fun parseStoreName(storeName: String): Pair<String, String> {
+        return this.parseStoreNameOrNull(storeName)
+            ?: throw IllegalArgumentException("Not a valid store name for secondary long index stores: ${storeName}")
+    }
+
+    private fun parseStoreNameOrNull(storeName: String): Pair<String, String>? {
+        val matcher = STORE_NAME_PATTERN.matcher(storeName)
+        if (!matcher.matches()) {
             return null
         }
-        val matcher = Pattern.compile("\\d+").matcher(nameWithoutPrefix)
-        val found = matcher.find()
-        if(!found){
-            return null
-        }
-        val lengthOfKeyspaceNameAsString = matcher.group()
-        val lengthOfKeyspaceName = lengthOfKeyspaceNameAsString.toInt()
-        return nameWithoutPrefix.substring(
-                // remove the digits which measure the keyspace length
-                lengthOfKeyspaceNameAsString.length
-                        + 1 // also remove the '/' character
-                        + lengthOfKeyspaceName // remove the keyspace
-        )
+        val keyspaceNameLength = matcher.group(1).toInt()
+        val keyspaceAndIndexId = matcher.group(2)
+        val keyspace = keyspaceAndIndexId.substring(0, keyspaceNameLength)
+        val indexName = keyspaceAndIndexId.substring(keyspaceNameLength, keyspaceAndIndexId.length)
+        return Pair(keyspace, indexName)
     }
 
     override fun storeEntry(tx: ExodusTransaction, indexName: String, keyspace: String, indexValue: Double, userKey: String, timestamps: ByteIterable) {
@@ -96,13 +93,13 @@ object SecondaryDoubleIndexStore : SecondaryIndexStore<Double, DoubleSearchSpeci
         return when (searchSpec.condition) {
             DoubleContainmentCondition.WITHIN -> {
                 val searchValues = searchSpec.searchValue
-                when(searchValues.size){
+                when (searchValues.size) {
                     0 -> ScanResult(emptyList())
                     in 1..3 -> {
                         // interpret small sets as connected OR queries; take the union of their scan results
                         val entries = searchValues.asSequence().flatMap { searchValue ->
                             val innerSearchSpec = DoubleSearchSpecification.create(
-                                searchSpec.property,
+                                searchSpec.index,
                                 Condition.EQUALS,
                                 searchValue,
                                 searchSpec.equalityTolerance
@@ -126,12 +123,12 @@ object SecondaryDoubleIndexStore : SecondaryIndexStore<Double, DoubleSearchSpeci
         if (keys == null) {
             // roll back all keys
             tx.getAllStoreNames()
-                    .asSequence()
-                    .filter { it.startsWith(ChronoDBStoreLayout.STORE_NAME_PREFIX__SECONDARY_INDEX_LONG) }
-                    .filter { parseStoreName(it).second == indexName }
-                    .forEach { storeName ->
-                        this.rollbackInternal(tx, storeName, timestamp, this::parseSecondaryIndexKey)
-                    }
+                .asSequence()
+                .filter { it.startsWith(ChronoDBStoreLayout.STORE_NAME_PREFIX__SECONDARY_INDEX_LONG) }
+                .filter { parseStoreName(it).second == indexName }
+                .forEach { storeName ->
+                    this.rollbackInternal(tx, storeName, timestamp, this::parseSecondaryIndexKey)
+                }
         } else {
             // roll back one keyspace at a time
             keys.groupBy { it.keyspace }.forEach { (keyspace, qKeys) ->
@@ -154,119 +151,103 @@ object SecondaryDoubleIndexStore : SecondaryIndexStore<Double, DoubleSearchSpeci
     private fun scanEquals(tx: ExodusTransaction, searchSpec: DoubleSearchSpecification, keyspace: String, timestamp: Long, scanTimeMode: ScanTimeMode): ScanResult<Double> {
         require(searchSpec.searchValue.isFinite()) { "Precondition violation - search spec contains a match value which is Infinity or NaN!" }
         val scanConfiguration = IndexScanConfiguration<Double, DoubleSearchSpecification>(
-                tx = tx,
-                searchSpec = searchSpec,
-                storeName = storeName(searchSpec.property, keyspace),
-                timestamp = timestamp,
-                scanStart = (searchSpec.searchValue - searchSpec.equalityTolerance.absoluteValue).toByteIterable(),
-                direction = ASCENDING,
-                scanStrategy = STOP_AT_FIRST_MISMATCH,
-                parseKey = this::parseSecondaryIndexKey,
-                scanTimeMode = scanTimeMode
+            tx = tx,
+            searchSpec = searchSpec,
+            storeName = storeName(searchSpec.index.id, keyspace),
+            timestamp = timestamp,
+            scanStart = (searchSpec.searchValue - searchSpec.equalityTolerance.absoluteValue).toByteIterable(),
+            direction = ASCENDING,
+            scanStrategy = STOP_AT_FIRST_MISMATCH,
+            parseKey = this::parseSecondaryIndexKey,
+            scanTimeMode = scanTimeMode
         )
         val resultList = scanConfiguration.performScan()
-        return ScanResult(resultList, OrderedBy(searchSpec.property, Order.ASCENDING))
+        return ScanResult(resultList, OrderedBy(searchSpec.index.name, Order.ASCENDING))
     }
 
     private fun scanGreaterEqual(tx: ExodusTransaction, searchSpec: DoubleSearchSpecification, keyspace: String, timestamp: Long, scanTimeMode: ScanTimeMode): ScanResult<Double> {
         require(searchSpec.searchValue.isFinite()) { "Precondition violation - search spec contains a match value which is Infinity or NaN!" }
         val scanConfiguration = IndexScanConfiguration<Double, DoubleSearchSpecification>(
-                tx = tx,
-                searchSpec = searchSpec,
-                storeName = storeName(searchSpec.property, keyspace),
-                timestamp = timestamp,
-                // start a LITTLE bit lower than the search specification states...
-                scanStart = (searchSpec.searchValue - 0.001).toByteIterable(),
-                // ... and while going forward in the index, skip the values which are strictly smaller
-                skip = { indexedValue: Double -> indexedValue < searchSpec.searchValue },
-                direction = ASCENDING,
-                scanStrategy = STOP_AT_FIRST_MISMATCH,
-                parseKey = this::parseSecondaryIndexKey,
-                scanTimeMode = scanTimeMode
+            tx = tx,
+            searchSpec = searchSpec,
+            storeName = storeName(searchSpec.index.id, keyspace),
+            timestamp = timestamp,
+            // start a LITTLE bit lower than the search specification states...
+            scanStart = (searchSpec.searchValue - 0.001).toByteIterable(),
+            // ... and while going forward in the index, skip the values which are strictly smaller
+            skip = { indexedValue: Double -> indexedValue < searchSpec.searchValue },
+            direction = ASCENDING,
+            scanStrategy = STOP_AT_FIRST_MISMATCH,
+            parseKey = this::parseSecondaryIndexKey,
+            scanTimeMode = scanTimeMode
         )
         val resultList = scanConfiguration.performScan()
-        return ScanResult(resultList, OrderedBy(searchSpec.property, Order.ASCENDING))
+        return ScanResult(resultList, OrderedBy(searchSpec.index.name, Order.ASCENDING))
     }
 
     private fun scanGreaterThan(tx: ExodusTransaction, searchSpec: DoubleSearchSpecification, keyspace: String, timestamp: Long, scanTimeMode: ScanTimeMode): ScanResult<Double> {
         require(searchSpec.searchValue.isFinite()) { "Precondition violation - search spec contains a match value which is Infinity or NaN!" }
         val scanConfiguration = IndexScanConfiguration<Double, DoubleSearchSpecification>(
-                tx = tx,
-                searchSpec = searchSpec,
-                storeName = storeName(searchSpec.property, keyspace),
-                timestamp = timestamp,
-                scanStart = searchSpec.searchValue.toByteIterable(),
-                // skip the first couple of entries where the indexed value is exactly equal to the search value
-                skip = { indexedValue: Double -> indexedValue == searchSpec.searchValue },
-                direction = ASCENDING,
-                scanStrategy = STOP_AT_FIRST_MISMATCH,
-                parseKey = this::parseSecondaryIndexKey,
-                scanTimeMode = scanTimeMode
+            tx = tx,
+            searchSpec = searchSpec,
+            storeName = storeName(searchSpec.index.id, keyspace),
+            timestamp = timestamp,
+            scanStart = searchSpec.searchValue.toByteIterable(),
+            // skip the first couple of entries where the indexed value is exactly equal to the search value
+            skip = { indexedValue: Double -> indexedValue == searchSpec.searchValue },
+            direction = ASCENDING,
+            scanStrategy = STOP_AT_FIRST_MISMATCH,
+            parseKey = this::parseSecondaryIndexKey,
+            scanTimeMode = scanTimeMode
         )
         val resultList = scanConfiguration.performScan()
-        return ScanResult(resultList, OrderedBy(searchSpec.property, Order.ASCENDING))
+        return ScanResult(resultList, OrderedBy(searchSpec.index.name, Order.ASCENDING))
     }
 
     private fun scanLessEqual(tx: ExodusTransaction, searchSpec: DoubleSearchSpecification, keyspace: String, timestamp: Long, scanTimeMode: ScanTimeMode): ScanResult<Double> {
         require(searchSpec.searchValue.isFinite()) { "Precondition violation - search spec contains a match value which is Infinity or NaN!" }
         val scanConfiguration = IndexScanConfiguration<Double, DoubleSearchSpecification>(
-                tx = tx,
-                searchSpec = searchSpec,
-                storeName = storeName(searchSpec.property, keyspace),
-                timestamp = timestamp,
-                // start a LITTLE bit higher than the search specification states...
-                scanStart = (searchSpec.searchValue + 0.001).toByteIterable(),
-                // ... and while going backwards the index, skip the values which are strictly greater
-                skip = { indexedValue: Double -> indexedValue > searchSpec.searchValue },
-                direction = DESCENDING,
-                scanStrategy = STOP_AT_FIRST_MISMATCH,
-                parseKey = this::parseSecondaryIndexKey,
-                scanTimeMode = scanTimeMode
+            tx = tx,
+            searchSpec = searchSpec,
+            storeName = storeName(searchSpec.index.id, keyspace),
+            timestamp = timestamp,
+            // start a LITTLE bit higher than the search specification states...
+            scanStart = (searchSpec.searchValue + 0.001).toByteIterable(),
+            // ... and while going backwards the index, skip the values which are strictly greater
+            skip = { indexedValue: Double -> indexedValue > searchSpec.searchValue },
+            direction = DESCENDING,
+            scanStrategy = STOP_AT_FIRST_MISMATCH,
+            parseKey = this::parseSecondaryIndexKey,
+            scanTimeMode = scanTimeMode
         )
         val resultList = scanConfiguration.performScan()
-        return ScanResult(resultList, OrderedBy(searchSpec.property, Order.DESCENDING))
+        return ScanResult(resultList, OrderedBy(searchSpec.index.name, Order.DESCENDING))
     }
 
     private fun scanLessThan(tx: ExodusTransaction, searchSpec: DoubleSearchSpecification, keyspace: String, timestamp: Long, scanTimeMode: ScanTimeMode): ScanResult<Double> {
         require(searchSpec.searchValue.isFinite()) { "Precondition violation - search spec contains a match value which is Infinity or NaN!" }
         val scanConfiguration = IndexScanConfiguration<Double, DoubleSearchSpecification>(
-                tx = tx,
-                searchSpec = searchSpec,
-                storeName = storeName(searchSpec.property, keyspace),
-                timestamp = timestamp,
-                scanStart = searchSpec.searchValue.toByteIterable(),
-                // skip the first couple of entries where the indexed value is exactly equal to the search value
-                skip = { indexedValue: Double -> indexedValue == searchSpec.searchValue },
-                direction = DESCENDING,
-                scanStrategy = STOP_AT_FIRST_MISMATCH,
-                parseKey = this::parseSecondaryIndexKey,
-                scanTimeMode = scanTimeMode
+            tx = tx,
+            searchSpec = searchSpec,
+            storeName = storeName(searchSpec.index.id, keyspace),
+            timestamp = timestamp,
+            scanStart = searchSpec.searchValue.toByteIterable(),
+            // skip the first couple of entries where the indexed value is exactly equal to the search value
+            skip = { indexedValue: Double -> indexedValue == searchSpec.searchValue },
+            direction = DESCENDING,
+            scanStrategy = STOP_AT_FIRST_MISMATCH,
+            parseKey = this::parseSecondaryIndexKey,
+            scanTimeMode = scanTimeMode
         )
         val resultList = scanConfiguration.performScan()
-        return ScanResult(resultList, OrderedBy(searchSpec.property, Order.DESCENDING))
+        return ScanResult(resultList, OrderedBy(searchSpec.index.name, Order.DESCENDING))
     }
 
     private fun scanGeneric(tx: ExodusTransaction, searchSpec: DoubleSearchSpecification, keyspace: String, timestamp: Long, scanTimeMode: ScanTimeMode): ScanResult<Double> {
         val scanConfiguration = IndexScanConfiguration<Double, DoubleSearchSpecification>(
-                tx = tx,
-                searchSpec = searchSpec,
-                storeName = storeName(searchSpec.property, keyspace),
-                timestamp = timestamp,
-                scanStart = null,
-                direction = ASCENDING,
-                scanStrategy = SCAN_UNTIL_END,
-                parseKey = this::parseSecondaryIndexKey,
-                scanTimeMode = scanTimeMode
-        )
-        val resultList = scanConfiguration.performScan()
-        return ScanResult(resultList, OrderedBy(searchSpec.property, Order.ASCENDING))
-    }
-
-    private fun scanGeneric(tx: ExodusTransaction, searchSpec: ContainmentDoubleSearchSpecification, keyspace: String, timestamp: Long, scanTimeMode: ScanTimeMode): ScanResult<Double> {
-        val scanConfiguration = IndexScanConfiguration<Double, ContainmentDoubleSearchSpecification>(
             tx = tx,
             searchSpec = searchSpec,
-            storeName = storeName(searchSpec.property, keyspace),
+            storeName = storeName(searchSpec.index.id, keyspace),
             timestamp = timestamp,
             scanStart = null,
             direction = ASCENDING,
@@ -275,7 +256,23 @@ object SecondaryDoubleIndexStore : SecondaryIndexStore<Double, DoubleSearchSpeci
             scanTimeMode = scanTimeMode
         )
         val resultList = scanConfiguration.performScan()
-        return ScanResult(resultList, OrderedBy(searchSpec.property, Order.ASCENDING))
+        return ScanResult(resultList, OrderedBy(searchSpec.index.name, Order.ASCENDING))
+    }
+
+    private fun scanGeneric(tx: ExodusTransaction, searchSpec: ContainmentDoubleSearchSpecification, keyspace: String, timestamp: Long, scanTimeMode: ScanTimeMode): ScanResult<Double> {
+        val scanConfiguration = IndexScanConfiguration<Double, ContainmentDoubleSearchSpecification>(
+            tx = tx,
+            searchSpec = searchSpec,
+            storeName = storeName(searchSpec.index.id, keyspace),
+            timestamp = timestamp,
+            scanStart = null,
+            direction = ASCENDING,
+            scanStrategy = SCAN_UNTIL_END,
+            parseKey = this::parseSecondaryIndexKey,
+            scanTimeMode = scanTimeMode
+        )
+        val resultList = scanConfiguration.performScan()
+        return ScanResult(resultList, OrderedBy(searchSpec.index.name, Order.ASCENDING))
     }
 
     // =================================================================================================================
@@ -316,19 +313,8 @@ object SecondaryDoubleIndexStore : SecondaryIndexStore<Double, DoubleSearchSpeci
     }
 
     @VisibleForTesting
-    fun storeName(indexName: String, keyspace: String): String {
-        return "${ChronoDBStoreLayout.STORE_NAME_PREFIX__SECONDARY_INDEX_DOUBLE}${keyspace.length}/$keyspace}${indexName}"
+    fun storeName(indexId: String, keyspace: String): String {
+        return "${ChronoDBStoreLayout.STORE_NAME_PREFIX__SECONDARY_INDEX_DOUBLE}${keyspace.length}/$keyspace}${indexId}"
     }
 
-    private fun parseStoreName(storeName: String): Pair<String, String> {
-        val matcher = SecondaryDoubleIndexStore.STORE_NAME_PATTERN.matcher(storeName)
-        if (!matcher.matches()) {
-            throw IllegalArgumentException("Not a valid store name for secondary long index stores: ${storeName}")
-        }
-        val keyspaceNameLength = matcher.group(1).toInt()
-        val keyspaceAndIndexName = matcher.group(2)
-        val keyspace = keyspaceAndIndexName.substring(0, keyspaceNameLength)
-        val indexName = keyspaceAndIndexName.substring(keyspaceNameLength, keyspaceAndIndexName.length)
-        return Pair(keyspace, indexName)
-    }
 }

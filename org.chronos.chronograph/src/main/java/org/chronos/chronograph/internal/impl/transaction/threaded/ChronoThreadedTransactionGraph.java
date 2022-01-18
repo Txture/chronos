@@ -1,7 +1,7 @@
 package org.chronos.chronograph.internal.impl.transaction.threaded;
 
 import com.google.common.collect.Maps;
-import org.apache.commons.configuration.Configuration;
+import org.apache.commons.configuration2.Configuration;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer;
 import org.apache.tinkerpop.gremlin.structure.Edge;
@@ -114,6 +114,10 @@ public class ChronoThreadedTransactionGraph implements ChronoGraphInternal {
         return this.isClosed || this.originalGraph.isClosed();
     }
 
+    public boolean isOriginalGraphClosed(){
+        return this.originalGraph.isClosed();
+    }
+
     // =====================================================================================================================
     // VERTEX & EDGE HANDLING
     // =====================================================================================================================
@@ -184,12 +188,12 @@ public class ChronoThreadedTransactionGraph implements ChronoGraphInternal {
     // =====================================================================================================================
 
     @Override
-    public ChronoGraphIndexManager getIndexManager() {
-        return this.getIndexManager(ChronoDBConstants.MASTER_BRANCH_IDENTIFIER);
+    public ChronoGraphIndexManager getIndexManagerOnMaster() {
+        return this.getIndexManagerOnBranch(ChronoDBConstants.MASTER_BRANCH_IDENTIFIER);
     }
 
     @Override
-    public ChronoGraphIndexManager getIndexManager(final String branchName) {
+    public ChronoGraphIndexManager getIndexManagerOnBranch(final String branchName) {
         checkNotNull(branchName, "Precondition violation - argument 'branchName' must not be NULL!");
         if (this.getBackingDB().getBranchManager().existsBranch(branchName) == false) {
             throw new IllegalArgumentException("There is no branch named '" + branchName + "'!");

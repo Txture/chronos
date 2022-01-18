@@ -7,11 +7,12 @@ import java.util.concurrent.ExecutionException;
 import org.chronos.chronodb.api.Branch;
 import org.chronos.chronodb.internal.api.query.searchspec.SearchSpecification;
 import org.chronos.chronodb.internal.util.Quadruple;
-import org.chronos.common.logging.ChronoLogger;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheStats;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A simple query cache on a least-recently-used basis.
@@ -23,6 +24,8 @@ import com.google.common.cache.CacheStats;
  *
  */
 public class LRUIndexQueryCache implements ChronoIndexQueryCache {
+
+	private static final Logger log = LoggerFactory.getLogger(LRUIndexQueryCache.class);
 
 	private final Cache<Quadruple<Long, Branch, String, SearchSpecification<?,?>>, Set<String>> cache;
 
@@ -41,7 +44,7 @@ public class LRUIndexQueryCache implements ChronoIndexQueryCache {
 			Set<String> result = this.cache.get(Quadruple.of(timestamp, branch, keyspace, searchSpec), loadingFunction);
 			return result;
 		} catch (ExecutionException e) {
-			ChronoLogger.logError("Failed to load result of '" + searchSpec + "' at timestamp " + timestamp + "!", e);
+			log.error("Failed to load result of '" + searchSpec + "' at timestamp " + timestamp + "!", e);
 			return null;
 		}
 	}

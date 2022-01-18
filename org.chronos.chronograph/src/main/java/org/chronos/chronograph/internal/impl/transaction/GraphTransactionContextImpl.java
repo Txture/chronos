@@ -25,9 +25,9 @@ import org.chronos.chronograph.internal.impl.structure.graph.ChronoVertexPropert
 import org.chronos.chronograph.internal.impl.structure.graph.proxy.ChronoEdgeProxy;
 import org.chronos.chronograph.internal.impl.structure.graph.proxy.ChronoVertexProxy;
 import org.chronos.chronograph.internal.impl.util.ChronoGraphQueryUtil;
-import org.chronos.common.base.CCC;
-import org.chronos.common.logging.ChronoLogger;
-import org.chronos.common.logging.LogLevel;
+import org.chronos.common.logging.ChronosLogMarker;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -38,6 +38,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.*;
+import static org.chronos.common.logging.ChronosLogMarker.*;
 
 /**
  * The {@link GraphTransactionContextImpl} keeps track of the elements which have been modified by client code.
@@ -48,6 +49,8 @@ import static com.google.common.base.Preconditions.*;
  * @author martin.haeusler@uibk.ac.at -- Initial Contribution and API
  */
 public class GraphTransactionContextImpl implements GraphTransactionContextInternal {
+
+    private static final Logger log = LoggerFactory.getLogger(GraphTransactionContextImpl.class);
 
     private final SetMultimap<String, String> removedVertexPropertyKeyToOwnerId = HashMultimap.create();
     private final SetMultimap<String, String> removedEdgePropertyKeyToOwnerId = HashMultimap.create();
@@ -70,6 +73,11 @@ public class GraphTransactionContextImpl implements GraphTransactionContextInter
     // =====================================================================================================================
 
     @Override
+    public Set<String> getLoadedVertexIds(){
+        return Collections.unmodifiableSet(this.loadedVertices.keySet());
+    }
+
+    @Override
     public ChronoVertexImpl getLoadedVertexForId(final String id) {
         checkNotNull(id, "Precondition violation - argument 'id' must not be NULL!");
         return this.loadedVertices.get(id);
@@ -84,6 +92,11 @@ public class GraphTransactionContextImpl implements GraphTransactionContextInter
             // the proxy already exists; make sure it points to the correct instance
             proxy.rebindTo(vertex);
         }
+    }
+
+    @Override
+    public Set<String> getLoadedEdgeIds(){
+        return Collections.unmodifiableSet(this.loadedEdges.keySet());
     }
 
     @Override
@@ -324,42 +337,6 @@ public class GraphTransactionContextImpl implements GraphTransactionContextInter
     }
 
     @Override
-    public Collection<Property<?>> getModifiedVertexProperties(final SearchSpecification<?, ?> searchSpec) {
-        checkNotNull(searchSpec, "Precondition violation - argument 'searchSpec' must not be NULL!");
-        // only look at the modified properties that have the property key we are interested in
-        String propertyKey = searchSpec.getProperty();
-        Map<String, ChronoProperty<?>> modifiedProperties = this.vertexPropertyNameToOwnerIdToModifiedProperty.row(propertyKey);
-        // use a list here, because #hashCode and #equals on Properties is defined on key and value only (not on parent
-        // element id)
-        List<Property<?>> resultList = Lists.newArrayList();
-        for (ChronoProperty<?> property : modifiedProperties.values()) {
-            Object value = property.value();
-            if (ChronoGraphQueryUtil.searchSpecApplies(searchSpec, value)) {
-                resultList.add(property);
-            }
-        }
-        return resultList;
-    }
-
-    @Override
-    public Collection<Property<?>> getModifiedEdgeProperties(final SearchSpecification<?, ?> searchSpec) {
-        checkNotNull(searchSpec, "Precondition violation - argument 'searchSpec' must not be NULL!");
-        // only look at the modified properties that have the property key we are interested in
-        String propertyKey = searchSpec.getProperty();
-        Map<String, ChronoProperty<?>> modifiedProperties = this.edgePropertyNameToOwnerIdToModifiedProperty.row(propertyKey);
-        // use a list here, because #hashCode and #equals on Properties is defined on key and value only (not on parent
-        // element id)
-        List<Property<?>> resultList = Lists.newArrayList();
-        for (ChronoProperty<?> property : modifiedProperties.values()) {
-            Object value = property.value();
-            if (ChronoGraphQueryUtil.searchSpecApplies(searchSpec, value)) {
-                resultList.add(property);
-            }
-        }
-        return resultList;
-    }
-
-    @Override
     public boolean isVariableModified(final String keyspace, final String variableName) {
         checkNotNull(variableName, "Precondition violation - argument 'variableName' must not be NULL!");
         Map<String, Object> keyspaceMap = this.keyspaceToModifiedVariables.get(keyspace);
@@ -462,8 +439,7 @@ public class GraphTransactionContextImpl implements GraphTransactionContextInter
     // =====================================================================================================================
 
     private void logMarkVertexAsModified(final ChronoVertex vertex) {
-        if (CCC.MIN_LOG_LEVEL.isGreaterThan(LogLevel.TRACE)) {
-            // log level is higher than trace, no need to prepare the message
+        if(!log.isTraceEnabled(CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS)){
             return;
         }
         // prepare some debug output
@@ -478,12 +454,11 @@ public class GraphTransactionContextImpl implements GraphTransactionContextInter
         } else {
             messageBuilder.append("This Vertex has not yet been marked as modified in this transaction.");
         }
-        ChronoLogger.logTrace(messageBuilder.toString());
+        log.trace(CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS, messageBuilder.toString());
     }
 
     private void logMarkEdgeAsModified(final ChronoEdge edge) {
-        if (CCC.MIN_LOG_LEVEL.isGreaterThan(LogLevel.TRACE)) {
-            // log level is higher than trace, no need to prepare the message
+        if(!log.isTraceEnabled(CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS)){
             return;
         }
         // prepare some debug output
@@ -498,12 +473,11 @@ public class GraphTransactionContextImpl implements GraphTransactionContextInter
         } else {
             messageBuilder.append("This Edge has not yet been marked as modified in this transaction.");
         }
-        ChronoLogger.logTrace(messageBuilder.toString());
+        log.trace(CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS, messageBuilder.toString());
     }
 
     private void logMarkPropertyAsModified(final ChronoProperty<?> property) {
-        if (CCC.MIN_LOG_LEVEL.isGreaterThan(LogLevel.TRACE)) {
-            // log level is higher than trace, no need to prepare the message
+        if(!log.isTraceEnabled(CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS)){
             return;
         }
         // prepare some debug output
@@ -521,12 +495,11 @@ public class GraphTransactionContextImpl implements GraphTransactionContextInter
             messageBuilder.append(System.identityHashCode(owner));
             messageBuilder.append(")");
         }
-        ChronoLogger.logTrace(messageBuilder.toString());
+        log.trace(CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS, messageBuilder.toString());
     }
 
     private void logMarkPropertyAsRemoved(final ChronoProperty<?> property) {
-        if (CCC.MIN_LOG_LEVEL.isGreaterThan(LogLevel.TRACE)) {
-            // log level is higher than trace, no need to prepare the message
+        if(!log.isTraceEnabled(CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS)){
             return;
         }
         // prepare some debug output
@@ -544,6 +517,6 @@ public class GraphTransactionContextImpl implements GraphTransactionContextInter
             messageBuilder.append(System.identityHashCode(owner));
             messageBuilder.append(")");
         }
-        ChronoLogger.logTrace(messageBuilder.toString());
+        log.trace(CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS, messageBuilder.toString());
     }
 }

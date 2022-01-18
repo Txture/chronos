@@ -6,9 +6,9 @@ import org.chronos.chronodb.api.ChronoDBTransaction;
 import org.chronos.chronodb.api.indexing.StringIndexer;
 import org.chronos.chronodb.api.key.QualifiedKey;
 import org.chronos.chronodb.test.base.AllChronoDBBackendsTest;
-import org.chronos.common.test.utils.NamedPayload;
 import org.chronos.chronodb.test.cases.util.model.payload.NamedPayloadNameIndexer;
 import org.chronos.common.test.junit.categories.IntegrationTest;
+import org.chronos.common.test.utils.NamedPayload;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -24,7 +24,12 @@ public class IndexDocumentDeleteTest extends AllChronoDBBackendsTest {
     public void testDeletedIndexEntryIsNoLongerPresent() {
         ChronoDB db = this.getChronoDB();
         StringIndexer nameIndexer = new NamedPayloadNameIndexer();
-        db.getIndexManager().addIndexer("name", nameIndexer);
+        db.getIndexManager().createIndex()
+            .withName("name")
+            .withIndexer(nameIndexer)
+            .onMaster()
+            .acrossAllTimestamps()
+            .build();
         db.getIndexManager().reindexAll();
 
         // generate and insert test data
@@ -59,7 +64,12 @@ public class IndexDocumentDeleteTest extends AllChronoDBBackendsTest {
     public void testRecreationViaSaveOfDeletedEntryWorks() throws Exception {
         ChronoDB db = this.getChronoDB();
         StringIndexer nameIndexer = new NamedPayloadNameIndexer();
-        db.getIndexManager().addIndexer("name", nameIndexer);
+        db.getIndexManager().createIndex()
+            .withName("name")
+            .withIndexer(nameIndexer)
+            .onMaster()
+            .acrossAllTimestamps()
+            .build();
         db.getIndexManager().reindexAll();
 
         final long afterFirstWrite;

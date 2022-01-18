@@ -13,9 +13,10 @@ import org.chronos.chronograph.internal.ChronoGraphConstants;
 import org.chronos.chronograph.internal.api.migration.ChronoGraphMigration;
 import org.chronos.chronograph.internal.api.structure.ChronoGraphInternal;
 import org.chronos.chronograph.internal.impl.structure.record2.VertexRecord2;
-import org.chronos.common.logging.ChronoLogger;
 import org.chronos.common.version.ChronosVersion;
 import org.chronos.common.version.VersionKind;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Comparator;
 import java.util.Date;
@@ -24,7 +25,10 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
+@SuppressWarnings("deprecation")
 public class ChronoGraphMigration_0_11_6_to_0_11_7 implements ChronoGraphMigration {
+
+    private static final Logger log = LoggerFactory.getLogger(ChronoGraphMigration_0_11_6_to_0_11_7.class);
 
     @Override
     public ChronosVersion getFromVersion() {
@@ -48,7 +52,7 @@ public class ChronoGraphMigration_0_11_6_to_0_11_7 implements ChronoGraphMigrati
 
     @Override
     public void execute(final ChronoGraphInternal graph) {
-        ChronoLogger.logInfo("Migrating ChronoGraph from " + graph.getStoredChronoGraphVersion().map(v -> v.toString()).orElse("<unknown>") + " to " + this.getToVersion() + ". This may take a while.");
+        log.info("Migrating ChronoGraph from " + graph.getStoredChronoGraphVersion().map(v -> v.toString()).orElse("<unknown>") + " to " + this.getToVersion() + ". This may take a while.");
         // get the branches, children first
         List<GraphBranch> branches = graph.getBranchManager().getBranches().stream()
             .sorted(Comparator.comparing(GraphBranch::getBranchingTimestamp).reversed())
@@ -59,22 +63,22 @@ public class ChronoGraphMigration_0_11_6_to_0_11_7 implements ChronoGraphMigrati
         // migrate the old triggers
         for (GraphBranch branch : branches) {
             String branchName = branch.getName();
-            ChronoLogger.logInfo(logPrefix + ": Starting migration of Branch '" + branchName + "' (" + branchIndex + " of " + branches.size() + ").");
+            log.info(logPrefix + ": Starting migration of Branch '" + branchName + "' (" + branchIndex + " of " + branches.size() + ").");
             long branchingTimestamp = branch.getBranchingTimestamp();
             long branchNow = branch.getNow();
             List<Long> commitTimestamps = Lists.newArrayList(graph.getCommitTimestampsBetween(branchName, branchingTimestamp, branchNow, Order.DESCENDING, true));
             graph.getBackingDB().getDatebackManager().dateback(branchName, dateback -> {
                 int commitIndex = 0;
                 for (long commitTimestamp : commitTimestamps) {
-                    ChronoLogger.logInfo(logPrefix + " on Branch '" + branchName + "': migrating commit " + commitIndex + " of " + commitTimestamps.size() + " (" + new Date(commitTimestamp) + ")");
+                    log.info(logPrefix + " on Branch '" + branchName + "': migrating commit " + commitIndex + " of " + commitTimestamps.size() + " (" + new Date(commitTimestamp) + ")");
                     dateback.transformCommit(commitTimestamp, this::transformCommit);
                     commitIndex++;
                 }
-                ChronoLogger.logInfo(logPrefix + ": Successfully migrated all " + commitTimestamps.size() + " commits on Branch '" + branchName + "', performing branch cleanup...");
+                log.info(logPrefix + ": Successfully migrated all " + commitTimestamps.size() + " commits on Branch '" + branchName + "', performing branch cleanup...");
             });
             branchIndex++;
         }
-        ChronoLogger.logInfo(logPrefix + " completed successfully on all " + branches.size() + " Branches");
+        log.info(logPrefix + " completed successfully on all " + branches.size() + " Branches");
     }
 
     public Map<QualifiedKey, Object> transformCommit(Map<QualifiedKey, Object> commitContents) {

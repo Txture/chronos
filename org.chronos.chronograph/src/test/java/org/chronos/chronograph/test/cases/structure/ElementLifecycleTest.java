@@ -13,8 +13,8 @@ import org.junit.experimental.categories.Category;
 
 import java.util.NoSuchElementException;
 
+import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
-import static org.junit.Assert.*;
 
 @Category(IntegrationTest.class)
 public class ElementLifecycleTest extends AllChronoGraphBackendsTest {

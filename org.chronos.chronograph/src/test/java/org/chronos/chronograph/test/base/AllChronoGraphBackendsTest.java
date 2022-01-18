@@ -1,22 +1,25 @@
 package org.chronos.chronograph.test.base;
 
-import org.apache.commons.configuration.BaseConfiguration;
-import org.apache.commons.configuration.Configuration;
-import org.apache.commons.configuration.ConfigurationUtils;
+import org.apache.commons.configuration2.BaseConfiguration;
+import org.apache.commons.configuration2.Configuration;
+import org.apache.commons.configuration2.ConfigurationUtils;
 import org.chronos.chronodb.test.base.AllBackendsTest;
 import org.chronos.chronograph.api.structure.ChronoGraph;
 import org.chronos.chronograph.internal.api.configuration.ChronoGraphConfiguration;
 import org.chronos.chronograph.internal.api.structure.ChronoGraphInternal;
 import org.chronos.chronograph.test.util.FailOnAllEdgesIterationHandler;
 import org.chronos.chronograph.test.util.FailOnAllVerticesIterationHandler;
-import org.chronos.common.logging.ChronoLogger;
 import org.junit.After;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Method;
 
 import static com.google.common.base.Preconditions.*;
 
 public abstract class AllChronoGraphBackendsTest extends AllBackendsTest {
+
+    private static final Logger log = LoggerFactory.getLogger(AllChronoGraphBackendsTest.class);
 
     // =================================================================================================================
     // FIELDS
@@ -45,7 +48,7 @@ public abstract class AllChronoGraphBackendsTest extends AllBackendsTest {
             if (this.graph.tx().isOpen()) {
                 this.graph.tx().rollback();
             }
-            ChronoLogger.logDebug("Closing ChronoDB on backend '" + this.backend + "'.");
+            log.debug("Closing ChronoDB on backend '" + this.backend + "'.");
             this.graph.close();
         }
     }
@@ -55,7 +58,7 @@ public abstract class AllChronoGraphBackendsTest extends AllBackendsTest {
     // =================================================================================================================
 
     protected ChronoGraph reinstantiateGraph() {
-        ChronoLogger.logDebug("Reinstantiating ChronoGraph on backend '" + this.backend + "'.");
+        log.debug("Reinstantiating ChronoGraph on backend '" + this.backend + "'.");
         this.graph.close();
         this.graph = this.instantiateChronoGraph(this.backend);
         return this.graph;

@@ -1,7 +1,7 @@
 package org.chronos.chronodb.exodus.provider
 
-import org.apache.commons.configuration.BaseConfiguration
-import org.apache.commons.configuration.Configuration
+import org.apache.commons.configuration2.BaseConfiguration
+import org.apache.commons.configuration2.Configuration
 import org.chronos.chronodb.api.builder.database.spi.TestSuitePlugin
 import org.chronos.chronodb.exodus.ExodusChronoDB
 import org.chronos.chronodb.exodus.configuration.ExodusChronoDBConfiguration

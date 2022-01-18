@@ -66,10 +66,6 @@ public interface ChronoGraphTransaction {
 
     public Iterator<Vertex> getVerticesIterator(Iterable<String> chronoVertexIds, ElementLoadMode loadMode);
 
-    public Iterator<Vertex> getVerticesByProperties(Map<String, Object> propertyKeyToPropertyValue);
-
-    public Set<Vertex> evaluateVertexQuery(final ChronoDBQuery query);
-
     public Iterator<Edge> edges(Object... edgeIds);
 
     public Iterator<Edge> getAllEdgesIterator();
@@ -80,10 +76,6 @@ public interface ChronoGraphTransaction {
     }
 
     public Iterator<Edge> getEdgesIterator(Iterable<String> chronoEdgeIds, ElementLoadMode loadMode);
-
-    public Iterator<Edge> getEdgesByProperties(Map<String, Object> propertyKeyToPropertyValue);
-
-    public Set<Edge> evaluateEdgeQuery(final ChronoDBQuery query);
 
     public default Vertex getVertex(final String vertexId) throws NoSuchElementException {
         checkNotNull(vertexId, "Precondition violation - argument 'vertexId' must not be NULL!");

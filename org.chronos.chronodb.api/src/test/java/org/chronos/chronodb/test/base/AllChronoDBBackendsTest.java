@@ -1,7 +1,7 @@
 package org.chronos.chronodb.test.base;
 
 import com.google.common.collect.Lists;
-import org.apache.commons.configuration.Configuration;
+import org.apache.commons.configuration2.Configuration;
 import org.chronos.chronodb.api.Branch;
 import org.chronos.chronodb.api.ChronoDB;
 import org.chronos.chronodb.api.ChronoDBConstants;
@@ -11,11 +11,15 @@ import org.chronos.chronodb.api.key.QualifiedKey;
 import org.chronos.chronodb.internal.api.BranchInternal;
 import org.chronos.chronodb.internal.api.ChronoDBConfiguration;
 import org.chronos.chronodb.internal.api.TemporalKeyValueStore;
-import org.chronos.common.logging.ChronoLogger;
 import org.junit.After;
 import org.junit.Assume;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -23,6 +27,8 @@ import static com.google.common.base.Preconditions.*;
 import static org.junit.Assert.*;
 
 public abstract class AllChronoDBBackendsTest extends AllBackendsTest {
+
+	private static final Logger log = LoggerFactory.getLogger(AllChronoDBBackendsTest.class);
 
 	// =================================================================================================================
 	// FIELDS
@@ -47,7 +53,7 @@ public abstract class AllChronoDBBackendsTest extends AllBackendsTest {
 
 	@After
 	public void cleanUp() {
-		ChronoLogger.logDebug("Closing ChronoDB on backend '" + this.backend + "'.");
+		log.debug("Closing ChronoDB on backend '" + this.backend + "'.");
 		if (this.db != null) {
 			if (this.db.isClosed() == false) {
 				this.db.close();
@@ -61,9 +67,17 @@ public abstract class AllChronoDBBackendsTest extends AllBackendsTest {
 	// =================================================================================================================
 
 	protected ChronoDB instantiateChronoDB(final String backend) {
+		return this.instantiateChronoDB(backend, Collections.emptyMap());
+	}
+
+	protected ChronoDB instantiateChronoDB(final String backend, Map<String, Object> additionalConfiguration) {
 		Configuration configuration = this.createChronosConfiguration(backend);
+		for(Entry<String, Object> entry : additionalConfiguration.entrySet()){
+			configuration.setProperty(entry.getKey(), entry.getValue());
+		}
 		return this.createDB(configuration);
 	}
+
 
 	protected ChronoDB createDB(final Configuration configuration) {
 		checkNotNull(configuration, "Precondition violation - argument 'configuration' must not be NULL!");
@@ -74,14 +88,19 @@ public abstract class AllChronoDBBackendsTest extends AllBackendsTest {
 
 
 	protected ChronoDB reinstantiateDB() {
-		if (this.db == null) {
-			return this.getChronoDB();
+		return this.reinstantiateDB(Collections.emptyMap());
+	}
+
+	protected ChronoDB reinstantiateDB(Map<String, Object> additionalConfiguration) {
+		log.debug("Reinstantiating ChronoDB on backend '" + this.backend + "'.");
+		if (this.db != null) {
+			this.db.close();
 		}
-		ChronoLogger.logDebug("Reinstantiating ChronoDB on backend '" + this.backend + "'.");
-		this.db.close();
-		this.db = this.instantiateChronoDB(this.backend);
+		this.db = this.instantiateChronoDB(this.backend, additionalConfiguration);
 		return this.db;
 	}
+
+
 
 	protected ChronoDB closeAndReopenDB() {
 		ChronoDB db = this.getChronoDB();

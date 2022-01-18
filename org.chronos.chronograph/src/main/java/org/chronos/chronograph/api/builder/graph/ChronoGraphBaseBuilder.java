@@ -1,6 +1,6 @@
 package org.chronos.chronograph.api.builder.graph;
 
-import org.apache.commons.configuration.Configuration;
+import org.apache.commons.configuration2.Configuration;
 import org.chronos.chronodb.api.builder.database.ChronoDBBackendBuilder;
 import org.chronos.chronodb.api.builder.database.ChronoDBFinalizableBuilder;
 import org.chronos.chronodb.inmemory.builder.ChronoDBInMemoryBuilder;

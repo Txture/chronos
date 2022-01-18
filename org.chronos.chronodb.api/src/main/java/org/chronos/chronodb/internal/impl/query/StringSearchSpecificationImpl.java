@@ -2,8 +2,12 @@ package org.chronos.chronodb.internal.impl.query;
 
 import static com.google.common.base.Preconditions.*;
 
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.Predicate;
 
+import com.google.common.base.Preconditions;
+import org.chronos.chronodb.api.SecondaryIndex;
 import org.chronos.chronodb.api.query.StringCondition;
 import org.chronos.chronodb.internal.api.query.searchspec.SearchSpecification;
 import org.chronos.chronodb.internal.api.query.searchspec.StringSearchSpecification;
@@ -20,8 +24,8 @@ public class StringSearchSpecificationImpl extends AbstractSearchSpecification<S
 	// CONSTRUCTOR
 	// =================================================================================================================
 
-	public StringSearchSpecificationImpl(final String property, final StringCondition condition, final String searchValue, final TextMatchMode matchMode) {
-		super(property, condition, searchValue);
+	public StringSearchSpecificationImpl(final SecondaryIndex index, final StringCondition condition, final String searchValue, final TextMatchMode matchMode) {
+		super(index, condition, searchValue);
 		checkNotNull(matchMode, "Precondition violation - argument 'matchMode' must not be NULL!");
 		this.matchMode = matchMode;
 	}
@@ -48,62 +52,51 @@ public class StringSearchSpecificationImpl extends AbstractSearchSpecification<S
 
 	@Override
 	public SearchSpecification<String, String> negate() {
-		return new StringSearchSpecificationImpl(this.getProperty(), this.getCondition().negate(), this.getSearchValue(), this.getMatchMode());
+		return new StringSearchSpecificationImpl(this.getIndex(), this.getCondition().negate(), this.getSearchValue(), this.getMatchMode());
+	}
+
+	@Override
+	protected Class<String> getElementValueClass() {
+		return String.class;
+	}
+
+	@Override
+	public SearchSpecification<String, String> onIndex(final SecondaryIndex index) {
+		Preconditions.checkArgument(
+			Objects.equals(index.getName(), this.index.getName()),
+			"Cannot move search specification on the given index - the index names do not match!"
+		);
+		return new StringSearchSpecificationImpl(index, this.condition, this.searchValue, this.matchMode);
 	}
 
 	// =================================================================================================================
 	// HASH CODE & EQUALS
 	// =================================================================================================================
 
+
+	@Override
+	public boolean equals(final Object o) {
+		if (this == o)
+			return true;
+		if (o == null || getClass() != o.getClass())
+			return false;
+		if (!super.equals(o))
+			return false;
+
+		StringSearchSpecificationImpl that = (StringSearchSpecificationImpl) o;
+
+		return matchMode == that.matchMode;
+	}
+
 	@Override
 	public int hashCode() {
-		final int prime = 31;
 		int result = super.hashCode();
-		result = prime * result + (this.matchMode == null ? 0 : this.matchMode.hashCode());
+		result = 31 * result + (matchMode != null ? matchMode.hashCode() : 0);
 		return result;
 	}
 
 	@Override
-	public boolean equals(final Object obj) {
-		if (this == obj) {
-			return true;
-		}
-		if (!super.equals(obj)) {
-			return false;
-		}
-		if (this.getClass() != obj.getClass()) {
-			return false;
-		}
-		StringSearchSpecificationImpl other = (StringSearchSpecificationImpl) obj;
-		if (this.condition == null) {
-			if (other.condition != null) {
-				return false;
-			}
-		} else if (!this.condition.equals(other.condition)) {
-			return false;
-		}
-		if (this.property == null) {
-			if (other.property != null) {
-				return false;
-			}
-		} else if (!this.property.equals(other.property)) {
-			return false;
-		}
-		if (this.searchValue == null) {
-			if (other.searchValue != null) {
-				return false;
-			}
-		} else if (!this.searchValue.equals(other.searchValue)) {
-			return false;
-		}
-		if (this.matchMode != other.matchMode) {
-			return false;
-		}
-		return true;
-	}
-
-	@Override
 	public String toString() {
-		return this.getProperty() + " " + this.getCondition().getInfix() + " " + this.getMatchMode() + " '" + this.getSearchValue() + "'";
+		return this.getIndex() + " " + this.getCondition().getInfix() + " " + this.getMatchMode() + " '" + this.getSearchValue() + "'";
 	}
 }

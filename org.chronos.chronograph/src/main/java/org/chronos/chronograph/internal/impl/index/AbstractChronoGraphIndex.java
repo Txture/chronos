@@ -2,8 +2,14 @@ package org.chronos.chronograph.internal.impl.index;
 
 import static com.google.common.base.Preconditions.*;
 
+import org.chronos.chronodb.api.ChronoDBConstants;
+import org.chronos.chronodb.internal.api.Period;
+import org.chronos.chronodb.internal.impl.index.IndexingOption;
 import org.chronos.chronograph.internal.api.index.ChronoGraphIndexInternal;
 import org.chronos.common.annotation.PersistentClass;
+
+import java.util.Collections;
+import java.util.Set;
 
 /**
  * This class represents the definition of a graph index (index metadata) on disk.
@@ -35,6 +41,30 @@ public abstract class AbstractChronoGraphIndex implements ChronoGraphIndexIntern
 		this.indexedProperty = indexedProperty;
 	}
 
+	public String getId() {
+		return this.getBackendIndexKey();
+	}
+
+	@Override
+	public String getParentIndexId() {
+		return null;
+	}
+
+	@Override
+	public boolean isDirty() {
+		return true;
+	}
+
+	@Override
+	public String getBranch() {
+		return ChronoDBConstants.MASTER_BRANCH_IDENTIFIER;
+	}
+
+	@Override
+	public Period getValidPeriod() {
+		return Period.eternal();
+	}
+
 	@Override
 	public String getIndexedProperty() {
 		return this.indexedProperty;
@@ -44,6 +74,11 @@ public abstract class AbstractChronoGraphIndex implements ChronoGraphIndexIntern
 	public IndexType getIndexType() {
 		// the old version represented by this class only supported strings
 		return IndexType.STRING;
+	}
+
+	@Override
+	public Set<IndexingOption> getIndexingOptions() {
+		return Collections.emptySet();
 	}
 
 	@Override

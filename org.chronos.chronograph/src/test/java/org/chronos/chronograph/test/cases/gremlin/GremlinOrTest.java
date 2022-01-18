@@ -29,9 +29,9 @@ public class GremlinOrTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canPerformLeadingOrQuery(){
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("firstname").build();
-        g.getIndexManager().create().stringIndex().onVertexProperty("lastname").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("firstname").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("lastname").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.addVertex(T.id, "1", "firstname", "John", "lastname", "Doe");
         g.addVertex(T.id, "2", "firstname", "Jane", "lastname", "Doe");
@@ -57,9 +57,9 @@ public class GremlinOrTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canPerformOrQueryAfterHas(){
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("firstname").build();
-        g.getIndexManager().create().stringIndex().onVertexProperty("lastname").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("firstname").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("lastname").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.addVertex(T.id, "1", "firstname", "John", "lastname", "Doe");
         g.addVertex(T.id, "2", "firstname", "Jane", "lastname", "Doe");
@@ -85,9 +85,9 @@ public class GremlinOrTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canPerformInfixOrQuery(){
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("firstname").build();
-        g.getIndexManager().create().stringIndex().onVertexProperty("lastname").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("firstname").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("lastname").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.addVertex(T.id, "1", "firstname", "John", "lastname", "Doe");
         g.addVertex(T.id, "2", "firstname", "Jane", "lastname", "Doe");
@@ -116,9 +116,9 @@ public class GremlinOrTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canPerformOrPredicateQuery(){
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("firstname").build();
-        g.getIndexManager().create().stringIndex().onVertexProperty("lastname").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("firstname").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("lastname").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.addVertex(T.id, "1", "firstname", "John", "lastname", "Doe");
         g.addVertex(T.id, "2", "firstname", "Jane", "lastname", "Doe");
@@ -141,9 +141,9 @@ public class GremlinOrTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canReorderIndexSearchSteps(){
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("firstname").build();
-        g.getIndexManager().create().stringIndex().onVertexProperty("lastname").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("firstname").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("lastname").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.addVertex(T.id, "1", "firstname", "John", "lastname", "Doe", "age", 35);
         g.addVertex(T.id, "2", "firstname", "Jane", "lastname", "Doe", "age", 32);
@@ -167,11 +167,11 @@ public class GremlinOrTest extends AllChronoGraphBackendsTest {
     @Test
     public void canHaveLabelsInQuery(){
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("name").build();
-        g.getIndexManager().create().stringIndex().onVertexProperty("kind").build();
-        g.getIndexManager().create().stringIndex().onEdgeProperty("associationClass").build();
-        g.getIndexManager().create().stringIndex().onEdgeProperty("kind").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("name").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("kind").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().create().stringIndex().onEdgeProperty("associationClass").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().create().stringIndex().onEdgeProperty("kind").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         Vertex a1 = g.addVertex("name", "A1", "kind", "entity");
         Vertex a2 = g.addVertex("name", "A2", "kind", "entity");

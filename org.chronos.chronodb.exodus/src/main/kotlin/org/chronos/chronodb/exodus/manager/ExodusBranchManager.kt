@@ -1,13 +1,13 @@
 package org.chronos.chronodb.exodus.manager
 
 import com.google.common.collect.Maps
+import mu.KotlinLogging
 import org.chronos.chronodb.api.Branch
 import org.chronos.chronodb.api.ChronoDBConstants
-import org.chronos.chronodb.exodus.layout.ChronoDBDirectoryLayout
 import org.chronos.chronodb.exodus.ExodusChronoDB
 import org.chronos.chronodb.exodus.kotlin.ext.cast
 import org.chronos.chronodb.exodus.kotlin.ext.mapTo
-import org.chronos.chronodb.exodus.layout.ChronoDBStoreLayout
+import org.chronos.chronodb.exodus.layout.ChronoDBDirectoryLayout
 import org.chronos.chronodb.exodus.transaction.ExodusTransaction
 import org.chronos.chronodb.internal.api.BranchInternal
 import org.chronos.chronodb.internal.api.ChronoDBInternal
@@ -15,10 +15,15 @@ import org.chronos.chronodb.internal.impl.BranchImpl
 import org.chronos.chronodb.internal.impl.IBranchMetadata
 import org.chronos.chronodb.internal.impl.MatrixUtils
 import org.chronos.chronodb.internal.impl.engines.base.AbstractBranchManager
-import org.chronos.common.logging.ChronoLogger.logTrace
 import java.util.*
 
 class ExodusBranchManager : AbstractBranchManager {
+
+    companion object {
+
+        private val log = KotlinLogging.logger {}
+
+    }
 
     // =================================================================================================================
     // FIELDS
@@ -95,9 +100,9 @@ class ExodusBranchManager : AbstractBranchManager {
     private fun loadBranchMetadata() {
         this.openTxReadonly().use { tx ->
             BranchMetadataIndex.values(tx).asSequence()
-                    .map(this.owningDB.serializationManager::deserialize)
-                    .cast(IBranchMetadata::class)
-                    .mapTo(this.branchMetadata) { it.name to it }
+                .map(this.owningDB.serializationManager::deserialize)
+                .cast(IBranchMetadata::class)
+                .mapTo(this.branchMetadata) { it.name to it }
         }
     }
 
@@ -110,9 +115,9 @@ class ExodusBranchManager : AbstractBranchManager {
                 if (BranchMetadataIndex.getMetadata(tx, masterBranchMetadata.name) == null) {
                     // master branch metadata does not exist yet; insert it
                     BranchMetadataIndex.insertOrUpdate(
-                            tx,
-                            masterBranchMetadata.name,
-                            this.owningDB.serializationManager.serialize(masterBranchMetadata)
+                        tx,
+                        masterBranchMetadata.name,
+                        this.owningDB.serializationManager.serialize(masterBranchMetadata)
                     )
                     tx.commit()
                 }
@@ -143,7 +148,7 @@ class ExodusBranchManager : AbstractBranchManager {
         this.openTxReadWrite().use { tx ->
             val keyspaceName = ChronoDBConstants.DEFAULT_KEYSPACE_NAME
             val tableName = MatrixUtils.generateRandomName()
-            logTrace("Creating branch: [" + branch.name + ", " + keyspaceName + ", " + tableName + "]")
+            log.trace { "Creating branch: [" + branch.name + ", " + keyspaceName + ", " + tableName + "]" }
             NavigationIndex.insert(tx, branch.name, keyspaceName, tableName, 0L)
             BranchMetadataIndex.insertOrUpdate(tx, branch.metadata.name, this.owningDB.serializationManager.serialize(branch.metadata))
             tx.commit()

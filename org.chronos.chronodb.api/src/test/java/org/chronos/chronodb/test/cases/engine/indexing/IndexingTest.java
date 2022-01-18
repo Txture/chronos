@@ -1,10 +1,7 @@
 package org.chronos.chronodb.test.cases.engine.indexing;
 
 import com.google.common.collect.Sets;
-import org.chronos.chronodb.api.Branch;
-import org.chronos.chronodb.api.ChronoDB;
-import org.chronos.chronodb.api.ChronoDBConstants;
-import org.chronos.chronodb.api.ChronoDBTransaction;
+import org.chronos.chronodb.api.*;
 import org.chronos.chronodb.api.exceptions.ChronoDBIndexingException;
 import org.chronos.chronodb.api.exceptions.UnknownIndexException;
 import org.chronos.chronodb.api.indexing.DoubleIndexer;
@@ -13,9 +10,12 @@ import org.chronos.chronodb.api.indexing.LongIndexer;
 import org.chronos.chronodb.api.indexing.StringIndexer;
 import org.chronos.chronodb.api.query.Condition;
 import org.chronos.chronodb.internal.api.ChronoDBConfiguration;
+import org.chronos.chronodb.internal.api.Period;
 import org.chronos.chronodb.internal.api.index.IndexManagerInternal;
 import org.chronos.chronodb.internal.api.query.searchspec.SearchSpecification;
 import org.chronos.chronodb.internal.api.query.searchspec.StringSearchSpecification;
+import org.chronos.chronodb.internal.impl.index.IndexingOption;
+import org.chronos.chronodb.internal.impl.index.SecondaryIndexImpl;
 import org.chronos.chronodb.internal.impl.query.TextMatchMode;
 import org.chronos.chronodb.test.base.AllChronoDBBackendsTest;
 import org.chronos.chronodb.test.base.InstantiateChronosWith;
@@ -42,7 +42,7 @@ public class IndexingTest extends AllChronoDBBackendsTest {
         ChronoDB db = this.getChronoDB();
         // set up the "name" index
         StringIndexer nameIndexer = new NamedPayloadNameIndexer();
-        db.getIndexManager().addIndexer("name", nameIndexer);
+        SecondaryIndex index = db.getIndexManager().createIndex().withName("name").withIndexer(nameIndexer).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
 
         // generate and insert test data
@@ -59,10 +59,18 @@ public class IndexingTest extends AllChronoDBBackendsTest {
         String defaultKeyspace = ChronoDBConstants.DEFAULT_KEYSPACE_NAME;
 
         // assert that the index is correct
-        SearchSpecification<?,?> searchSpec = StringSearchSpecification.create("name", Condition.EQUALS, TextMatchMode.STRICT,
-            "Hello World");
-        Set<String> r1 = db.getIndexManager().queryIndex(System.currentTimeMillis(), masterBranch, defaultKeyspace,
-            searchSpec);
+        SearchSpecification<?, ?> searchSpec = StringSearchSpecification.create(
+            index,
+            Condition.EQUALS,
+            TextMatchMode.STRICT,
+            "Hello World"
+        );
+        Set<String> r1 = db.getIndexManager().queryIndex(
+            System.currentTimeMillis(),
+            masterBranch,
+            defaultKeyspace,
+            searchSpec
+        );
         assertEquals(1, r1.size());
         assertEquals("np1", r1.iterator().next());
     }
@@ -70,10 +78,22 @@ public class IndexingTest extends AllChronoDBBackendsTest {
     @Test
     public void readingNonExistentIndexFailsGracefully() {
         ChronoDB db = this.getChronoDB();
+        String indexId = "dd1f3a91-12d5-47bd-a343-7b15a3475f09";
+        SecondaryIndex index = new SecondaryIndexImpl(
+            indexId,
+            "shenaningan",
+            new NamedPayloadNameIndexer(),
+            Period.eternal(),
+            ChronoDBConstants.MASTER_BRANCH_IDENTIFIER,
+            null,
+            false,
+            Collections.emptySet()
+        );
+
         try {
             Branch masterBranch = db.getBranchManager().getMasterBranch();
             String defaultKeyspace = ChronoDBConstants.DEFAULT_KEYSPACE_NAME;
-            SearchSpecification<?,?> searchSpec = StringSearchSpecification.create("shenaningan", Condition.EQUALS,
+            SearchSpecification<?, ?> searchSpec = StringSearchSpecification.create(index, Condition.EQUALS,
                 TextMatchMode.STRICT, "Hello World");
             db.getIndexManager().queryIndex(System.currentTimeMillis(), masterBranch, defaultKeyspace, searchSpec);
             fail();
@@ -87,7 +107,7 @@ public class IndexingTest extends AllChronoDBBackendsTest {
         ChronoDB db = this.getChronoDB();
         // set up the "name" index
         StringIndexer nameIndexer = new NamedPayloadNameIndexer();
-        db.getIndexManager().addIndexer("name", nameIndexer);
+        db.getIndexManager().createIndex().withName("name").withIndexer(nameIndexer).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
         // generate and insert test data
         NamedPayload np1 = NamedPayload.create1KB("Hello World");
@@ -122,7 +142,7 @@ public class IndexingTest extends AllChronoDBBackendsTest {
         ChronoDB db = this.getChronoDB();
         // set up the "name" index
         StringIndexer nameIndexer = new NamedPayloadNameIndexer();
-        db.getIndexManager().addIndexer("name", nameIndexer);
+        db.getIndexManager().createIndex().withName("name").withIndexer(nameIndexer).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
         // generate and insert test data
         NamedPayload np1 = NamedPayload.create1KB("np1");
@@ -164,32 +184,32 @@ public class IndexingTest extends AllChronoDBBackendsTest {
     }
 
     @Test
-    public void attemptingToAddTheSameIndexerTwiceShouldThrowAnException(){
+    public void attemptingToAddTheSameIndexerTwiceShouldThrowAnException() {
         ChronoDB db = this.getChronoDB();
         // this should be okay
-        db.getIndexManager().addIndexer("name", new DummyFieldIndexer("name"));
+        db.getIndexManager().createIndex().withName("name").withIndexer(new DummyFieldIndexer("name")).onMaster().acrossAllTimestamps().build();
         // ... but adding another field indexer of the same name should not be allowed
-        try{
-            db.getIndexManager().addIndexer("name", new DummyFieldIndexer("name"));
+        try {
+            db.getIndexManager().createIndex().withName("name").withIndexer(new DummyFieldIndexer("name")).onMaster().acrossAllTimestamps().build();
             fail("Managed to add two equal indexers to the same index!");
-        }catch(ChronoDBIndexingException e){
+        } catch (ChronoDBIndexingException e) {
             // pass
         }
     }
 
     @Test
-    public void attemptingToAddAnIndexerWithoutHashCodeAndEqualsShouldThrowAnException(){
+    public void attemptingToAddAnIndexerWithoutHashCodeAndEqualsShouldThrowAnException() {
         ChronoDB db = this.getChronoDB();
-        try{
-            db.getIndexManager().addIndexer("name", new IndexerWithoutHashCode());
+        try {
+            db.getIndexManager().createIndex().withName("name").withIndexer(new IndexerWithoutHashCode()).onMaster().acrossAllTimestamps().build();
             fail("Managed to add indexer that doesn't implement hashCode()");
-        }catch(ChronoDBIndexingException e){
+        } catch (ChronoDBIndexingException e) {
             // pass
         }
-        try{
-            db.getIndexManager().addIndexer("name", new IndexerWithoutEquals());
+        try {
+            db.getIndexManager().createIndex().withName("name").withIndexer(new IndexerWithoutEquals()).onMaster().acrossAllTimestamps().build();
             fail("Managed to add indexer that doesn't implement equals()");
-        }catch(ChronoDBIndexingException e){
+        } catch (ChronoDBIndexingException e) {
             // pass
         }
     }
@@ -197,34 +217,45 @@ public class IndexingTest extends AllChronoDBBackendsTest {
     @Test
     public void canDropAllIndices() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("name", new DummyStringIndexer());
-        db.getIndexManager().addIndexer("test", new DummyStringIndexer());
-        assertEquals(2, db.getIndexManager().getIndexers().size());
+        db.getIndexManager().createIndex().withName("name").withIndexer(new DummyStringIndexer()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().createIndex().withName("test").withIndexer(new DummyStringIndexer()).onMaster().acrossAllTimestamps().build();
+        assertEquals(2, db.getIndexManager().getIndices().size());
         db.getIndexManager().clearAllIndices();
-        assertEquals(0, db.getIndexManager().getIndexers().size());
+        assertEquals(0, db.getIndexManager().getIndices().size());
     }
 
     @Test
-    public void canDirtyAllIndices(){
+    public void canDirtyAllIndices() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("name", new DummyStringIndexer());
-        db.getIndexManager().addIndexer("foo", new DummyStringIndexer());
+        db.getIndexManager().createIndex().withName("name").withIndexer(new DummyStringIndexer()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().createIndex().withName("foo").withIndexer(new DummyStringIndexer()).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
-        assertEquals(Sets.newHashSet("name", "foo"), db.getIndexManager().getIndexNames());
+        assertEquals(Sets.newHashSet("name", "foo"), db.getIndexManager().getIndices().stream().map(SecondaryIndex::getName).collect(Collectors.toSet()));
         assertEquals(Collections.emptySet(), db.getIndexManager().getDirtyIndices());
         // dirty them all
-        ((IndexManagerInternal)db.getIndexManager()).markAllIndicesAsDirty();
-        assertEquals(Sets.newHashSet("name", "foo"), db.getIndexManager().getDirtyIndices());
+        ((IndexManagerInternal) db.getIndexManager()).markAllIndicesAsDirty();
+        assertEquals(Sets.newHashSet("name", "foo"), db.getIndexManager().getDirtyIndices().stream().map(SecondaryIndex::getName).collect(Collectors.toSet()));
         // after reindexing, they should be clean again
         db.getIndexManager().reindexAll();
         assertEquals(Collections.emptySet(), db.getIndexManager().getDirtyIndices());
     }
 
+    @Test
+    public void assumeNoPriorValuesStartsIndexClean() {
+        ChronoDB db = this.getChronoDB();
+        db.getIndexManager().createIndex()
+            .withName("name")
+            .withIndexer(new DummyStringIndexer())
+            .onMaster().acrossAllTimestamps().withOption(IndexingOption.assumeNoPriorValues()).build();
+
+        Set<SecondaryIndex> dirtyIndices = db.getIndexManager().getDirtyIndices();
+        assertEquals(Collections.emptySet(), dirtyIndices);
+    }
 
     private void assertAddingSecondIndexerFails(final ChronoDB db, final Indexer<?> indexer1, final Indexer<?> indexer2) {
-        db.getIndexManager().addIndexer("test", indexer1);
+        db.getIndexManager().createIndex().withName("test").withIndexer(indexer1).onMaster().acrossAllTimestamps().build();
         try {
-            db.getIndexManager().addIndexer("test", indexer2);
+            db.getIndexManager().createIndex().withName("test").withIndexer(indexer2).onMaster().acrossAllTimestamps().build();
             fail("Managed to mix indexer classes " + indexer1.getClass().getSimpleName() + " and " + indexer2.getClass().getName() + " in same index!");
         } catch (ChronoDBIndexingException expected) {
             // pass
@@ -308,7 +339,7 @@ public class IndexingTest extends AllChronoDBBackendsTest {
 
         private String fieldName;
 
-        public DummyFieldIndexer(String fieldName){
+        public DummyFieldIndexer(String fieldName) {
             checkNotNull(fieldName, "Precondition violation - argument 'fieldName' must not be NULL!");
             this.fieldName = fieldName;
         }
@@ -320,18 +351,18 @@ public class IndexingTest extends AllChronoDBBackendsTest {
 
         @Override
         public Set<String> getIndexValues(final Object object) {
-            try{
+            try {
                 Field field = object.getClass().getDeclaredField(this.fieldName);
-                if(field == null){
+                if (field == null) {
                     return null;
                 }
                 field.setAccessible(true);
                 Object value = field.get(object);
-                if(value == null){
+                if (value == null) {
                     return null;
                 }
                 return Collections.singleton(value.toString());
-            }catch(Exception e){
+            } catch (Exception e) {
                 return null;
             }
         }
@@ -359,7 +390,7 @@ public class IndexingTest extends AllChronoDBBackendsTest {
         // no hashCode() method here on purpose!
 
         @Override
-        public boolean equals(Object other){
+        public boolean equals(Object other) {
             return other == this;
         }
 
@@ -378,7 +409,7 @@ public class IndexingTest extends AllChronoDBBackendsTest {
     private static class IndexerWithoutEquals implements StringIndexer {
 
         @Override
-        public int hashCode(){
+        public int hashCode() {
             return 0;
         }
 

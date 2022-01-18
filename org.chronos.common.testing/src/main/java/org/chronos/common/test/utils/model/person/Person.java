@@ -47,6 +47,13 @@ public class Person {
         this.setLastName(lastName);
     }
 
+    public Person(final String id, final String firstName, final String lastName) {
+        this();
+        this.id = id;
+        this.setFirstName(firstName);
+        this.setLastName(lastName);
+    }
+
     // =====================================================================================================================
     // PUBLIC API
     // =====================================================================================================================

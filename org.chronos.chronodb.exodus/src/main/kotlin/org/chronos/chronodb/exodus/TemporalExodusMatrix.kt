@@ -130,8 +130,8 @@ class TemporalExodusMatrix : AbstractTemporalDataMatrix {
         return AllEntriesIterator(this.chunkManager, chunksForPeriod, this.storeName, minTimestamp, maxTimestamp, includeRolloverCommits)
     }
 
-    override fun lastCommitTimestamp(key: String, lowerBound: Long): Long {
-        val history = this.history(key, lowerBound, Long.MAX_VALUE, Order.DESCENDING)
+    override fun lastCommitTimestamp(key: String, upperBound: Long): Long {
+        val history = this.history(key, 0L, upperBound, Order.DESCENDING)
         return history.nextOrElse(-1)
     }
 
@@ -190,7 +190,7 @@ class TemporalExodusMatrix : AbstractTemporalDataMatrix {
         if(entries.isEmpty()){
             return
         }
-        val minTimestamp = entries.asSequence().map { it.key.timestamp }.min()
+        val minTimestamp = entries.asSequence().map { it.key.timestamp }.minOrNull()
         if (minTimestamp != null) {
             this.ensureCreationTimestampIsGreaterThanOrEqualTo(minTimestamp)
         }

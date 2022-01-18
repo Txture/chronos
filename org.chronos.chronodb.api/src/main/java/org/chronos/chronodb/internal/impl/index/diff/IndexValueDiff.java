@@ -1,5 +1,7 @@
 package org.chronos.chronodb.internal.impl.index.diff;
 
+import org.chronos.chronodb.api.SecondaryIndex;
+
 import java.util.Set;
 
 public interface IndexValueDiff {
@@ -32,7 +34,7 @@ public interface IndexValueDiff {
 	 *
 	 * @return The value additions. Never <code>null</code>. May be empty if nothing was added to the given index.
 	 */
-	public Set<Object> getAdditions(final String indexName);
+	public Set<Object> getAdditions(final SecondaryIndex index);
 
 	/**
 	 * Returns the value removals for the given index name.
@@ -42,17 +44,17 @@ public interface IndexValueDiff {
 	 *
 	 * @return The value removals. Never <code>null</code>. May be empty if nothing was removed from the given index.
 	 */
-	public Set<Object> getRemovals(final String indexName);
+	public Set<Object> getRemovals(final SecondaryIndex index);
 
 	/**
 	 * Returns the set of indices that have actual changes in this diff.
 	 *
 	 * <p>
-	 * This is equivalent to the set of indices where the set of {@linkplain #getAdditions(String) additions} and/or the set of {@linkplain #getRemovals(String) removals} is non-empty.
+	 * This is equivalent to the set of indices where the set of {@linkplain #getAdditions(SecondaryIndex) additions} and/or the set of {@linkplain #getRemovals(SecondaryIndex) removals} is non-empty.
 	 *
 	 * @return The set of names of changed indices. May be empty if this diff {@linkplain #isEmpty() is empty}, but never <code>null</code>.
 	 */
-	public Set<String> getChangedIndices();
+	public Set<SecondaryIndex> getChangedIndices();
 
 	/**
 	 * Checks if there are changes in this diff for the index with the given name.
@@ -62,7 +64,7 @@ public interface IndexValueDiff {
 	 *
 	 * @return <code>true</code> if there are changes to the index with the given name, otherwise <code>false</code>.
 	 */
-	public boolean isIndexChanged(final String indexName);
+	public boolean isIndexChanged(final SecondaryIndex index);
 
 	/**
 	 * Checks if this diff is empty, i.e. does not contain any changes.
@@ -71,8 +73,8 @@ public interface IndexValueDiff {
 	 * If this method returns <code>true</code>, then {@link #getChangedIndices()} all of the following methods will return the empty set:
 	 * <ul>
 	 * <li>{@link #getChangedIndices()}
-	 * <li>{@link #getAdditions(String)} (for every non-<code>null</code> argument string)
-	 * <li>{@link #getRemovals(String)} (for every non-<code>null</code> argument string)
+	 * <li>{@link #getAdditions(SecondaryIndex)} (for every non-<code>null</code> argument string)
+	 * <li>{@link #getRemovals(SecondaryIndex)} (for every non-<code>null</code> argument string)
 	 * </ul>
 	 *
 	 * <p>
@@ -122,8 +124,8 @@ public interface IndexValueDiff {
 	 * In other words, this method will return <code>true</code> if and only if all of the following conditions hold:
 	 * <ul>
 	 * <li>{@link #getChangedIndices()} returns a non-empty set
-	 * <li>{@link #getAdditions(String)} will return a non-empty set for at least one index name
-	 * <li>{@link #getRemovals(String)} will return the empty set, for all index names
+	 * <li>{@link #getAdditions(SecondaryIndex)} will return a non-empty set for at least one index name
+	 * <li>{@link #getRemovals(SecondaryIndex)} will return the empty set, for all index names
 	 * </ul>
 	 *
 	 * <p>
@@ -144,8 +146,8 @@ public interface IndexValueDiff {
 	 * In other words, this method will return <code>true</code> if and only if all of the following conditions hold:
 	 * <ul>
 	 * <li>{@link #getChangedIndices()} returns a non-empty set
-	 * <li>{@link #getAdditions(String)} will return the empty set, for all index names
-	 * <li>{@link #getRemovals(String)} will return a non-empty set for at least one index name
+	 * <li>{@link #getAdditions(SecondaryIndex)} will return the empty set, for all index names
+	 * <li>{@link #getRemovals(SecondaryIndex)} will return a non-empty set for at least one index name
 	 * </ul>
 	 *
 	 * <p>
@@ -166,8 +168,8 @@ public interface IndexValueDiff {
 	 * In other words, this method will return <code>true</code> if and only if all of the following conditions hold:
 	 * <ul>
 	 * <li>{@link #getChangedIndices()} returns a non-empty set
-	 * <li>{@link #getAdditions(String)} will return a non-empty set for at least one index name
-	 * <li>{@link #getRemovals(String)} will return a non-empty set for at least one index name
+	 * <li>{@link #getAdditions(SecondaryIndex)} will return a non-empty set for at least one index name
+	 * <li>{@link #getRemovals(SecondaryIndex)} will return a non-empty set for at least one index name
 	 * </ul>
 	 *
 	 * <p>

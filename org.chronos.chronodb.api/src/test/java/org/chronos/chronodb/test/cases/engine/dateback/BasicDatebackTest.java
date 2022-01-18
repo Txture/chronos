@@ -4,21 +4,36 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import org.chronos.chronodb.api.*;
+import org.chronos.chronodb.api.Branch;
+import org.chronos.chronodb.api.BranchManager;
+import org.chronos.chronodb.api.ChronoDB;
+import org.chronos.chronodb.api.ChronoDBConstants;
+import org.chronos.chronodb.api.ChronoDBTransaction;
+import org.chronos.chronodb.api.Dateback;
+import org.chronos.chronodb.api.DatebackManager;
 import org.chronos.chronodb.api.key.QualifiedKey;
 import org.chronos.chronodb.internal.api.dateback.log.DatebackOperation;
 import org.chronos.chronodb.internal.api.dateback.log.IPurgeKeyspaceOperation;
-import org.chronos.chronodb.internal.impl.dateback.log.*;
+import org.chronos.chronodb.internal.impl.dateback.log.InjectEntriesOperation;
+import org.chronos.chronodb.internal.impl.dateback.log.PurgeCommitsOperation;
+import org.chronos.chronodb.internal.impl.dateback.log.PurgeEntryOperation;
+import org.chronos.chronodb.internal.impl.dateback.log.PurgeKeyOperation;
 import org.chronos.chronodb.internal.impl.dateback.log.v2.TransformCommitOperation2;
 import org.chronos.chronodb.test.base.AllChronoDBBackendsTest;
 import org.chronos.common.test.junit.categories.IntegrationTest;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
 
@@ -302,7 +317,7 @@ public class BasicDatebackTest extends AllChronoDBBackendsTest {
         assertEquals(1, Iterators.size(db.tx().history("John")));
 
         // make sure the operation was logged
-        this.assertSingleDatebackOperationWasLogged(PurgeCommitsOperation.class, op->{
+        this.assertSingleDatebackOperationWasLogged(PurgeCommitsOperation.class, op -> {
             assertThat(op.getCommitTimestamps(), contains(secondCommitTimestamp));
         });
     }
@@ -332,7 +347,7 @@ public class BasicDatebackTest extends AllChronoDBBackendsTest {
         assertEquals("Chronos", db.tx().get("Hello"));
         assertNull(db.tx().get("Foo"));
         assertEquals("Doe", db.tx().get("John"));
-        
+
         System.out.println("Second commit timestamp: " + secondCommitTimestamp);
         System.out.println("Third commit timestamp:  " + thirdCommitTimestamp);
 
@@ -428,7 +443,6 @@ public class BasicDatebackTest extends AllChronoDBBackendsTest {
     }
 
 
-
     @Test
     public void canInjectDeletion() {
         ChronoDB db = this.getChronoDB();
@@ -456,7 +470,7 @@ public class BasicDatebackTest extends AllChronoDBBackendsTest {
         assertEquals(2, db.tx().getCommitTimestampsAfter(0, 10).size());
 
         // make sure the operation was logged
-        this.assertSingleDatebackOperationWasLogged(InjectEntriesOperation.class, op-> {
+        this.assertSingleDatebackOperationWasLogged(InjectEntriesOperation.class, op -> {
             assertThat(op.getOperationTimestamp(), is(db.tx().getTimestamp()));
             assertThat(op.getInjectedKeys(), containsInAnyOrder(QualifiedKey.createInDefaultKeyspace("Foo")));
         });
@@ -584,7 +598,7 @@ public class BasicDatebackTest extends AllChronoDBBackendsTest {
     }
 
     @Test
-    public void testDatebackOnBranches(){
+    public void testDatebackOnBranches() {
         ChronoDB db = this.getChronoDB();
         long commit1;
         long commit2;
@@ -605,7 +619,7 @@ public class BasicDatebackTest extends AllChronoDBBackendsTest {
         { // second commit on master
             ChronoDBTransaction tx = db.tx();
             tx.put("Jane", "Doe");
-            commit2 =tx.commit();
+            commit2 = tx.commit();
         }
         BranchManager branchManager = db.getBranchManager();
         branchManager.createBranch("B1");
@@ -692,7 +706,7 @@ public class BasicDatebackTest extends AllChronoDBBackendsTest {
     }
 
     @Test
-    public void canPurgeKeyspace(){
+    public void canPurgeKeyspace() {
         ChronoDB db = this.getChronoDB();
         long commit1;
         long commit2;
@@ -743,17 +757,17 @@ public class BasicDatebackTest extends AllChronoDBBackendsTest {
         assertThat(allOps.size(), is(1));
         DatebackOperation operation = Iterables.getOnlyElement(allOps);
         assertThat(operation, is(instanceOf(IPurgeKeyspaceOperation.class)));
-        IPurgeKeyspaceOperation op = (IPurgeKeyspaceOperation)operation;
+        IPurgeKeyspaceOperation op = (IPurgeKeyspaceOperation) operation;
         assertThat(op.getFromTimestamp(), is(commit2));
         assertThat(op.getToTimestamp(), is(commit4));
         assertThat(op.getKeyspace(), is("mykeyspace"));
 
         // check that the keyspace "test" was unaffected
-        assertEquals(1, (int)db.tx(commit1).get("test", "x"));
-        assertEquals(2, (int)db.tx(commit2).get("test", "x"));
-        assertEquals(3, (int)db.tx(commit3).get("test", "x"));
-        assertEquals(4, (int)db.tx(commit4).get("test", "x"));
-        assertEquals(5, (int)db.tx(commit5).get("test", "x"));
+        assertEquals(1, (int) db.tx(commit1).get("test", "x"));
+        assertEquals(2, (int) db.tx(commit2).get("test", "x"));
+        assertEquals(3, (int) db.tx(commit3).get("test", "x"));
+        assertEquals(4, (int) db.tx(commit4).get("test", "x"));
+        assertEquals(5, (int) db.tx(commit5).get("test", "x"));
 
         // check that the commits 2 and 3 are indeed gone
         assertEquals("a1", db.tx(commit1).get("mykeyspace", "a"));
@@ -794,7 +808,7 @@ public class BasicDatebackTest extends AllChronoDBBackendsTest {
     // =================================================================================================================
 
     @SuppressWarnings("unchecked")
-    private <T extends DatebackOperation> void assertSingleDatebackOperationWasLogged(Class<T> type, Consumer<T> check){
+    private <T extends DatebackOperation> void assertSingleDatebackOperationWasLogged(Class<T> type, Consumer<T> check) {
         ChronoDB db = this.getChronoDB();
         List<DatebackOperation> allOperations = db.getDatebackManager().getAllPerformedDatebackOperations();
         assertThat(allOperations.size(), is(1));
@@ -802,7 +816,7 @@ public class BasicDatebackTest extends AllChronoDBBackendsTest {
         assertThat(operation, is(instanceOf(type)));
         assertThat(operation.getBranch(), is(ChronoDBConstants.MASTER_BRANCH_IDENTIFIER));
         assertThat(operation.getWallClockTime(), is(greaterThanOrEqualTo(db.tx().getTimestamp())));
-        T op = (T)operation;
+        T op = (T) operation;
         check.accept(op);
         List<DatebackOperation> operationsOnMaster = db.getDatebackManager().getDatebackOperationsAffectingTimestamp(ChronoDBConstants.MASTER_BRANCH_IDENTIFIER, System.currentTimeMillis());
         assertThat(operationsOnMaster, is(allOperations));

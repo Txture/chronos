@@ -1,5 +1,6 @@
 package org.chronos.chronograph.test.cases.dump;
 
+import com.google.common.base.Charsets;
 import com.google.common.collect.Lists;
 import org.apache.commons.io.FileUtils;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
@@ -20,6 +21,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.*;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
 
@@ -48,7 +50,7 @@ public class ChronoGraphDumpTest extends AllChronoGraphBackendsTest {
 
         // print the contents of the file (for debugging)
         try {
-            String contents = FileUtils.readFileToString(dumpFile);
+            String contents = FileUtils.readFileToString(dumpFile, Charsets.UTF_8);
             System.out.println(contents);
         } catch (IOException e) {
             e.printStackTrace();
@@ -131,7 +133,7 @@ public class ChronoGraphDumpTest extends AllChronoGraphBackendsTest {
         }
 
         // reindexing should not affect the correctness of our result
-        graph.getIndexManager().reindexAll();
+        graph.getIndexManagerOnMaster().reindexAll();
 
         // make sure we have a vertex with "kind" equal to "informationModel"
         assertEquals(1, graph.traversal().V().filter(t -> t.get().property("kind").orElse("").equals("informationModel")).toSet().size());

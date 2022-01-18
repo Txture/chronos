@@ -18,6 +18,7 @@ import org.junit.experimental.categories.Category;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Scanner;
 import java.util.UUID;
 
 import static org.junit.Assert.*;
@@ -28,6 +29,59 @@ public class IncrementalGraphCommitPerformanceTest extends AllChronoGraphBackend
 
     // copied from TuplUtils to avoid the project dependency
     private static final int BATCH_INSERT_THRESHOLD = 25_000;
+
+    @Test
+    @InstantiateChronosWith(property = ChronoDBConfiguration.CACHING_ENABLED, value = "true")
+    @InstantiateChronosWith(property = ChronoDBConfiguration.CACHE_MAX_SIZE, value = "200000")
+    public void t_largeStructureTest() {
+        final int MAX_BATCH_SIZE = 25_000;
+        ChronoGraph graph = this.getGraph();
+        // create indices
+        graph.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("kind").acrossAllTimestamps().build();
+        // simulate one entity class
+        Vertex classVertex = graph.addVertex("kind", "class");
+        graph.tx().commit();
+        // load largeStructure files
+        Scanner entitiesScanner = new Scanner(this.getClass().getClassLoader()
+            .getResourceAsStream("org/chronos/chronograph/testStructures/entities.csv"));
+        Scanner associationsScanner = new Scanner(this.getClass().getClassLoader()
+            .getResourceAsStream("org/chronos/chronograph/testStructures/associations.csv"));
+        // put entities
+        int batchSize = 0;
+        while (entitiesScanner.hasNextLine()) {
+            String line = entitiesScanner.nextLine().trim();
+            Vertex entityVertex = graph.addVertex(T.id, line, "kind", "entity");
+            entityVertex.addEdge("classifier", classVertex);
+            batchSize++;
+            if (batchSize > MAX_BATCH_SIZE) {
+                graph.tx().commitIncremental();
+                batchSize = 0;
+            }
+        }
+        graph.tx().commitIncremental();
+        // put associations
+        batchSize = 0;
+        while (associationsScanner.hasNextLine()) {
+            String line = associationsScanner.nextLine().trim();
+            String[] sourceTarget = line.split(",");
+            String source = sourceTarget[0].trim();
+            String target = sourceTarget[1].trim();
+            Vertex v1 = Iterators.getOnlyElement(graph.vertices(source), null);
+            Vertex v2 = Iterators.getOnlyElement(graph.vertices(target), null);
+            assertNotNull(v1);
+            assertNotNull(v2);
+            v1.addEdge("connected", v2);
+            batchSize++;
+            if (batchSize > MAX_BATCH_SIZE) {
+                graph.tx().commitIncremental();
+                batchSize = 0;
+            }
+        }
+        // commit and free scanners
+        graph.tx().commit();
+        entitiesScanner.close();
+        associationsScanner.close();
+    }
 
     @Test
     public void massiveIncrementalCommitsProduceConsistentStoreWithBatchInsert() {

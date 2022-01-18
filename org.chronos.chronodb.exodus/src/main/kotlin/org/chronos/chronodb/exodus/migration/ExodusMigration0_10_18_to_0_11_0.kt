@@ -1,15 +1,16 @@
 package org.chronos.chronodb.exodus.migration
 
-import org.chronos.chronodb.api.Branch
 import org.chronos.chronodb.exodus.ExodusChronoDB
 import org.chronos.chronodb.exodus.TemporalExodusMatrix
+import org.chronos.chronodb.exodus.kotlin.ext.cast
 import org.chronos.chronodb.exodus.kotlin.ext.parseAsInverseUnqualifiedTemporalKey
+import org.chronos.chronodb.exodus.manager.BranchMetadataIndex
 import org.chronos.chronodb.exodus.manager.NavigationIndex
 import org.chronos.chronodb.exodus.transaction.ExodusTransaction
-import org.chronos.chronodb.internal.api.BranchInternal
 import org.chronos.chronodb.internal.api.Period
 import org.chronos.chronodb.internal.api.migration.ChronosMigration
 import org.chronos.chronodb.internal.api.migration.annotations.Migration
+import org.chronos.chronodb.internal.impl.IBranchMetadata
 import org.chronos.chronodb.internal.impl.engines.base.KeyspaceMetadata
 
 @Migration(from = "0.10.18", to = "0.11.0")
@@ -17,8 +18,8 @@ class ExodusMigration0_10_18_to_0_11_0 : ChronosMigration<ExodusChronoDB> {
 
     override fun execute(chronoDB: ExodusChronoDB) {
         // this migration updates the keyspace creation timestamps which may have gotten out-of-sync.
-        val branchNameToKeyspaceMetadata = getBranchNameToKeyspaceMetadata(chronoDB)
-        for ((branch, metadataSet) in branchNameToKeyspaceMetadata) {
+        val branchToKeyspaceMetadata = getBranchNameToKeyspaceMetadata(chronoDB)
+        for ((branch, metadataSet) in branchToKeyspaceMetadata) {
             for (metadata in metadataSet) {
                 val earliestCommit = findEarliestCommitInKeyspace(chronoDB, branch, metadata)
                 // note: creation timestamps can only become SMALLER by this operation. If
@@ -34,16 +35,24 @@ class ExodusMigration0_10_18_to_0_11_0 : ChronosMigration<ExodusChronoDB> {
         }
     }
 
-    private fun getBranchNameToKeyspaceMetadata(chronoDB: ExodusChronoDB): Map<Branch, Set<KeyspaceMetadata>> {
-        val branches = chronoDB.branchManager.branchNames.asSequence().map { name -> chronoDB.branchManager.getBranch(name) }.toList()
+    private fun getBranchNameToKeyspaceMetadata(chronoDB: ExodusChronoDB): Map<IBranchMetadata, Set<KeyspaceMetadata>> {
         return chronoDB.globalChunkManager.openReadWriteTransactionOnGlobalEnvironment().use { globalTx ->
-            branches.asSequence().map { branch ->
-                branch to NavigationIndex.getKeyspaceMetadata(globalTx, branch.name)
+            this.getBranchInfo(chronoDB).asSequence().map { (branchName, branchMetadata) ->
+                branchMetadata to NavigationIndex.getKeyspaceMetadata(globalTx, branchName)
             }.toMap()
         }
     }
 
-    private fun findEarliestCommitInKeyspace(chronoDB: ExodusChronoDB, branch: Branch, metadata: KeyspaceMetadata): Long {
+    private fun getBranchInfo(chronoDB: ExodusChronoDB): Map<String, IBranchMetadata> {
+        return chronoDB.globalChunkManager.openReadOnlyTransactionOnGlobalEnvironment().use { tx ->
+            BranchMetadataIndex.values(tx).asSequence()
+                .map(chronoDB.serializationManager::deserialize)
+                .cast(IBranchMetadata::class)
+                .associateBy { it.name }
+        }
+    }
+
+    private fun findEarliestCommitInKeyspace(chronoDB: ExodusChronoDB, branch: IBranchMetadata, metadata: KeyspaceMetadata): Long {
         val globalChunkManager = chronoDB.globalChunkManager
         val bcm = globalChunkManager.getOrCreateChunkManagerForBranch(branch)
         for (chunk in bcm.getChunksForPeriod(Period.eternal())) {
@@ -83,11 +92,14 @@ class ExodusMigration0_10_18_to_0_11_0 : ChronosMigration<ExodusChronoDB> {
         }
     }
 
-    private fun updateEarliestCommitTimestamp(chronoDB: ExodusChronoDB, branch: Branch, metadata: KeyspaceMetadata, earliestCommit: Long) {
+    private fun updateEarliestCommitTimestamp(chronoDB: ExodusChronoDB, branch: IBranchMetadata, metadata: KeyspaceMetadata, earliestCommit: Long) {
         require(earliestCommit >= 0) { "Precondition violation - argument 'earliestCommit' must not be negative!" }
         require(earliestCommit < metadata.creationTimestamp) { "Precondition violation - argument 'earliestCommit' (value: ${earliestCommit}) must be less than the current keyspace creation timestamp ${metadata.creationTimestamp}!" }
-        val branchInternal = branch as BranchInternal
-        branchInternal.temporalKeyValueStore.updateCreationTimestampForKeyspace(metadata.keyspaceName, earliestCommit)
+        val timestamp = metadata.creationTimestamp
+        chronoDB.globalChunkManager.openReadWriteTransactionOnGlobalEnvironment().use { tx ->
+            NavigationIndex.insert(tx, branch.name, metadata.keyspaceName, metadata.matrixTableName, timestamp)
+            tx.commit()
+        }
     }
 
 }

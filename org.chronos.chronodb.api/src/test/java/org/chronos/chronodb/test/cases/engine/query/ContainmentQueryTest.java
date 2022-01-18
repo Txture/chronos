@@ -2,22 +2,25 @@ package org.chronos.chronodb.test.cases.engine.query;
 
 import com.google.common.collect.Sets;
 import org.chronos.chronodb.api.ChronoDB;
+import org.chronos.chronodb.api.ChronoDBConstants;
 import org.chronos.chronodb.api.ChronoDBTransaction;
 import org.chronos.chronodb.api.indexing.DoubleIndexer;
 import org.chronos.chronodb.api.indexing.LongIndexer;
 import org.chronos.chronodb.api.indexing.StringIndexer;
 import org.chronos.chronodb.api.key.QualifiedKey;
-import org.chronos.chronodb.api.query.ContainmentCondition;
 import org.chronos.chronodb.api.query.DoubleContainmentCondition;
 import org.chronos.chronodb.api.query.LongContainmentCondition;
 import org.chronos.chronodb.internal.api.query.ChronoDBQuery;
 import org.chronos.chronodb.internal.impl.query.optimizer.StandardQueryOptimizer;
-import org.chronos.chronodb.internal.impl.query.parser.ast.*;
+import org.chronos.chronodb.internal.impl.query.parser.ast.BinaryOperatorElement;
+import org.chronos.chronodb.internal.impl.query.parser.ast.BinaryQueryOperator;
+import org.chronos.chronodb.internal.impl.query.parser.ast.QueryElement;
+import org.chronos.chronodb.internal.impl.query.parser.ast.SetDoubleWhereElement;
+import org.chronos.chronodb.internal.impl.query.parser.ast.SetLongWhereElement;
 import org.chronos.chronodb.test.base.AllChronoDBBackendsTest;
 import org.chronos.chronodb.test.cases.util.model.payload.NamedPayloadNameIndexer;
 import org.chronos.chronodb.test.cases.util.model.person.FirstNameIndexer;
 import org.chronos.chronodb.test.cases.util.model.person.LastNameIndexer;
-import org.chronos.chronodb.test.cases.util.model.person.PersonIndexer;
 import org.chronos.common.test.junit.categories.IntegrationTest;
 import org.chronos.common.test.utils.NamedPayload;
 import org.chronos.common.test.utils.model.person.Person;
@@ -38,7 +41,7 @@ public class ContainmentQueryTest extends AllChronoDBBackendsTest {
         ChronoDB db = this.getChronoDB();
         // set up the "name" index
         StringIndexer nameIndexer = new NamedPayloadNameIndexer();
-        db.getIndexManager().addIndexer("name", nameIndexer);
+        db.getIndexManager().createIndex().withName("name").withIndexer(nameIndexer).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
 
         // generate and insert test data
@@ -57,8 +60,9 @@ public class ContainmentQueryTest extends AllChronoDBBackendsTest {
             .getKeysAsSet();
 
         assertThat(keysAsSet, containsInAnyOrder(
-            QualifiedKey.createInDefaultKeyspace("np2"),
-            QualifiedKey.createInDefaultKeyspace("np3"))
+                QualifiedKey.createInDefaultKeyspace("np2"),
+                QualifiedKey.createInDefaultKeyspace("np3")
+            )
         );
     }
 
@@ -67,7 +71,7 @@ public class ContainmentQueryTest extends AllChronoDBBackendsTest {
         ChronoDB db = this.getChronoDB();
         // set up the "name" index
         StringIndexer nameIndexer = new NamedPayloadNameIndexer();
-        db.getIndexManager().addIndexer("name", nameIndexer);
+        db.getIndexManager().createIndex().withName("name").withIndexer(nameIndexer).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
 
         // generate and insert test data
@@ -92,7 +96,7 @@ public class ContainmentQueryTest extends AllChronoDBBackendsTest {
     public void longWithinQueryWorks() {
         ChronoDB db = this.getChronoDB();
         LongIndexer indexer = new LongBeanIndexer();
-        db.getIndexManager().addIndexer("value", indexer);
+         db.getIndexManager().createIndex().withName("value").withIndexer(indexer).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
 
         ChronoDBTransaction tx = db.tx();
@@ -120,7 +124,7 @@ public class ContainmentQueryTest extends AllChronoDBBackendsTest {
     public void longWithoutQueryWorks() {
         ChronoDB db = this.getChronoDB();
         LongIndexer indexer = new LongBeanIndexer();
-        db.getIndexManager().addIndexer("value", indexer);
+         db.getIndexManager().createIndex().withName("value").withIndexer(indexer).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
 
         ChronoDBTransaction tx = db.tx();
@@ -148,7 +152,7 @@ public class ContainmentQueryTest extends AllChronoDBBackendsTest {
     public void doubleWithinQueryWorks() {
         ChronoDB db = this.getChronoDB();
         DoubleIndexer indexer = new DoubleBeanIndexer();
-        db.getIndexManager().addIndexer("value", indexer);
+         db.getIndexManager().createIndex().withName("value").withIndexer(indexer).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
 
         ChronoDBTransaction tx = db.tx();
@@ -177,7 +181,7 @@ public class ContainmentQueryTest extends AllChronoDBBackendsTest {
     public void doubleWithoutQueryWorks() {
         ChronoDB db = this.getChronoDB();
         DoubleIndexer indexer = new DoubleBeanIndexer();
-        db.getIndexManager().addIndexer("value", indexer);
+         db.getIndexManager().createIndex().withName("value").withIndexer(indexer).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
 
         ChronoDBTransaction tx = db.tx();
@@ -203,8 +207,8 @@ public class ContainmentQueryTest extends AllChronoDBBackendsTest {
     @Test
     public void withinAndConnectionQueryWorks() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("first name", new FirstNameIndexer());
-        db.getIndexManager().addIndexer("last name", new LastNameIndexer());
+        db.getIndexManager().createIndex().withName("first name").withIndexer(new FirstNameIndexer()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().createIndex().withName("last name").withIndexer(new LastNameIndexer()).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
 
         ChronoDBTransaction tx = db.tx();
@@ -232,9 +236,9 @@ public class ContainmentQueryTest extends AllChronoDBBackendsTest {
     @Test
     public void canConvertLongOrQueriesIntoContainmentQuery() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("x", new LongBeanIndexer());
-        db.getIndexManager().addIndexer("y", new LongBeanIndexer());
-        db.getIndexManager().addIndexer("z", new LongBeanIndexer());
+        db.getIndexManager().createIndex().withName("x").withIndexer(new LongBeanIndexer()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().createIndex().withName("y").withIndexer(new LongBeanIndexer()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().createIndex().withName("z").withIndexer(new LongBeanIndexer()).onMaster().acrossAllTimestamps().build();
 
         { // within: merge where clauses with same index
             ChronoDBQuery query = db.tx().find().inDefaultKeyspace().where("x").isEqualTo(1).or().where("x").isEqualTo(2).or().where("x").isEqualTo(3).toQuery();
@@ -291,9 +295,10 @@ public class ContainmentQueryTest extends AllChronoDBBackendsTest {
     @Test
     public void canConvertNestedLongOrQueriesIntoContainmentQuery() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("x", new LongBeanIndexer());
-        db.getIndexManager().addIndexer("y", new LongBeanIndexer());
-        db.getIndexManager().addIndexer("z", new LongBeanIndexer());
+        db.getIndexManager().createIndex().withName("x").withIndexer(new LongBeanIndexer()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().createIndex().withName("y").withIndexer(new LongBeanIndexer()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().createIndex().withName("z").withIndexer(new LongBeanIndexer()).onMaster().acrossAllTimestamps().build();
+
 
         ChronoDBQuery query = db.tx().find().inDefaultKeyspace()
             .where("x").isEqualTo(1)
@@ -304,7 +309,7 @@ public class ContainmentQueryTest extends AllChronoDBBackendsTest {
         ChronoDBQuery optimedQuery = new StandardQueryOptimizer().optimize(query);
         QueryElement rootElement = optimedQuery.getRootElement();
         assertThat(rootElement, is(instanceOf(BinaryOperatorElement.class)));
-        BinaryOperatorElement rootBinary = (BinaryOperatorElement)rootElement;
+        BinaryOperatorElement rootBinary = (BinaryOperatorElement) rootElement;
         assertThat(rootBinary.getOperator(), is(BinaryQueryOperator.AND));
         QueryElement rightChild = rootBinary.getRightChild();
         assertThat(rightChild, is(instanceOf(SetLongWhereElement.class)));
@@ -318,9 +323,9 @@ public class ContainmentQueryTest extends AllChronoDBBackendsTest {
     @Test
     public void canConvertDoubleOrQueriesIntoContainmentQuery() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("x", new DoubleBeanIndexer());
-        db.getIndexManager().addIndexer("y", new DoubleBeanIndexer());
-        db.getIndexManager().addIndexer("z", new DoubleBeanIndexer());
+        db.getIndexManager().createIndex().withName("x").withIndexer(new DoubleBeanIndexer()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().createIndex().withName("y").withIndexer(new DoubleBeanIndexer()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().createIndex().withName("z").withIndexer(new DoubleBeanIndexer()).onMaster().acrossAllTimestamps().build();
 
         { // within: merge where clauses with same index
             ChronoDBQuery query = db.tx().find().inDefaultKeyspace().where("x").isEqualTo(1.0, 0.01).or().where("x").isEqualTo(2.0, 0.01).or().where("x").isEqualTo(3.0, 0.01).toQuery();
@@ -397,9 +402,9 @@ public class ContainmentQueryTest extends AllChronoDBBackendsTest {
     @Test
     public void canConvertNestedDoubleOrQueriesIntoContainmentQuery() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("x", new DoubleBeanIndexer());
-        db.getIndexManager().addIndexer("y", new DoubleBeanIndexer());
-        db.getIndexManager().addIndexer("z", new DoubleBeanIndexer());
+        db.getIndexManager().createIndex().withName("x").withIndexer(new DoubleBeanIndexer()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().createIndex().withName("y").withIndexer(new DoubleBeanIndexer()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().createIndex().withName("z").withIndexer(new DoubleBeanIndexer()).onMaster().acrossAllTimestamps().build();
 
         ChronoDBQuery query = db.tx().find().inDefaultKeyspace()
             .where("x").isEqualTo(1.0, 0.01)
@@ -410,7 +415,7 @@ public class ContainmentQueryTest extends AllChronoDBBackendsTest {
         ChronoDBQuery optimedQuery = new StandardQueryOptimizer().optimize(query);
         QueryElement rootElement = optimedQuery.getRootElement();
         assertThat(rootElement, is(instanceOf(BinaryOperatorElement.class)));
-        BinaryOperatorElement rootBinary = (BinaryOperatorElement)rootElement;
+        BinaryOperatorElement rootBinary = (BinaryOperatorElement) rootElement;
         assertThat(rootBinary.getOperator(), is(BinaryQueryOperator.AND));
         QueryElement rightChild = rootBinary.getRightChild();
         assertThat(rightChild, is(instanceOf(SetDoubleWhereElement.class)));

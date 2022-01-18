@@ -96,4 +96,14 @@ public interface ChronoElement extends Element {
      */
     public ElementLifecycleStatus getStatus();
 
+    /**
+     * Returns <code>true</code> if this element is lazy-loading and has yet to be fetched from the backing store.
+     *
+     * Returns <code>false</code> if the element has already been fully loaded.
+     *
+     * @return <code>true</code> if this element is lazy-loading and has yet to be fetched from the backing store,
+     * or <code>false</code> if the element has already been fully loaded.
+     */
+    public boolean isLazy();
+
 }

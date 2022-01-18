@@ -5,8 +5,8 @@ import static com.google.common.base.Preconditions.*;
 import java.io.File;
 import java.util.Properties;
 
-import org.apache.commons.configuration.Configuration;
-import org.apache.commons.configuration.MapConfiguration;
+import org.apache.commons.configuration2.Configuration;
+import org.apache.commons.configuration2.MapConfiguration;
 import org.chronos.chronosphere.api.builder.repository.ChronoSphereBaseBuilder;
 import org.chronos.chronosphere.api.builder.repository.ChronoSphereInMemoryBuilder;
 import org.chronos.chronosphere.api.builder.repository.ChronoSpherePropertyFileBuilder;

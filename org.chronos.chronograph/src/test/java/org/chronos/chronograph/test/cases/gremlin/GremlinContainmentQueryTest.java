@@ -2,7 +2,6 @@ package org.chronos.chronograph.test.cases.gremlin;
 
 import org.apache.tinkerpop.gremlin.process.traversal.P;
 import org.apache.tinkerpop.gremlin.structure.T;
-import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.chronos.chronograph.api.structure.ChronoGraph;
 import org.chronos.chronograph.test.base.AllChronoGraphBackendsTest;
 import org.chronos.common.test.junit.categories.IntegrationTest;
@@ -11,7 +10,6 @@ import org.junit.experimental.categories.Category;
 
 import java.util.Set;
 
-import static org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.__.*;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
 
@@ -21,8 +19,8 @@ public class GremlinContainmentQueryTest extends AllChronoGraphBackendsTest {
     @Test
     public void canPerformWithinQueryWithInStringsClause() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("name").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("name").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.addVertex(T.id, "1", "name", "John", "lastname", "Doe");
         g.addVertex(T.id, "2", "name", "Jane", "lastname", "Doe");
@@ -42,8 +40,8 @@ public class GremlinContainmentQueryTest extends AllChronoGraphBackendsTest {
     @Test
     public void canPerformWithinQueryWithManyInStringsClause() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("name").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("name").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.addVertex(T.id, "1", "name", "John", "lastname", "Doe");
         g.addVertex(T.id, "2", "name", "Jane", "lastname", "Doe");
@@ -63,8 +61,8 @@ public class GremlinContainmentQueryTest extends AllChronoGraphBackendsTest {
     @Test
     public void canPerformWithinQueryWithInLongsClause() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().longIndex().onVertexProperty("age").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().longIndex().onVertexProperty("age").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.addVertex(T.id, "1", "name", "Alice", "age", 15);
         g.addVertex(T.id, "2", "name", "Bob", "age", 23);
@@ -84,8 +82,8 @@ public class GremlinContainmentQueryTest extends AllChronoGraphBackendsTest {
     @Test
     public void canPerformWithinQueryWithManyInLongsClause() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().longIndex().onVertexProperty("age").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().longIndex().onVertexProperty("age").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.addVertex(T.id, "1", "name", "Alice", "age", 15);
         g.addVertex(T.id, "2", "name", "Bob", "age", 23);
@@ -105,8 +103,8 @@ public class GremlinContainmentQueryTest extends AllChronoGraphBackendsTest {
     @Test
     public void canPerformWithinQueryWithInDoublesClause() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().doubleIndex().onVertexProperty("age").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().doubleIndex().onVertexProperty("age").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.addVertex(T.id, "1", "name", "Alice", "age", 15.3);
         g.addVertex(T.id, "2", "name", "Bob", "age", 23.5);
@@ -127,8 +125,8 @@ public class GremlinContainmentQueryTest extends AllChronoGraphBackendsTest {
     @Test
     public void canPerformWithinQueryWithManyInDoublesClause() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().doubleIndex().onVertexProperty("age").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().doubleIndex().onVertexProperty("age").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.addVertex(T.id, "1", "name", "Alice", "age", 15.3);
         g.addVertex(T.id, "2", "name", "Bob", "age", 23.5);
@@ -149,8 +147,8 @@ public class GremlinContainmentQueryTest extends AllChronoGraphBackendsTest {
     @Test
     public void canPerformWithoutQueryWithInStringsClause(){
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("name").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("name").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.addVertex(T.id, "1", "name", "John", "lastname", "Doe");
         g.addVertex(T.id, "2", "name", "Jane", "lastname", "Doe");
@@ -170,8 +168,8 @@ public class GremlinContainmentQueryTest extends AllChronoGraphBackendsTest {
     @Test
     public void canPerformWithoutQueryWithManyInStringsClause(){
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("name").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("name").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.addVertex(T.id, "1", "name", "John", "lastname", "Doe");
         g.addVertex(T.id, "2", "name", "Jane", "lastname", "Doe");
@@ -191,8 +189,8 @@ public class GremlinContainmentQueryTest extends AllChronoGraphBackendsTest {
     @Test
     public void canPerformWithoutQueryWithInLongsClause(){
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().longIndex().onVertexProperty("age").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().longIndex().onVertexProperty("age").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.addVertex(T.id, "1", "name", "Alice", "age", 15);
         g.addVertex(T.id, "2", "name", "Bob", "age", 23);
@@ -212,8 +210,8 @@ public class GremlinContainmentQueryTest extends AllChronoGraphBackendsTest {
     @Test
     public void canPerformWithoutQueryWithManyInLongsClause(){
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().longIndex().onVertexProperty("age").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().longIndex().onVertexProperty("age").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.addVertex(T.id, "1", "name", "Alice", "age", 15);
         g.addVertex(T.id, "2", "name", "Bob", "age", 23);
@@ -233,8 +231,8 @@ public class GremlinContainmentQueryTest extends AllChronoGraphBackendsTest {
     @Test
     public void canPerformWithoutQueryWithInDoublesClause(){
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().doubleIndex().onVertexProperty("age").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().doubleIndex().onVertexProperty("age").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.addVertex(T.id, "1", "name", "Alice", "age", 15.3);
         g.addVertex(T.id, "2", "name", "Bob", "age", 23.5);
@@ -254,8 +252,8 @@ public class GremlinContainmentQueryTest extends AllChronoGraphBackendsTest {
     @Test
     public void canPerformWithoutQueryWithManyInDoublesClause(){
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().doubleIndex().onVertexProperty("age").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().doubleIndex().onVertexProperty("age").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.addVertex(T.id, "1", "name", "Alice", "age", 15.3);
         g.addVertex(T.id, "2", "name", "Bob", "age", 23.5);

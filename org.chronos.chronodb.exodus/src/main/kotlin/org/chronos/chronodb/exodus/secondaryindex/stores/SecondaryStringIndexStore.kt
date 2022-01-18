@@ -85,7 +85,7 @@ object SecondaryStringIndexStore : SecondaryIndexStore<String, StringSearchSpeci
                         // interpret small sets as connected OR queries; take the union of their scan results
                         val entries = searchValues.asSequence().flatMap { searchValue ->
                             val innerSearchSpec = StringSearchSpecification.create(
-                                searchSpec.property,
+                                searchSpec.index,
                                 Condition.EQUALS,
                                 searchSpec.matchMode,
                                 searchValue
@@ -104,14 +104,14 @@ object SecondaryStringIndexStore : SecondaryIndexStore<String, StringSearchSpeci
         }
     }
 
-    override fun rollback(tx: ExodusTransaction, indexName: String, timestamp: Long, keys: Set<QualifiedKey>?) {
+    override fun rollback(tx: ExodusTransaction, indexId: String, timestamp: Long, keys: Set<QualifiedKey>?) {
         if (keys == null) {
             val allStoreNames = tx.getAllStoreNames()
             // roll back all keys
             allStoreNames
                     .asSequence()
                     .filter { it.startsWith(ChronoDBStoreLayout.STORE_NAME_PREFIX__SECONDARY_INDEX_STRING) }
-                    .filter { SecondaryStringIndexStore.parseStoreName(it).second == indexName }
+                    .filter { this.parseStoreName(it).second == indexId }
                     .forEach { storeName ->
                         this.rollbackInternal(tx, storeName, timestamp, this::parseSecondaryIndexKey)
                     }
@@ -119,7 +119,7 @@ object SecondaryStringIndexStore : SecondaryIndexStore<String, StringSearchSpeci
             allStoreNames
                     .asSequence()
                     .filter { it.startsWith(ChronoDBStoreLayout.STORE_NAME_PREFIX__SECONDARY_INDEX_STRING_CASE_INSENSITIVE) }
-                    .filter { SecondaryStringIndexStore.parseStoreName(it).second == indexName }
+                    .filter { this.parseStoreName(it).second == indexId }
                     .forEach { storeName ->
                         this.rollbackInternal(tx, storeName, timestamp, this::parseSecondaryIndexKeyCI)
                     }
@@ -127,9 +127,9 @@ object SecondaryStringIndexStore : SecondaryIndexStore<String, StringSearchSpeci
             // roll back one keyspace at a time (regular and CI indices)
             keys.groupBy { it.keyspace }.forEach { (keyspace, qKeys) ->
                 val keysToRollBack = qKeys.asSequence().map { it.key }.toSet()
-                val storeName = SecondaryStringIndexStore.storeName(indexName, keyspace)
+                val storeName = this.storeName(indexId, keyspace)
                 this.rollbackInternal(tx, storeName, timestamp, this::parseSecondaryIndexKey, keysToRollBack)
-                val storeNameCI = SecondaryStringIndexStore.storeNameCI(indexName, keyspace)
+                val storeNameCI = this.storeNameCI(indexId, keyspace)
                 this.rollbackInternal(tx, storeNameCI, timestamp, this::parseSecondaryIndexKeyCI, keysToRollBack)
             }
         }
@@ -188,11 +188,11 @@ object SecondaryStringIndexStore : SecondaryIndexStore<String, StringSearchSpeci
         val parseKey: (ByteIterable) -> SecondaryIndexKey<String>
         when (searchSpec.matchMode) {
             STRICT -> {
-                storeName = this.storeName(searchSpec.property, keyspace)
+                storeName = this.storeName(searchSpec.index.id, keyspace)
                 parseKey = this::parseSecondaryIndexKey
             }
             CASE_INSENSITIVE -> {
-                storeName = this.storeNameCI(searchSpec.property, keyspace)
+                storeName = this.storeNameCI(searchSpec.index.id, keyspace)
                 parseKey = this::parseSecondaryIndexKeyCI
             }
             null -> throw IllegalArgumentException("Text match mode must not be NULL!")
@@ -209,7 +209,7 @@ object SecondaryStringIndexStore : SecondaryIndexStore<String, StringSearchSpeci
             scanTimeMode = scanTimeMode
         )
         val resultList = this.dedupIfCaseInsensitive(searchSpec.matchMode, scanConfiguration.performScan())
-        val orderedBy: OrderedBy? = inferResultOrdering(scanConfiguration.direction, searchSpec.property, searchSpec.matchMode)
+        val orderedBy: OrderedBy? = inferResultOrdering(scanConfiguration.direction, searchSpec.index.name, searchSpec.matchMode)
         return ScanResult(resultList, orderedBy)
     }
 
@@ -218,11 +218,11 @@ object SecondaryStringIndexStore : SecondaryIndexStore<String, StringSearchSpeci
         val parseKey: (ByteIterable) -> SecondaryIndexKey<String>
         when (searchSpec.matchMode) {
             STRICT -> {
-                storeName = this.storeName(searchSpec.property, keyspace)
+                storeName = this.storeName(searchSpec.index.id, keyspace)
                 parseKey = this::parseSecondaryIndexKey
             }
             CASE_INSENSITIVE -> {
-                storeName = this.storeNameCI(searchSpec.property, keyspace)
+                storeName = this.storeNameCI(searchSpec.index.id, keyspace)
                 parseKey = this::parseSecondaryIndexKeyCI
             }
             null -> throw IllegalArgumentException("Text match mode must not be NULL!")
@@ -239,7 +239,7 @@ object SecondaryStringIndexStore : SecondaryIndexStore<String, StringSearchSpeci
                 scanTimeMode = scanTimeMode
         )
         val resultList = this.dedupIfCaseInsensitive(searchSpec.matchMode, scanConfiguration.performScan())
-        val orderedBy: OrderedBy? = inferResultOrdering(scanConfiguration.direction, searchSpec.property, searchSpec.matchMode)
+        val orderedBy: OrderedBy? = inferResultOrdering(scanConfiguration.direction, searchSpec.index.name, searchSpec.matchMode)
         return ScanResult(resultList, orderedBy)
     }
 
@@ -256,54 +256,39 @@ object SecondaryStringIndexStore : SecondaryIndexStore<String, StringSearchSpeci
     // =================================================================================================================
 
     @VisibleForTesting
-    fun storeName(indexName: String, keyspace: String): String {
-        return "${ChronoDBStoreLayout.STORE_NAME_PREFIX__SECONDARY_INDEX_STRING}${keyspace.length}/${keyspace}${indexName}"
+    fun storeName(indexId: String, keyspace: String): String {
+        return "${ChronoDBStoreLayout.STORE_NAME_PREFIX__SECONDARY_INDEX_STRING}${keyspace.length}/${keyspace}${indexId}"
     }
 
     @VisibleForTesting
-    fun storeNameCI(indexName: String, keyspace: String): String {
-        return "${ChronoDBStoreLayout.STORE_NAME_PREFIX__SECONDARY_INDEX_STRING_CASE_INSENSITIVE}${keyspace.length}/${keyspace}${indexName}"
+    fun storeNameCI(indexId: String, keyspace: String): String {
+        return "${ChronoDBStoreLayout.STORE_NAME_PREFIX__SECONDARY_INDEX_STRING_CASE_INSENSITIVE}${keyspace.length}/${keyspace}${indexId}"
     }
 
-    fun getIndexNameForStoreName(storeName: String): String? {
-        val nameWithoutPrefix = if(storeName.startsWith(ChronoDBStoreLayout.STORE_NAME_PREFIX__SECONDARY_INDEX_STRING)){
-            storeName.removePrefix(ChronoDBStoreLayout.STORE_NAME_PREFIX__SECONDARY_INDEX_STRING)
-        }else if(storeName.startsWith(ChronoDBStoreLayout.STORE_NAME_PREFIX__SECONDARY_INDEX_STRING_CASE_INSENSITIVE)){
-            storeName.removePrefix(ChronoDBStoreLayout.STORE_NAME_PREFIX__SECONDARY_INDEX_STRING_CASE_INSENSITIVE)
-        }else {
-            return null
-        }
-        val matcher = Pattern.compile("\\d+").matcher(nameWithoutPrefix)
-        val found = matcher.find()
-        if(!found){
-            return null
-        }
-        val lengthOfKeyspaceNameAsString = matcher.group()
-        val lengthOfKeyspaceName = lengthOfKeyspaceNameAsString.toInt()
-        return nameWithoutPrefix.substring(
-                // remove the digits which measure the keyspace length
-                lengthOfKeyspaceNameAsString.length
-                        + 1 // also remove the '/' character
-                        + lengthOfKeyspaceName // remove the keyspace
-        )
+    fun getIndexIdForStoreName(storeName: String): String? {
+        return this.parseStoreNameOrNull(storeName)?.second
     }
 
     private fun parseStoreName(storeName: String): Pair<String, String> {
+        return this.parseStoreNameOrNull(storeName)
+            ?: throw IllegalArgumentException("Not a valid store name for secondary string index stores: ${storeName}")
+    }
+
+    private fun parseStoreNameOrNull(storeName: String): Pair<String, String>? {
         val pattern = when {
             storeName.startsWith(ChronoDBStoreLayout.STORE_NAME_PREFIX__SECONDARY_INDEX_STRING) -> STORE_NAME_PATTERN
             storeName.startsWith(ChronoDBStoreLayout.STORE_NAME_PREFIX__SECONDARY_INDEX_STRING_CASE_INSENSITIVE) -> STORE_NAME_PATTERN_CI
-            else -> throw IllegalArgumentException("Not a valid store name for secondary string index stores: $storeName")
+            else -> return null
         }
         val matcher = pattern.matcher(storeName)
         if (!matcher.matches()) {
-            throw IllegalArgumentException("Not a valid store name for secondary string index stores: ${storeName}")
+            return null
         }
         val keyspaceNameLength = matcher.group(1).toInt()
-        val keyspaceAndIndexName = matcher.group(2)
-        val keyspace = keyspaceAndIndexName.substring(0, keyspaceNameLength)
-        val indexName = keyspaceAndIndexName.substring(keyspaceNameLength, keyspaceAndIndexName.length)
-        return Pair(keyspace, indexName)
-
+        val keyspaceAndIndexId = matcher.group(2)
+        val keyspace = keyspaceAndIndexId.substring(0, keyspaceNameLength)
+        val indexId = keyspaceAndIndexId.substring(keyspaceNameLength, keyspaceAndIndexId.length)
+        return Pair(keyspace, indexId)
     }
 
     @VisibleForTesting

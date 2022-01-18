@@ -1,6 +1,7 @@
 package org.chronos.chronodb.test.cases.cache.query;
 
 import org.chronos.chronodb.api.ChronoDB;
+import org.chronos.chronodb.api.ChronoDBConstants;
 import org.chronos.chronodb.api.ChronoDBTransaction;
 import org.chronos.chronodb.api.key.QualifiedKey;
 import org.chronos.chronodb.internal.api.ChronoDBConfiguration;
@@ -14,6 +15,7 @@ import org.chronos.common.test.utils.NamedPayload;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
+import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -28,7 +30,14 @@ public class QueryCacheTest extends AllChronoDBBackendsTest {
     @InstantiateChronosWith(property = ChronoDBConfiguration.QUERY_CACHE_MAX_SIZE, value = "10")
     public void cachingQueriesWorks() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("name", new NamedPayloadNameIndexer());
+        db.getIndexManager().createIndex()
+            .withName("name")
+            .withIndexer(new NamedPayloadNameIndexer())
+            .onMaster()
+            .acrossAllTimestamps()
+            .build();
+        db.getIndexManager().reindexAll();
+
         ChronoDBTransaction tx = db.tx();
         tx.put("np1", NamedPayload.create1KB("Hello"));
         tx.put("np2", NamedPayload.create1KB("World"));

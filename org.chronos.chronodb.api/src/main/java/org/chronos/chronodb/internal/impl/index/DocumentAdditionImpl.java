@@ -2,6 +2,7 @@ package org.chronos.chronodb.internal.impl.index;
 
 import static com.google.common.base.Preconditions.*;
 
+import org.chronos.chronodb.api.SecondaryIndex;
 import org.chronos.chronodb.api.key.ChronoIdentifier;
 import org.chronos.chronodb.internal.api.Period;
 import org.chronos.chronodb.internal.api.index.ChronoIndexDocument;
@@ -11,8 +12,8 @@ public class DocumentAdditionImpl implements DocumentAddition {
 
 	private final ChronoIndexDocument document;
 
-	public DocumentAdditionImpl(final ChronoIdentifier identifier, final String indexName, final Object indexValue) {
-		this(new ChronoIndexDocumentImpl(identifier, indexName, indexValue));
+	public DocumentAdditionImpl(final ChronoIdentifier identifier, final SecondaryIndex index, final Object indexValue) {
+		this(new ChronoIndexDocumentImpl(identifier, index, indexValue));
 	}
 
 	public DocumentAdditionImpl(final ChronoIndexDocument document) {
@@ -29,7 +30,7 @@ public class DocumentAdditionImpl implements DocumentAddition {
 	public String toString() {
 		StringBuilder builder = new StringBuilder();
 		builder.append("ADD(");
-		builder.append(this.document.getIndexName());
+		builder.append(this.document.getIndex());
 		builder.append("->");
 		builder.append(this.document.getBranch());
 		builder.append("->");

@@ -10,7 +10,6 @@ import org.apache.tinkerpop.gremlin.process.traversal.Traversal.Admin;
 import org.apache.tinkerpop.gremlin.process.traversal.step.filter.*;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.GraphStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer;
-import org.apache.tinkerpop.gremlin.process.traversal.util.ConnectiveP;
 import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Element;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
@@ -19,7 +18,6 @@ import org.chronos.chronodb.api.ChronoDBTransaction;
 import org.chronos.chronodb.api.builder.query.FinalizableQueryBuilder;
 import org.chronos.chronodb.api.builder.query.QueryBuilder;
 import org.chronos.chronodb.api.key.QualifiedKey;
-import org.chronos.chronograph.api.builder.query.DoubleWithinCP;
 import org.chronos.chronograph.api.builder.query.DoubleWithoutCP;
 import org.chronos.chronograph.api.builder.query.LongWithoutCP;
 import org.chronos.chronograph.api.builder.query.StringWithoutCP;
@@ -114,17 +112,22 @@ public class ChronoGraphStep<S, E extends Element> extends GraphStep<S, E> {
     @SuppressWarnings({"unchecked", "rawtypes"})
     private Iterator<Vertex> getResultVertices() {
         ChronoGraph graph = ChronoGraphTraversalUtil.getChronoGraph(this.getTraversal());
-        Set<ChronoGraphIndex> cleanIndices = graph.getIndexManager().getCleanIndices();
         // ensure that we have an open transaction...
         graph.tx().readWrite();
         // ... and retrieve it
         ChronoGraphTransaction tx = ChronoGraphTraversalUtil.getTransaction(this.getTraversal());
 
+        Set<ChronoGraphIndex> cleanIndices = graph.getIndexManagerOnBranch(tx.getBranchName()).getCleanIndicesAtTimestamp(tx.getTimestamp());
         // start the query builder...
         ChronoDBTransaction dbTx = tx.getBackingDBTransaction();
         QueryBuilder queryBuilder = dbTx.find().inKeyspace(ChronoGraphConstants.KEYSPACE_VERTEX);
         // ... and translate our filter steps into a ChronoDB query
-        FinalizableQueryBuilder finalizableQueryBuilder = ChronoGraphTraversalUtil.toChronoDBQuery(cleanIndices, this.indexableSubsteps, queryBuilder, ChronoGraphTraversalUtil::createIndexKeyForVertexProperty);
+        FinalizableQueryBuilder finalizableQueryBuilder = ChronoGraphTraversalUtil.toChronoDBQuery(
+            cleanIndices,
+            this.indexableSubsteps,
+            queryBuilder,
+            ChronoGraphTraversalUtil::createIndexKeyForVertexProperty
+        );
         Iterator<QualifiedKey> keys = finalizableQueryBuilder.getKeys();
         Set<Vertex> verticesFromIndexQuery = Streams.stream(keys)
             .map(QualifiedKey::getKey)
@@ -168,17 +171,22 @@ public class ChronoGraphStep<S, E extends Element> extends GraphStep<S, E> {
     @SuppressWarnings({"unchecked", "rawtypes"})
     private Iterator<Edge> getResultEdges() {
         ChronoGraph graph = ChronoGraphTraversalUtil.getChronoGraph(this.getTraversal());
-        Set<ChronoGraphIndex> cleanIndices = graph.getIndexManager().getCleanIndices();
         // ensure that we have an open transaction...
         graph.tx().readWrite();
         // ... and retrieve it
         ChronoGraphTransaction tx = ChronoGraphTraversalUtil.getTransaction(this.getTraversal());
 
+        Set<ChronoGraphIndex> cleanIndices = graph.getIndexManagerOnBranch(tx.getBranchName()).getCleanIndicesAtTimestamp(tx.getTimestamp());
         // start the query builder...
         ChronoDBTransaction dbTx = tx.getBackingDBTransaction();
         QueryBuilder queryBuilder = dbTx.find().inKeyspace(ChronoGraphConstants.KEYSPACE_EDGE);
         // ... and translate our filter steps into a ChronoDB query
-        FinalizableQueryBuilder finalizableQueryBuilder = ChronoGraphTraversalUtil.toChronoDBQuery(cleanIndices, this.indexableSubsteps, queryBuilder,ChronoGraphTraversalUtil::createIndexKeyForEdgeProperty);
+        FinalizableQueryBuilder finalizableQueryBuilder = ChronoGraphTraversalUtil.toChronoDBQuery(
+            cleanIndices,
+            this.indexableSubsteps,
+            queryBuilder,
+            ChronoGraphTraversalUtil::createIndexKeyForEdgeProperty
+        );
         Set<Edge> edgesFromIndexQuery = Streams.stream(finalizableQueryBuilder.getKeys())
             .map(QualifiedKey::getKey)
             .map(id -> tx.getEdgeOrNull(id, ElementLoadMode.LAZY))

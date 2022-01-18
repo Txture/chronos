@@ -18,7 +18,8 @@ import org.chronos.chronograph.api.transaction.trigger.GraphTriggerMetadata;
 import org.chronos.chronograph.internal.ChronoGraphConstants;
 import org.chronos.chronograph.internal.api.structure.ChronoGraphInternal;
 import org.chronos.chronograph.internal.impl.transaction.trigger.script.AbstractScriptedGraphTrigger;
-import org.chronos.common.logging.ChronoLogger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
 import java.util.List;
@@ -31,6 +32,8 @@ import java.util.stream.Collectors;
 import static com.google.common.base.Preconditions.*;
 
 public class ChronoGraphTriggerManagerImpl implements ChronoGraphTriggerManager, ChronoGraphTriggerManagerInternal {
+
+    private static final Logger log = LoggerFactory.getLogger(ChronoGraphTriggerManagerImpl.class);
 
     // =================================================================================================================
     // FIELDS
@@ -219,7 +222,7 @@ public class ChronoGraphTriggerManagerImpl implements ChronoGraphTriggerManager,
                     trigger = this.loadPersistedTrigger(name, trigger);
                     list.add(Pair.of(name, trigger));
                 } catch (Exception e) {
-                    ChronoLogger.logError("Failed to load Graph Trigger '" + name + "' from persistent store. This trigger will not be executed!", e);
+                    log.error("Failed to load Graph Trigger '" + name + "' from persistent store. This trigger will not be executed!", e);
                 }
             }
             // sort them

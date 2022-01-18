@@ -44,6 +44,8 @@ dependencies {
     testCompile project(':org.chronos.chronograph').sourceSets.test.output;
     testCompile("org.apache.tinkerpop:gremlin-test:${project.tinkerpopVersion}")
 
+    testCompile("io.strikt:strikt-core:${project.striktVersion}")
+
     // we also add the backend-specific modules to the test dependencies so that
     // we can have all tests in the same module (i.e. AllBackendsTest)
     testCompile project(':org.chronos.chronodb.exodus')

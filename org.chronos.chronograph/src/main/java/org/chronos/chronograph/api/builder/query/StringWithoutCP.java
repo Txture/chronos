@@ -34,6 +34,25 @@ public class StringWithoutCP implements BiPredicate<Object, Collection> {
     }
 
     @Override
+    public boolean equals(final Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        StringWithoutCP that = (StringWithoutCP) o;
+
+        return matchMode == that.matchMode;
+    }
+
+    @Override
+    public int hashCode() {
+        return matchMode != null ? matchMode.hashCode() : 0;
+    }
+
+    @Override
     public String toString() {
         return "String Without" + (this.matchMode == TextMatchMode.CASE_INSENSITIVE ? " [CI]" : "");
     }

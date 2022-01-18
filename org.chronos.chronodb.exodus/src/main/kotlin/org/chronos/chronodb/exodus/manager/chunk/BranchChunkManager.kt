@@ -3,6 +3,7 @@ package org.chronos.chronodb.exodus.manager.chunk
 import com.google.common.collect.Iterators
 import com.google.common.collect.Maps
 import org.apache.commons.io.FileUtils
+import org.chronos.chronodb.api.SecondaryIndex
 import org.chronos.chronodb.exodus.ExodusDataMatrixUtil
 import org.chronos.chronodb.exodus.kotlin.ext.requireExistingDirectory
 import org.chronos.chronodb.exodus.kotlin.ext.requireNonNegative
@@ -15,6 +16,7 @@ import java.io.IOException
 import java.nio.file.Files
 import java.util.*
 import java.util.concurrent.locks.ReentrantReadWriteLock
+import kotlin.concurrent.read
 import kotlin.concurrent.withLock
 
 class BranchChunkManager {
@@ -227,6 +229,17 @@ class BranchChunkManager {
     }
 
     /**
+     * Gets all chunks within this branch in ascending order.
+     *
+     * @return The list of chunks in the period in ascending order. Maybe empty, never `null`.
+     */
+    fun getAllChunks(): List<ChronoChunk>{
+        return this.accessLock.read {
+            this.periodToChunk.values.toList()
+        }
+    }
+
+    /**
      * Terminates the validity range of the current head chunk at the given timestamp and opens a new head chunk.
      *
      * @param rolloverTimestamp The timestamp at which to perform the rollover. Must be larger than the start timestamp of the current head chunk.
@@ -269,15 +282,6 @@ class BranchChunkManager {
             val newHeadRevisionPeriod = Period.createOpenEndedRange(rolloverTimestamp)
             this.periodToChunk[newHeadRevisionPeriod] = newChunk
             return newChunk
-        }
-    }
-
-    /**
-     * Drops all secondary index directories in all chunks of this branch.
-     */
-    fun dropChunkIndexFiles() {
-        for (chunk in this.periodToChunk.values) {
-            FileUtils.deleteDirectory(chunk.indexDirectory)
         }
     }
 

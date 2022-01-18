@@ -10,19 +10,22 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.commons.configuration.Configuration;
+import org.apache.commons.configuration2.Configuration;
 import org.chronos.common.configuration.annotation.Namespace;
 import org.chronos.common.configuration.annotation.Parameter;
 import org.chronos.common.exceptions.ChronosConfigurationException;
-import org.chronos.common.logging.ChronoLogger;
 import org.chronos.common.util.ReflectionUtils;
 
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.PostConstruct;
 
 public class ChronosConfigurationUtil {
+
+    private static final Logger log = LoggerFactory.getLogger(ChronosConfigurationUtil.class);
 
     public static <T extends AbstractConfiguration> T build(final Configuration apacheConfiguration,
                                                             final Class<T> configurationBeanClass) {
@@ -98,7 +101,7 @@ public class ChronosConfigurationUtil {
         // check if all configured parameters are actually used (and display a warning if that's not the case)
         for (ParameterMetadata parameter : configuredParameters) {
             if (parameter.isConditionallyIgnoredIn(chronoConfig)) {
-                ChronoLogger.logWarning("Configuration issue: the parameter '" + parameter.getKey()
+                log.warn("Configuration issue: the parameter '" + parameter.getKey()
                     + "' in your configuration is ignored due to an overriding other parameter."
                     + " Please refer to the documentation.");
             }
@@ -188,7 +191,7 @@ public class ChronosConfigurationUtil {
                 ParameterMetadata parameter = keyToParameter.get(key);
                 if (parameter == null) {
                     // unknown parameter
-                    ChronoLogger.logWarning("Configuration issue: the parameter '" + key
+                    log.warn("Configuration issue: the parameter '" + key
                         + "' is unknown, but in the namespace '" + namespace + "' - please check the spelling.");
                 }
             }

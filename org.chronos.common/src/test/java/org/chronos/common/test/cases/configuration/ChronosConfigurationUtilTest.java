@@ -6,17 +6,23 @@ import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.AppenderBase;
 import com.google.common.collect.Lists;
-import org.apache.commons.configuration.Configuration;
-import org.apache.commons.configuration.ConfigurationException;
-import org.apache.commons.configuration.PropertiesConfiguration;
+import com.google.common.io.Resources;
+import org.apache.commons.configuration2.Configuration;
+import org.apache.commons.configuration2.PropertiesConfiguration;
+import org.apache.commons.configuration2.ex.ConfigurationException;
 import org.chronos.common.configuration.ChronosConfigurationUtil;
 import org.chronos.common.exceptions.ChronosConfigurationException;
 import org.chronos.common.test.cases.configuration.MyConfiguration.MyEnum;
+import org.jetbrains.annotations.NotNull;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.time.DayOfWeek;
 import java.util.Collections;
 import java.util.List;
@@ -46,8 +52,9 @@ public class ChronosConfigurationUtilTest {
     }
 
     @Test
-    public void correctConfiguration1Works() throws ConfigurationException {
-        Configuration apacheConfig = new PropertiesConfiguration("myconfiguration_correct1.properties");
+    public void correctConfiguration1Works() throws Exception {
+        PropertiesConfiguration apacheConfig = this.createPropertiesConfiguration("myconfiguration_correct1.properties");
+
         MyConfiguration config = ChronosConfigurationUtil.build(apacheConfig, MyConfiguration.class);
         assertEquals("Martin", config.getName());
         assertEquals(47, config.getIntValue());
@@ -55,8 +62,8 @@ public class ChronosConfigurationUtilTest {
     }
 
     @Test
-    public void correctConfiguration2Works() throws ConfigurationException {
-        Configuration apacheConfig = new PropertiesConfiguration("myconfiguration_correct2.properties");
+    public void correctConfiguration2Works() throws Exception {
+        Configuration apacheConfig = this.createPropertiesConfiguration("myconfiguration_correct2.properties");
         MyConfiguration config = ChronosConfigurationUtil.build(apacheConfig, MyConfiguration.class);
         assertEquals("Martin", config.getName());
         assertEquals(47, config.getIntValue());
@@ -66,8 +73,8 @@ public class ChronosConfigurationUtilTest {
     }
 
     @Test
-    public void valueAliasingWorks() throws ConfigurationException {
-        Configuration apacheConfig = new PropertiesConfiguration("myconfiguration_aliasing.properties");
+    public void valueAliasingWorks() throws Exception {
+        Configuration apacheConfig = this.createPropertiesConfiguration("myconfiguration_aliasing.properties");
         MyConfiguration config = ChronosConfigurationUtil.build(apacheConfig, MyConfiguration.class);
         assertEquals("Martin", config.getName());
         assertEquals(47, config.getIntValue());
@@ -77,8 +84,8 @@ public class ChronosConfigurationUtilTest {
     }
 
     @Test
-    public void customValueParsingWorks() throws ConfigurationException {
-        Configuration apacheConfig = new PropertiesConfiguration("myconfiguration_valueparser.properties");
+    public void customValueParsingWorks() throws Exception {
+        Configuration apacheConfig = this.createPropertiesConfiguration("myconfiguration_valueparser.properties");
         MyConfiguration config = ChronosConfigurationUtil.build(apacheConfig, MyConfiguration.class);
         assertEquals("Martin", config.getName());
         assertEquals(47, config.getIntValue());
@@ -90,8 +97,8 @@ public class ChronosConfigurationUtilTest {
     }
 
     @Test
-    public void configWithSuperfluousParametersWorks() throws ConfigurationException {
-        Configuration apacheConfig = new PropertiesConfiguration("myconfiguration_superfluous1.properties");
+    public void configWithSuperfluousParametersWorks() throws Exception {
+        Configuration apacheConfig = this.createPropertiesConfiguration("myconfiguration_superfluous1.properties");
         MyConfiguration config = ChronosConfigurationUtil.build(apacheConfig, MyConfiguration.class);
         assertEquals("Martin", config.getName());
         assertEquals(47, config.getIntValue());
@@ -103,29 +110,29 @@ public class ChronosConfigurationUtilTest {
     }
 
     @Test(expected = ChronosConfigurationException.class)
-    public void missingValuesAreDetectedProperly() throws ConfigurationException {
-        Configuration apacheConfig = new PropertiesConfiguration("myconfiguration_error1.properties");
+    public void missingValuesAreDetectedProperly() throws Exception {
+        Configuration apacheConfig = this.createPropertiesConfiguration("myconfiguration_error1.properties");
         ChronosConfigurationUtil.build(apacheConfig, MyConfiguration.class);
     }
 
     @Test(expected = ChronosConfigurationException.class)
-    public void wrongEnumValuesAreDetectedProperly() throws ConfigurationException {
-        Configuration apacheConfig = new PropertiesConfiguration("myconfiguration_error2.properties");
+    public void wrongEnumValuesAreDetectedProperly() throws Exception{
+        Configuration apacheConfig = this.createPropertiesConfiguration("myconfiguration_error2.properties");
         ChronosConfigurationUtil.build(apacheConfig, MyConfiguration.class);
     }
 
     @Test
-    public void enumFactoryMethodAnnotationWorks() throws ConfigurationException {
-        Configuration apacheConfig = new PropertiesConfiguration("myconfiguration_enumFactoryMethod.properties");
+    public void enumFactoryMethodAnnotationWorks() throws Exception{
+        Configuration apacheConfig = this.createPropertiesConfiguration("myconfiguration_enumFactoryMethod.properties");
         MyConfiguration config = ChronosConfigurationUtil.build(apacheConfig, MyConfiguration.class);
         assertEquals(MyEnum.THREE, config.getMyEnum());
 
     }
 
     @Test
-    public void canDependOnAValueOfTypeBoolean_case1() throws ConfigurationException {
+    public void canDependOnAValueOfTypeBoolean_case1() throws Exception{
         // case 1: boolean is true, and dependent value is present
-        Configuration apacheConfig = new PropertiesConfiguration("booleanDependentConfiguration_correct.properties");
+        Configuration apacheConfig = this.createPropertiesConfiguration("booleanDependentConfiguration_correct.properties");
         BooleanDependentConfiguration config = ChronosConfigurationUtil.build(apacheConfig,
             BooleanDependentConfiguration.class);
         assertEquals(true, config.getBool());
@@ -133,24 +140,35 @@ public class ChronosConfigurationUtilTest {
     }
 
     @Test
-    public void canDependOnAValueOfTypeBoolean_case2() throws ConfigurationException {
+    public void canDependOnAValueOfTypeBoolean_case2() throws Exception{
         // case 2: boolean is false
-        Configuration apacheConfig = new PropertiesConfiguration("booleanDependentConfiguration_correct2.properties");
+        Configuration apacheConfig = this.createPropertiesConfiguration("booleanDependentConfiguration_correct2.properties");
         BooleanDependentConfiguration config = ChronosConfigurationUtil.build(apacheConfig,
             BooleanDependentConfiguration.class);
         assertEquals(false, config.getBool());
     }
 
     @Test
-    public void canDependOnAValueOfTypeBoolean_case3() throws ConfigurationException {
+    public void canDependOnAValueOfTypeBoolean_case3() throws Exception{
         // case 3: boolean is true, but dependent value is missing
         try {
-            Configuration apacheConfig = new PropertiesConfiguration("booleanDependentConfiguration_wrong.properties");
+            Configuration apacheConfig = this.createPropertiesConfiguration("booleanDependentConfiguration_wrong.properties");
             ChronosConfigurationUtil.build(apacheConfig, BooleanDependentConfiguration.class);
             fail();
         } catch (ChronosConfigurationException expected) {
             // pass
         }
+    }
+
+    @NotNull
+    private PropertiesConfiguration createPropertiesConfiguration(String fileName) throws IOException, ConfigurationException {
+        PropertiesConfiguration apacheConfig = new PropertiesConfiguration();
+        try (InputStream inputStream = Resources.getResource(fileName).openStream()) {
+            try (Reader reader = new InputStreamReader(inputStream)) {
+                apacheConfig.read(reader);
+            }
+        }
+        return apacheConfig;
     }
 
     private static class TestAppender extends AppenderBase<ILoggingEvent> {

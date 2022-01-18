@@ -1,13 +1,18 @@
 package org.chronos.chronodb.exodus.manager.chunk
 
+import mu.KotlinLogging
 import org.apache.commons.io.FileUtils
 import org.chronos.chronodb.api.Branch
 import org.chronos.chronodb.api.ChronoDBConstants
+import org.chronos.chronodb.api.SecondaryIndex
 import org.chronos.chronodb.api.key.ChronoIdentifier
 import org.chronos.chronodb.exodus.environment.EnvironmentManager
 import org.chronos.chronodb.exodus.kotlin.ext.*
 import org.chronos.chronodb.exodus.layout.ChronoDBDirectoryLayout
 import org.chronos.chronodb.exodus.manager.NavigationIndex
+import org.chronos.chronodb.exodus.secondaryindex.stores.SecondaryDoubleIndexStore
+import org.chronos.chronodb.exodus.secondaryindex.stores.SecondaryLongIndexStore
+import org.chronos.chronodb.exodus.secondaryindex.stores.SecondaryStringIndexStore
 import org.chronos.chronodb.exodus.transaction.ExodusChunkTransaction
 import org.chronos.chronodb.exodus.transaction.ExodusChunkTransactionImpl
 import org.chronos.chronodb.exodus.transaction.ExodusTransaction
@@ -16,10 +21,8 @@ import org.chronos.chronodb.internal.api.Period
 import org.chronos.chronodb.internal.api.stream.ChronoDBEntry
 import org.chronos.chronodb.internal.impl.IBranchMetadata
 import org.chronos.chronodb.internal.impl.stream.entry.ChronoDBEntryImpl
-import org.chronos.common.logging.ChronoLogger
 import org.chronos.common.serialization.KryoManager
 import java.io.File
-import java.lang.StringBuilder
 import java.util.concurrent.locks.ReadWriteLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.withLock
@@ -31,6 +34,8 @@ class GlobalChunkManager : AutoCloseable {
     // =================================================================================================================
 
     companion object {
+
+        private val log = KotlinLogging.logger {}
 
         fun create(rootDirectory: File, resolveBranchName: (File) -> String?, environmentManager: EnvironmentManager): GlobalChunkManager {
             requireDirectory(rootDirectory, "rootDirectory")
@@ -47,18 +52,18 @@ class GlobalChunkManager : AutoCloseable {
             masterBranch.createDirectoryIfNotExists()
 
             val branchNameToChunkManager = branchesDirectory.listFiles().asSequence()
-                    .filter { it.isDirectory }
-                    .filter { it.name.startsWith(ChronoDBDirectoryLayout.BRANCH_DIRECTORY_PREFIX) }
-                    .map { branchDir ->
-                        val branchName = resolveBranchName(branchDir)
-                        if (branchName == null) {
-                            null
-                        } else {
-                            Pair(branchName, BranchChunkManager.create(branchDir, branchName))
-                        }
+                .filter { it.isDirectory }
+                .filter { it.name.startsWith(ChronoDBDirectoryLayout.BRANCH_DIRECTORY_PREFIX) }
+                .map { branchDir ->
+                    val branchName = resolveBranchName(branchDir)
+                    if (branchName == null) {
+                        null
+                    } else {
+                        Pair(branchName, BranchChunkManager.create(branchDir, branchName))
                     }
-                    .filterNotNull()
-                    .toMap()
+                }
+                .filterNotNull()
+                .toMap()
             return GlobalChunkManager(rootDirectory, branchNameToChunkManager, environmentManager)
         }
 
@@ -115,9 +120,73 @@ class GlobalChunkManager : AutoCloseable {
             }
         }
 
-    fun dropSecondaryIndexFiles() {
-        this.branchDirectoryLock.readLock().withLock {
-            this.branchNameToBranchChunkManager.values.forEach(BranchChunkManager::dropChunkIndexFiles)
+    fun dropAllSecondaryIndexFiles(branchMetadata: IBranchMetadata) {
+        for (chunk in this.getOrCreateChunkManagerForBranch(branchMetadata).getAllChunks()) {
+            val directory = chunk.indexDirectory
+            if (!directory.exists()) {
+                continue
+            }
+            this.openReadWriteTransactionOn(directory).use { tx ->
+                val storeNames = tx.getAllStoreNames()
+                for (storeName in storeNames) {
+                    val stringIndexId = SecondaryStringIndexStore.getIndexIdForStoreName(storeName)
+                    if (stringIndexId != null) {
+                        tx.removeStore(storeName)
+                        continue
+                    }
+                    val longIndexId = SecondaryLongIndexStore.getIndexIdForStoreName(storeName)
+                    if (longIndexId != null) {
+                        tx.removeStore(storeName)
+                        continue
+                    }
+                    val doubleIndexId = SecondaryDoubleIndexStore.getIndexIdForStoreName(storeName)
+                    if (doubleIndexId != null) {
+                        tx.removeStore(storeName)
+                        continue
+                    }
+                }
+                tx.commit()
+            }
+        }
+    }
+
+    fun dropSecondaryIndexFiles(indices: Set<SecondaryIndex>) {
+        for ((branchName, branchIndices) in indices.groupBy { it.branch }) {
+            this.dropChunkIndices(branchIndices, branchName)
+        }
+    }
+
+    private fun dropChunkIndices(indices: Collection<SecondaryIndex>, branch: String) {
+        if (indices.isEmpty()) {
+            return
+        }
+        val indexIds = indices.asSequence().map { it.id }.toSet()
+        for (chunk in this.getChunkManagerForBranch(branch).getAllChunks()) {
+            val directory = chunk.indexDirectory
+            if (!directory.exists()) {
+                continue
+            }
+            this.openReadWriteTransactionOn(directory).use { tx ->
+                val storeNames = tx.getAllStoreNames()
+                for (storeName in storeNames) {
+                    val stringIndexId = SecondaryStringIndexStore.getIndexIdForStoreName(storeName)
+                    if (stringIndexId in indexIds) {
+                        tx.removeStore(storeName)
+                        continue
+                    }
+                    val longIndexId = SecondaryLongIndexStore.getIndexIdForStoreName(storeName)
+                    if (longIndexId in indexIds) {
+                        tx.removeStore(storeName)
+                        continue
+                    }
+                    val doubleIndexId = SecondaryDoubleIndexStore.getIndexIdForStoreName(storeName)
+                    if (doubleIndexId in indexIds) {
+                        tx.removeStore(storeName)
+                        continue
+                    }
+                }
+                tx.commit()
+            }
         }
     }
 
@@ -129,11 +198,8 @@ class GlobalChunkManager : AutoCloseable {
 
     fun getChunkManagerForBranch(branchName: String): BranchChunkManager {
         this.branchDirectoryLock.readLock().withLock {
-            val branchChunkManager = this.branchNameToBranchChunkManager[branchName]
-            if (branchChunkManager == null) {
-                throw IllegalStateException("There is no Branch Chunk Manager for branch '${branchName}'!")
-            }
-            return branchChunkManager
+            return branchNameToBranchChunkManager[branchName]
+                ?: throw IllegalStateException("There is no Branch Chunk Manager for branch '${branchName}'!")
         }
     }
 
@@ -202,16 +268,16 @@ class GlobalChunkManager : AutoCloseable {
 
     fun getChunkBaseDataset(chunk: ChronoChunk, mode: ChunkBaseDataMode): List<ChronoDBEntry> {
         val keyspaceMetadata = this.openReadOnlyTransactionOnGlobalEnvironment().use { tx ->
-           NavigationIndex.getKeyspaceMetadata(tx, chunk.branchName)
+            NavigationIndex.getKeyspaceMetadata(tx, chunk.branchName)
         }
         val resultList = mutableListOf<ChronoDBEntry>()
         val lowerBound = chunk.validPeriod.lowerBound
         this.openTransactionOn(chunk, false).use { tx ->
-            for(keyspace in keyspaceMetadata){
-                tx.withCursorOn(keyspace.matrixTableName){ cursor ->
-                    while(cursor.next){
+            for (keyspace in keyspaceMetadata) {
+                tx.withCursorOn(keyspace.matrixTableName) { cursor ->
+                    while (cursor.next) {
                         val key = cursor.key.parseAsUnqualifiedTemporalKey()
-                        if(mode == ChunkBaseDataMode.ALL || lowerBound == key.timestamp){
+                        if (mode == ChunkBaseDataMode.ALL || lowerBound == key.timestamp) {
                             resultList += ChronoDBEntryImpl.create(ChronoIdentifier.create(chunk.branchName, key.toTemporalKey(keyspace.keyspaceName)), cursor.value.toByteArray())
                         }
                     }
@@ -242,7 +308,7 @@ class GlobalChunkManager : AutoCloseable {
             }
             msg.append("\t${entry.identifier}, value: $entryValue\n")
         }
-        ChronoLogger.log(msg.toString())
+        log.info { msg.toString() }
     }
 
     // =================================================================================================================
@@ -297,9 +363,9 @@ class GlobalChunkManager : AutoCloseable {
             this.branchNameToBranchChunkManager.values.forEach { bcm ->
                 bcm.withReadLock {
                     val allChunks = bcm.getChunksForPeriod(Period.eternal())
-                    for(chunk in allChunks){
+                    for (chunk in allChunks) {
                         this.environmentManager.getEnvironment(chunk.dataDirectory).gc()
-                        if(chunk.indexDirectory.exists()){
+                        if (chunk.indexDirectory.exists()) {
                             this.environmentManager.getEnvironment(chunk.indexDirectory).gc()
                         }
                     }
@@ -309,14 +375,14 @@ class GlobalChunkManager : AutoCloseable {
         }
     }
 
-    fun compactAllExodusEnvironmentsForBranch(branchName: String){
+    fun compactAllExodusEnvironmentsForBranch(branchName: String) {
         this.branchDirectoryLock.readLock().withLock {
             val bcm = this.getChunkManagerForBranch(branchName)
             bcm.withReadLock {
                 val allChunks = bcm.getChunksForPeriod(Period.eternal())
-                for(chunk in allChunks){
+                for (chunk in allChunks) {
                     this.environmentManager.getEnvironment(chunk.dataDirectory).gc()
-                    if(chunk.indexDirectory.exists()){
+                    if (chunk.indexDirectory.exists()) {
                         this.environmentManager.getEnvironment(chunk.indexDirectory).gc()
                     }
                 }
@@ -327,9 +393,11 @@ class GlobalChunkManager : AutoCloseable {
 
     fun deleteBranch(branch: Branch) {
         this.branchDirectoryLock.writeLock().withLock {
+            val bcm = this.getChunkManagerForBranch(branch.name)
+            val branchDir = bcm.branchDirectory
             this.branchNameToBranchChunkManager.remove(branch.name)
             this.environmentManager.cleanupEnvironments(false)
-            FileUtils.deleteDirectory(File(branch.metadata.directoryName))
+            FileUtils.deleteDirectory(branchDir)
         }
     }
 

@@ -16,10 +16,8 @@ import org.chronos.chronodb.exodus.secondaryindex.stores.IndexScanConfiguration.
 import org.chronos.chronodb.exodus.secondaryindex.stores.IndexScanConfiguration.ScanStrategy.SCAN_UNTIL_END
 import org.chronos.chronodb.exodus.secondaryindex.stores.IndexScanConfiguration.ScanStrategy.STOP_AT_FIRST_MISMATCH
 import org.chronos.chronodb.exodus.transaction.ExodusTransaction
-import org.chronos.chronodb.exodus.util.readLongsFromBytes
 import org.chronos.chronodb.internal.api.query.searchspec.ContainmentLongSearchSpecification
 import org.chronos.chronodb.internal.api.query.searchspec.LongSearchSpecification
-import org.chronos.chronodb.internal.api.query.searchspec.StringSearchSpecification
 import java.util.regex.Pattern
 
 object SecondaryLongIndexStore : SecondaryIndexStore<Long, LongSearchSpecification>() {
@@ -37,40 +35,28 @@ object SecondaryLongIndexStore : SecondaryIndexStore<Long, LongSearchSpecificati
     // =================================================================================================================
 
     @VisibleForTesting
-    fun storeName(indexName: String, keyspace: String): String {
-        return "${ChronoDBStoreLayout.STORE_NAME_PREFIX__SECONDARY_INDEX_LONG}${keyspace.length}/$keyspace}${indexName}"
+    fun storeName(indexId: String, keyspace: String): String {
+        return "${ChronoDBStoreLayout.STORE_NAME_PREFIX__SECONDARY_INDEX_LONG}${keyspace.length}/$keyspace}${indexId}"
     }
 
-    fun getIndexNameForStoreName(storeName: String): String? {
-        val nameWithoutPrefix = if(storeName.startsWith(ChronoDBStoreLayout.STORE_NAME_PREFIX__SECONDARY_INDEX_LONG)){
-            storeName.removePrefix(ChronoDBStoreLayout.STORE_NAME_PREFIX__SECONDARY_INDEX_LONG)
-        }else {
-            return null
-        }
-        val matcher = Pattern.compile("\\d+").matcher(nameWithoutPrefix)
-        val found = matcher.find()
-        if(!found){
-            return null
-        }
-        val lengthOfKeyspaceNameAsString = matcher.group()
-        val lengthOfKeyspaceName = lengthOfKeyspaceNameAsString.toInt()
-        return nameWithoutPrefix.substring(
-                // remove the digits which measure the keyspace length
-                lengthOfKeyspaceNameAsString.length
-                        + 1 // also remove the '/' character
-                        + lengthOfKeyspaceName // remove the keyspace
-        )
+    fun getIndexIdForStoreName(storeName: String): String? {
+        return this.parseStoreNameOrNull(storeName)?.second
     }
 
     private fun parseStoreName(storeName: String): Pair<String, String> {
+        return this.parseStoreNameOrNull(storeName)
+            ?: throw IllegalArgumentException("Not a valid store name for secondary long index stores: ${storeName}")
+    }
+
+    private fun parseStoreNameOrNull(storeName: String): Pair<String, String>? {
         val matcher = STORE_NAME_PATTERN.matcher(storeName)
         if (!matcher.matches()) {
-            throw IllegalArgumentException("Not a valid store name for secondary long index stores: ${storeName}")
+            return null
         }
         val keyspaceNameLength = matcher.group(1).toInt()
-        val keyspaceAndIndexName = matcher.group(2)
-        val keyspace = keyspaceAndIndexName.substring(0, keyspaceNameLength)
-        val indexName = keyspaceAndIndexName.substring(keyspaceNameLength, keyspaceAndIndexName.length)
+        val keyspaceAndIndexId = matcher.group(2)
+        val keyspace = keyspaceAndIndexId.substring(0, keyspaceNameLength)
+        val indexName = keyspaceAndIndexId.substring(keyspaceNameLength, keyspaceAndIndexId.length)
         return Pair(keyspace, indexName)
     }
 
@@ -96,12 +82,12 @@ object SecondaryLongIndexStore : SecondaryIndexStore<Long, LongSearchSpecificati
         if (keys == null) {
             // roll back all keys
             tx.getAllStoreNames()
-                    .asSequence()
-                    .filter { it.startsWith(ChronoDBStoreLayout.STORE_NAME_PREFIX__SECONDARY_INDEX_LONG) }
-                    .filter { parseStoreName(it).second == indexName }
-                    .forEach { storeName ->
-                        this.rollbackInternal(tx, storeName, timestamp, this::parseSecondaryIndexKey)
-                    }
+                .asSequence()
+                .filter { it.startsWith(ChronoDBStoreLayout.STORE_NAME_PREFIX__SECONDARY_INDEX_LONG) }
+                .filter { parseStoreName(it).second == indexName }
+                .forEach { storeName ->
+                    this.rollbackInternal(tx, storeName, timestamp, this::parseSecondaryIndexKey)
+                }
         } else {
             // roll back one keyspace at a time
             keys.groupBy { it.keyspace }.forEach { (keyspace, qKeys) ->
@@ -162,13 +148,13 @@ object SecondaryLongIndexStore : SecondaryIndexStore<Long, LongSearchSpecificati
         return when (searchSpec.condition) {
             LongContainmentCondition.WITHIN -> {
                 val searchValues = searchSpec.searchValue
-                when(searchValues.size){
+                when (searchValues.size) {
                     0 -> ScanResult(emptyList())
                     in 1..3 -> {
                         // interpret small sets as connected OR queries; take the union of their scan results
                         val entries = searchValues.asSequence().flatMap { searchValue ->
                             val innerSearchSpec = LongSearchSpecification.create(
-                                searchSpec.property,
+                                searchSpec.index,
                                 Condition.EQUALS,
                                 searchValue
                             )
@@ -196,111 +182,95 @@ object SecondaryLongIndexStore : SecondaryIndexStore<Long, LongSearchSpecificati
 
     private fun scanEquals(tx: ExodusTransaction, searchSpec: LongSearchSpecification, keyspace: String, timestamp: Long, scanTimeMode: ScanTimeMode): ScanResult<Long> {
         val scanConfiguration = IndexScanConfiguration<Long, LongSearchSpecification>(
-                tx = tx,
-                storeName = this.storeName(searchSpec.property, keyspace),
-                searchSpec = searchSpec,
-                timestamp = timestamp,
-                scanStart = searchSpec.searchValue.toByteIterable(),
-                direction = ASCENDING,
-                scanStrategy = STOP_AT_FIRST_MISMATCH,
-                parseKey = this::parseSecondaryIndexKey,
-                scanTimeMode = scanTimeMode
+            tx = tx,
+            storeName = this.storeName(searchSpec.index.id, keyspace),
+            searchSpec = searchSpec,
+            timestamp = timestamp,
+            scanStart = searchSpec.searchValue.toByteIterable(),
+            direction = ASCENDING,
+            scanStrategy = STOP_AT_FIRST_MISMATCH,
+            parseKey = this::parseSecondaryIndexKey,
+            scanTimeMode = scanTimeMode
         )
         val resultList = scanConfiguration.performScan()
-        return ScanResult(resultList, OrderedBy(searchSpec.property, Order.ASCENDING))
+        return ScanResult(resultList, OrderedBy(searchSpec.index.name, Order.ASCENDING))
     }
 
     private fun scanGreaterEqual(tx: ExodusTransaction, searchSpec: LongSearchSpecification, keyspace: String, timestamp: Long, scanTimeMode: ScanTimeMode): ScanResult<Long> {
         val scanConfiguration = IndexScanConfiguration<Long, LongSearchSpecification>(
-                tx = tx,
-                storeName = this.storeName(searchSpec.property, keyspace),
-                searchSpec = searchSpec,
-                timestamp = timestamp,
-                scanStart = searchSpec.searchValue.toByteIterable(),
-                direction = ASCENDING,
-                scanStrategy = STOP_AT_FIRST_MISMATCH,
-                parseKey = this::parseSecondaryIndexKey,
-                scanTimeMode = scanTimeMode
+            tx = tx,
+            storeName = this.storeName(searchSpec.index.id, keyspace),
+            searchSpec = searchSpec,
+            timestamp = timestamp,
+            scanStart = searchSpec.searchValue.toByteIterable(),
+            direction = ASCENDING,
+            scanStrategy = STOP_AT_FIRST_MISMATCH,
+            parseKey = this::parseSecondaryIndexKey,
+            scanTimeMode = scanTimeMode
         )
         val resultList = scanConfiguration.performScan()
-        return ScanResult(resultList, OrderedBy(searchSpec.property, Order.ASCENDING))
+        return ScanResult(resultList, OrderedBy(searchSpec.index.name, Order.ASCENDING))
     }
 
     private fun scanGreaterThan(tx: ExodusTransaction, searchSpec: LongSearchSpecification, keyspace: String, timestamp: Long, scanTimeMode: ScanTimeMode): ScanResult<Long> {
         val scanConfiguration = IndexScanConfiguration<Long, LongSearchSpecification>(
-                tx = tx,
-                storeName = this.storeName(searchSpec.property, keyspace),
-                searchSpec = searchSpec,
-                timestamp = timestamp,
-                // note: we do NOT want the search value in the result set, so we add 1
-                scanStart = (searchSpec.searchValue + 1).toByteIterable(),
-                direction = ASCENDING,
-                scanStrategy = STOP_AT_FIRST_MISMATCH,
-                parseKey = this::parseSecondaryIndexKey,
-                scanTimeMode = scanTimeMode
+            tx = tx,
+            storeName = this.storeName(searchSpec.index.id, keyspace),
+            searchSpec = searchSpec,
+            timestamp = timestamp,
+            // note: we do NOT want the search value in the result set, so we add 1
+            scanStart = (searchSpec.searchValue + 1).toByteIterable(),
+            direction = ASCENDING,
+            scanStrategy = STOP_AT_FIRST_MISMATCH,
+            parseKey = this::parseSecondaryIndexKey,
+            scanTimeMode = scanTimeMode
         )
         val resultList = scanConfiguration.performScan()
-        return ScanResult(resultList, OrderedBy(searchSpec.property, Order.ASCENDING))
+        return ScanResult(resultList, OrderedBy(searchSpec.index.name, Order.ASCENDING))
     }
 
     private fun scanLessEqual(tx: ExodusTransaction, searchSpec: LongSearchSpecification, keyspace: String, timestamp: Long, scanTimeMode: ScanTimeMode): ScanResult<Long> {
         val scanConfiguration = IndexScanConfiguration<Long, LongSearchSpecification>(
-                tx = tx,
-                storeName = this.storeName(searchSpec.property, keyspace),
-                searchSpec = searchSpec,
-                timestamp = timestamp,
-                // as we are scanning DESCENDING, we start one higher (because the primary keys are appended)...
-                scanStart = (searchSpec.searchValue + 1).toByteIterable(),
-                // ... and skip over greater values.
-                skip = { indexValue: Long -> indexValue > searchSpec.searchValue },
-                direction = DESCENDING,
-                scanStrategy = STOP_AT_FIRST_MISMATCH,
-                parseKey = this::parseSecondaryIndexKey,
-                scanTimeMode = scanTimeMode
+            tx = tx,
+            storeName = this.storeName(searchSpec.index.id, keyspace),
+            searchSpec = searchSpec,
+            timestamp = timestamp,
+            // as we are scanning DESCENDING, we start one higher (because the primary keys are appended)...
+            scanStart = (searchSpec.searchValue + 1).toByteIterable(),
+            // ... and skip over greater values.
+            skip = { indexValue: Long -> indexValue > searchSpec.searchValue },
+            direction = DESCENDING,
+            scanStrategy = STOP_AT_FIRST_MISMATCH,
+            parseKey = this::parseSecondaryIndexKey,
+            scanTimeMode = scanTimeMode
         )
         val resultList = scanConfiguration.performScan()
-        return ScanResult(resultList, OrderedBy(searchSpec.property, Order.DESCENDING))
+        return ScanResult(resultList, OrderedBy(searchSpec.index.name, Order.DESCENDING))
     }
 
     private fun scanLessThan(tx: ExodusTransaction, searchSpec: LongSearchSpecification, keyspace: String, timestamp: Long, scanTimeMode: ScanTimeMode): ScanResult<Long> {
         val scanConfiguration = IndexScanConfiguration<Long, LongSearchSpecification>(
-                tx = tx,
-                storeName = storeName(searchSpec.property, keyspace),
-                searchSpec = searchSpec,
-                timestamp = timestamp,
-                // note: we do NOT subtract 1 from the search value here. When we scan DESCENDING and we pass in the
-                // search value (without any appended primary key) as scan start position, then we are already BELOW all
-                // entries in the index (as all index keys have the primary keys appended to them).
-                scanStart = searchSpec.searchValue.toByteIterable(),
-                direction = DESCENDING,
-                scanStrategy = STOP_AT_FIRST_MISMATCH,
-                parseKey = this::parseSecondaryIndexKey,
-                scanTimeMode = scanTimeMode
+            tx = tx,
+            storeName = storeName(searchSpec.index.id, keyspace),
+            searchSpec = searchSpec,
+            timestamp = timestamp,
+            // note: we do NOT subtract 1 from the search value here. When we scan DESCENDING and we pass in the
+            // search value (without any appended primary key) as scan start position, then we are already BELOW all
+            // entries in the index (as all index keys have the primary keys appended to them).
+            scanStart = searchSpec.searchValue.toByteIterable(),
+            direction = DESCENDING,
+            scanStrategy = STOP_AT_FIRST_MISMATCH,
+            parseKey = this::parseSecondaryIndexKey,
+            scanTimeMode = scanTimeMode
         )
         val resultList = scanConfiguration.performScan()
-        return ScanResult(resultList, OrderedBy(searchSpec.property, Order.DESCENDING))
+        return ScanResult(resultList, OrderedBy(searchSpec.index.name, Order.DESCENDING))
     }
 
     private fun scanGeneric(tx: ExodusTransaction, searchSpec: LongSearchSpecification, keyspace: String, timestamp: Long, scanTimeMode: ScanTimeMode): ScanResult<Long> {
         val scanConfiguration = IndexScanConfiguration<Long, LongSearchSpecification>(
-                tx = tx,
-                storeName = storeName(searchSpec.property, keyspace),
-                searchSpec = searchSpec,
-                timestamp = timestamp,
-                scanStart = null,
-                direction = ASCENDING,
-                scanStrategy = SCAN_UNTIL_END,
-                parseKey = this::parseSecondaryIndexKey,
-                scanTimeMode = scanTimeMode
-        )
-        val resultList = scanConfiguration.performScan()
-        return ScanResult(resultList, OrderedBy(searchSpec.property, Order.ASCENDING))
-    }
-
-    private fun scanGeneric(tx: ExodusTransaction, searchSpec: ContainmentLongSearchSpecification, keyspace: String, timestamp: Long, scanTimeMode: ScanTimeMode): ScanResult<Long> {
-        val scanConfiguration = IndexScanConfiguration<Long, ContainmentLongSearchSpecification>(
             tx = tx,
-            storeName = storeName(searchSpec.property, keyspace),
+            storeName = storeName(searchSpec.index.id, keyspace),
             searchSpec = searchSpec,
             timestamp = timestamp,
             scanStart = null,
@@ -310,7 +280,23 @@ object SecondaryLongIndexStore : SecondaryIndexStore<Long, LongSearchSpecificati
             scanTimeMode = scanTimeMode
         )
         val resultList = scanConfiguration.performScan()
-        return ScanResult(resultList, OrderedBy(searchSpec.property, Order.ASCENDING))
+        return ScanResult(resultList, OrderedBy(searchSpec.index.name, Order.ASCENDING))
+    }
+
+    private fun scanGeneric(tx: ExodusTransaction, searchSpec: ContainmentLongSearchSpecification, keyspace: String, timestamp: Long, scanTimeMode: ScanTimeMode): ScanResult<Long> {
+        val scanConfiguration = IndexScanConfiguration<Long, ContainmentLongSearchSpecification>(
+            tx = tx,
+            storeName = storeName(searchSpec.index.id, keyspace),
+            searchSpec = searchSpec,
+            timestamp = timestamp,
+            scanStart = null,
+            direction = ASCENDING,
+            scanStrategy = SCAN_UNTIL_END,
+            parseKey = this::parseSecondaryIndexKey,
+            scanTimeMode = scanTimeMode
+        )
+        val resultList = scanConfiguration.performScan()
+        return ScanResult(resultList, OrderedBy(searchSpec.index.name, Order.ASCENDING))
     }
 
 }

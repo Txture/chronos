@@ -68,7 +68,7 @@ class ExodusDatebackManager(dbInstance: ExodusChronoDB) : AbstractDatebackManage
             val keysToRemove = mutableListOf<ByteIterable>()
             tx.openCursorOn(ChronoDBStoreLayout.STORE_NAME__DATEBACK_LOG).use { cursor ->
                 while(cursor.next){
-                    val key = this.deserialize(cursor.key.toByteArray()) as LogKey
+                    val key = cursor.key.parseAsLogKey()
                     if(key.branch == branchName){
                         keysToRemove += cursor.key
                     }

@@ -113,8 +113,8 @@ public class TransientModificationTest extends AllChronoGraphBackendsTest {
     @Test
     public void canHandleDeletedQueryResultCandidatesInTransientState(){
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("firstname").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("firstname").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.addVertex(T.id, "1", "firstname", "John", "lastname", "Doe");
         g.addVertex(T.id, "2", "firstname", "Jane", "lastname", "Doe");

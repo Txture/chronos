@@ -1,6 +1,7 @@
 package org.chronos.chronodb.test.cases.engine.indexing;
 
 import org.chronos.chronodb.api.ChronoDB;
+import org.chronos.chronodb.api.ChronoDBConstants;
 import org.chronos.chronodb.api.ChronoDBTransaction;
 import org.chronos.chronodb.test.base.AllChronoDBBackendsTest;
 import org.chronos.chronodb.test.cases.util.ReflectiveStringIndexer;
@@ -16,9 +17,9 @@ public class NegatedIndexQueryTest extends AllChronoDBBackendsTest {
     @Test
     public void canEvaluateSimpleNegatedQuery() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("name", new ReflectiveStringIndexer(TestBean.class, "name"));
-        db.getIndexManager().addIndexer("x", new ReflectiveStringIndexer(TestBeanA.class, "x"));
-        db.getIndexManager().addIndexer("y", new ReflectiveStringIndexer(TestBeanB.class, "y"));
+        db.getIndexManager().createIndex().withName("name").withIndexer(new ReflectiveStringIndexer(TestBean.class, "name")).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().createIndex().withName("x").withIndexer(new ReflectiveStringIndexer(TestBeanA.class, "x")).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().createIndex().withName("y").withIndexer(new ReflectiveStringIndexer(TestBeanB.class, "y")).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
 
         { // add some data

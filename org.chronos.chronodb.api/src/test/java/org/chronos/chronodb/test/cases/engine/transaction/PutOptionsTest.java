@@ -1,6 +1,7 @@
 package org.chronos.chronodb.test.cases.engine.transaction;
 
 import org.chronos.chronodb.api.ChronoDB;
+import org.chronos.chronodb.api.ChronoDBConstants;
 import org.chronos.chronodb.api.ChronoDBTransaction;
 import org.chronos.chronodb.api.PutOption;
 import org.chronos.chronodb.api.key.QualifiedKey;
@@ -9,6 +10,7 @@ import org.chronos.common.test.utils.NamedPayload;
 import org.chronos.chronodb.test.cases.util.model.payload.NamedPayloadNameIndexer;
 import org.junit.Test;
 
+import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -20,7 +22,8 @@ public class PutOptionsTest extends AllChronoDBBackendsTest {
     public void noIndexOptionWorks() {
         ChronoDB db = this.getChronoDB();
         // create an indexer
-        db.getIndexManager().addIndexer("name", new NamedPayloadNameIndexer());
+        db.getIndexManager().createIndex().withName("name").withIndexer(new NamedPayloadNameIndexer()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().reindexAll();
 
         // assert that the index is empty
         // NOTE: This will also force lazy-initializing indexing backends to
@@ -39,7 +42,7 @@ public class PutOptionsTest extends AllChronoDBBackendsTest {
 
         // a query on our secondary indexer should only reveal "one" and "two", but not "three" and "four"
         Set<QualifiedKey> keys = tx.find().inDefaultKeyspace().where("name").matchesRegex(".*").getKeysAsSet();
-        Set<String> keySet = keys.stream().map(qKey -> qKey.getKey()).collect(Collectors.toSet());
+        Set<String> keySet = keys.stream().map(QualifiedKey::getKey).collect(Collectors.toSet());
         assertEquals(2, keySet.size());
         assertTrue(keySet.contains("one"));
         assertTrue(keySet.contains("two"));

@@ -1,8 +1,12 @@
 package org.chronos.common.autolock;
 
-import org.chronos.common.logging.ChronoLogger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public abstract class AbstractAutoLock implements AutoLock {
+
+	private static final Logger log = LoggerFactory.getLogger(AbstractAutoLock.class);
+
 
 	private int timesLockAcquired;
 
@@ -36,7 +40,7 @@ public abstract class AbstractAutoLock implements AutoLock {
 	protected void finalize() throws Throwable {
 		super.finalize();
 		if (this.timesLockAcquired > 0) {
-			ChronoLogger.logWarning("WARNING! Non-released lock is being GC'ed! Releasing it now.");
+			log.warn("WARNING! Non-released lock is being GC'ed! Releasing it now.");
 			this.close();
 		}
 	}

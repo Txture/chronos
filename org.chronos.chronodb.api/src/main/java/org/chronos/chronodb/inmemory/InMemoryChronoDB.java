@@ -8,6 +8,7 @@ import org.chronos.chronodb.internal.api.ChronoDBConfiguration;
 import org.chronos.chronodb.internal.api.DatebackManagerInternal;
 import org.chronos.chronodb.internal.api.StatisticsManagerInternal;
 import org.chronos.chronodb.internal.api.cache.ChronoDBCache;
+import org.chronos.chronodb.internal.api.index.IndexManagerInternal;
 import org.chronos.chronodb.internal.api.query.QueryManager;
 import org.chronos.chronodb.internal.impl.engines.base.AbstractChronoDB;
 import org.chronos.chronodb.internal.impl.index.DocumentBasedIndexManager;
@@ -32,7 +33,7 @@ public class InMemoryChronoDB extends AbstractChronoDB {
 
     private final InMemoryBranchManager branchManager;
     private final InMemorySerializationManager serializationManager;
-    private final IndexManager indexManager;
+    private final IndexManagerInternal indexManager;
     private final StandardQueryManager queryManager;
     private final InMemoryMaintenanceManager maintenanceManager;
     private final DatebackManagerInternal datebackManager;
@@ -50,7 +51,7 @@ public class InMemoryChronoDB extends AbstractChronoDB {
         this.branchManager = new InMemoryBranchManager(this);
         this.serializationManager = new InMemorySerializationManager();
         this.queryManager = new StandardQueryManager(this);
-        this.indexManager = new DocumentBasedIndexManager(this, new InMemoryIndexManagerBackend(this));
+        this.indexManager = new DocumentBasedIndexManager(this);
         this.maintenanceManager = new InMemoryMaintenanceManager(this);
         this.datebackManager = new InMemoryDatebackManager(this);
         this.statisticsManager = new InMemoryStatisticsManager(this);
@@ -78,7 +79,7 @@ public class InMemoryChronoDB extends AbstractChronoDB {
     }
 
     @Override
-    public IndexManager getIndexManager() {
+    public IndexManagerInternal getIndexManager() {
         return this.indexManager;
     }
 
@@ -140,9 +141,10 @@ public class InMemoryChronoDB extends AbstractChronoDB {
     }
 
     @Override
-    protected void updateBuildVersionInDatabase() {
+    protected ChronosVersion updateBuildVersionInDatabase(boolean readOnly) {
         // this isn't applicable for in-memory databases because the chronos build version
         // can never change during a live JVM session.
+        return ChronosVersion.getCurrentVersion();
     }
 
 }

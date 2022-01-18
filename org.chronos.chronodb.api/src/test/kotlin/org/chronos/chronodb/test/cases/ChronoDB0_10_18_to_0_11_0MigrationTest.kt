@@ -50,7 +50,7 @@ class ChronoDB0_10_18_to_0_11_0MigrationTest : ChronosUnitTest() {
             }
 
             val commitTimestamps = db.tx().getCommitTimestampsAfter(0, 1000)
-            val firstCommit = commitTimestamps.min() ?: -1
+            val firstCommit = commitTimestamps.minOrNull() ?: -1
             assertThat(firstCommit, `is`(greaterThan(0L)))
 
             for(ksm in keyspaceMetadata){

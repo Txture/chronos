@@ -35,16 +35,6 @@ public class NoTransactionControlChronoGraphTransaction implements ChronoGraphTr
     }
 
     @Override
-    public Iterator<Vertex> getVerticesBySearchSpecifications(final Collection<SearchSpecification<?,?>> searchSpecifications) {
-        return this.tx.getVerticesBySearchSpecifications(searchSpecifications);
-    }
-
-    @Override
-    public Iterator<Edge> getEdgesBySearchSpecifications(final Collection<SearchSpecification<?,?>> searchSpecifications) {
-        return this.tx.getEdgesBySearchSpecifications(searchSpecifications);
-    }
-
-    @Override
     public ChronoEdge loadIncomingEdgeFromEdgeTargetRecord(final ChronoVertexImpl targetVertex, final String label, final IEdgeTargetRecord record) {
         return this.tx.loadIncomingEdgeFromEdgeTargetRecord(targetVertex, label, record);
     }
@@ -135,16 +125,6 @@ public class NoTransactionControlChronoGraphTransaction implements ChronoGraphTr
     }
 
     @Override
-    public Iterator<Vertex> getVerticesByProperties(final Map<String, Object> propertyKeyToPropertyValue) {
-        return this.tx.getVerticesByProperties(propertyKeyToPropertyValue);
-    }
-
-    @Override
-    public Set<Vertex> evaluateVertexQuery(final ChronoDBQuery query) {
-        return this.tx.evaluateVertexQuery(query);
-    }
-
-    @Override
     public Iterator<Edge> edges(final Object... edgeIds) {
         return this.tx.edges(edgeIds);
     }
@@ -157,16 +137,6 @@ public class NoTransactionControlChronoGraphTransaction implements ChronoGraphTr
     @Override
     public Iterator<Edge> getEdgesIterator(final Iterable<String> chronoEdgeIds, final ElementLoadMode loadMode) {
         return this.tx.getEdgesIterator(chronoEdgeIds, loadMode);
-    }
-
-    @Override
-    public Iterator<Edge> getEdgesByProperties(final Map<String, Object> propertyKeyToPropertyValue) {
-        return this.tx.getEdgesByProperties(propertyKeyToPropertyValue);
-    }
-
-    @Override
-    public Set<Edge> evaluateEdgeQuery(final ChronoDBQuery query) {
-        return this.tx.evaluateEdgeQuery(query);
     }
 
     @Override

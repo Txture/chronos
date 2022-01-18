@@ -1,20 +1,18 @@
 package org.chronos.chronosphere.test.base;
 
-import static com.google.common.base.Preconditions.*;
-
-import org.apache.commons.configuration.BaseConfiguration;
-import org.apache.commons.configuration.Configuration;
-import org.chronos.chronodb.internal.api.ChronoDBConfiguration;
+import org.apache.commons.configuration2.Configuration;
 import org.chronos.chronodb.test.base.AllBackendsTest;
 import org.chronos.chronosphere.api.ChronoSphere;
-import org.chronos.chronosphere.api.builder.repository.ChronoSphereInMemoryBuilder;
-import org.chronos.chronosphere.api.builder.repository.ChronoSpherePropertyFileBuilder;
 import org.chronos.chronosphere.internal.api.ChronoSphereInternal;
-import org.chronos.common.exceptions.UnknownEnumLiteralException;
-import org.chronos.common.logging.ChronoLogger;
 import org.junit.After;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import static com.google.common.base.Preconditions.*;
 
 public abstract class AllChronoSphereBackendsTest extends AllBackendsTest {
+
+	private static final Logger log = LoggerFactory.getLogger(AllChronoSphereBackendsTest.class);
 
 	// =====================================================================================================================
 	// FIELDS
@@ -39,7 +37,7 @@ public abstract class AllChronoSphereBackendsTest extends AllBackendsTest {
 
 	@After
 	public void cleanUp() {
-		ChronoLogger.logDebug("Closing ChronoSphere on backend '" + this.backend + "'.");
+		log.debug("Closing ChronoSphere on backend '" + this.backend + "'.");
 		if (this.chronoSphere != null && this.chronoSphere.isOpen()) {
 			this.chronoSphere.close();
 		}
@@ -50,7 +48,7 @@ public abstract class AllChronoSphereBackendsTest extends AllBackendsTest {
 	// =====================================================================================================================
 
 	protected ChronoSphereInternal reinstantiateChronoSphere() {
-		ChronoLogger.logDebug("Reinstantiating ChronoSphere on backend '" + this.backend + "'.");
+		log.debug("Reinstantiating ChronoSphere on backend '" + this.backend + "'.");
 		if (this.chronoSphere != null && this.chronoSphere.isOpen()) {
 			this.chronoSphere.close();
 		}

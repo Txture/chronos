@@ -51,7 +51,7 @@ public class ManyChangesOnSamePropertyValueTest extends AllChronoGraphBackendsTe
     @Test
     public void removingPropertyWorksWithIndexing(){
         ChronoGraph graph = this.getGraph();
-        graph.getIndexManager().create().stringIndex().onVertexProperty("p").build();
+        graph.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
         {
             graph.tx().open();
             Vertex v = graph.addVertex();

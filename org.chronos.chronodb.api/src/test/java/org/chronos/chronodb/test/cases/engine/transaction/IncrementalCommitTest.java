@@ -3,6 +3,7 @@ package org.chronos.chronodb.test.cases.engine.transaction;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 import org.chronos.chronodb.api.ChronoDB;
+import org.chronos.chronodb.api.ChronoDBConstants;
 import org.chronos.chronodb.api.ChronoDBTransaction;
 import org.chronos.chronodb.api.exceptions.ChronoDBCommitException;
 import org.chronos.chronodb.api.indexing.StringIndexer;
@@ -10,12 +11,13 @@ import org.chronos.chronodb.api.key.QualifiedKey;
 import org.chronos.chronodb.internal.api.ChronoDBConfiguration;
 import org.chronos.chronodb.test.base.AllChronoDBBackendsTest;
 import org.chronos.chronodb.test.base.InstantiateChronosWith;
-import org.chronos.common.test.utils.NamedPayload;
 import org.chronos.chronodb.test.cases.util.model.payload.NamedPayloadNameIndexer;
-import org.chronos.common.logging.ChronoLogger;
 import org.chronos.common.test.junit.categories.IntegrationTest;
+import org.chronos.common.test.utils.NamedPayload;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -26,6 +28,8 @@ import static org.junit.Assert.*;
 
 @Category(IntegrationTest.class)
 public class IncrementalCommitTest extends AllChronoDBBackendsTest {
+
+    private static final Logger log = LoggerFactory.getLogger(IncrementalCommitTest.class);
 
     @Test
     public void canCommitIncrementallyMoreThanTwice() {
@@ -102,7 +106,8 @@ public class IncrementalCommitTest extends AllChronoDBBackendsTest {
     @Test
     public void incrementalCommitTransactionCanReadItsOwnModificationsInIndexer() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("name", new NamedPayloadNameIndexer());
+        db.getIndexManager().createIndex().withName("name").withIndexer(new NamedPayloadNameIndexer()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().reindexAll();
         ChronoDBTransaction tx = db.tx();
         try {
             tx.put("np1", NamedPayload.create1KB("one"));
@@ -142,7 +147,8 @@ public class IncrementalCommitTest extends AllChronoDBBackendsTest {
     @InstantiateChronosWith(property = ChronoDBConfiguration.QUERY_CACHE_MAX_SIZE, value = "20")
     public void incrementalCommitTransactionCanReadItsOwnModificationsInIndexerWithQueryCaching() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("name", new NamedPayloadNameIndexer());
+        db.getIndexManager().createIndex().withName("name").withIndexer(new NamedPayloadNameIndexer()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().reindexAll();
         ChronoDBTransaction tx = db.tx();
         try {
             tx.put("np1", NamedPayload.create1KB("one"));
@@ -170,15 +176,14 @@ public class IncrementalCommitTest extends AllChronoDBBackendsTest {
         }
         // assert that the data was written correctly
         Set<String> keySet = tx.keySet();
-        ChronoLogger.logDebug(keySet.toString());
+        log.debug(keySet.toString());
         assertEquals(9, keySet.size());
         assertEquals(1, tx.find().inDefaultKeyspace().where("name").isEqualTo("one").getKeysAsSet().size());
 
         Iterator<Entry<QualifiedKey, Object>> qualifiedResult = tx.find().inDefaultKeyspace().where("name")
             .contains("e").getQualifiedResult();
         qualifiedResult.forEachRemaining(entry -> {
-            ChronoLogger.logDebug(entry.getKey().toString() + " -> " + entry.getValue());
-
+            log.debug(entry.getKey().toString() + " -> " + entry.getValue());
         });
 
         assertEquals(6, tx.find().inDefaultKeyspace().where("name").contains("e").getKeysAsSet().size());
@@ -399,8 +404,9 @@ public class IncrementalCommitTest extends AllChronoDBBackendsTest {
     @Test
     public void secondaryIndexingIsCorrectDuringIncrementalCommit() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("firstName", new FirstNameIndexer());
-        db.getIndexManager().addIndexer("lastName", new LastNameIndexer());
+        db.getIndexManager().createIndex().withName("firstName").withIndexer(new FirstNameIndexer()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().createIndex().withName("lastName").withIndexer(new LastNameIndexer()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().reindexAll();
         ChronoDBTransaction tx = db.tx();
         try {
             // add three persons
@@ -410,7 +416,7 @@ public class IncrementalCommitTest extends AllChronoDBBackendsTest {
 
             // perform the incremental commit
             tx.commitIncremental();
-            ChronoLogger.logDebug("After 1st commitIncremental");
+            log.debug("After 1st commitIncremental");
 
             // make sure that we can find them
             assertEquals(2, tx.find().inDefaultKeyspace().where("firstName").isEqualToIgnoreCase("john").count());
@@ -423,7 +429,7 @@ public class IncrementalCommitTest extends AllChronoDBBackendsTest {
             // perform the incremental commit
             tx.commitIncremental();
 
-            ChronoLogger.logDebug("After 2nd commitIncremental");
+            log.debug("After 2nd commitIncremental");
 
             // make sure that we can't find John any longer
             assertEquals(1, tx.find().inDefaultKeyspace().where("firstName").isEqualToIgnoreCase("john").count());
@@ -435,7 +441,7 @@ public class IncrementalCommitTest extends AllChronoDBBackendsTest {
             // perform the incremental commit
             tx.commitIncremental();
 
-            ChronoLogger.logDebug("After 3rd commitIncremental");
+            log.debug("After 3rd commitIncremental");
 
             // make sure that we can't find Jack Doe any longer
             assertEquals(0, tx.find().inDefaultKeyspace().where("firstName").isEqualToIgnoreCase("jack").count());
@@ -455,13 +461,13 @@ public class IncrementalCommitTest extends AllChronoDBBackendsTest {
             // do the full commit
             tx.commit();
 
-            ChronoLogger.logDebug("After full commit");
+            log.debug("After full commit");
 
         } finally {
             tx.rollback();
         }
 
-        ChronoLogger.logDebug("TX timestamp is: " + tx.getTimestamp());
+        log.debug("TX timestamp is: " + tx.getTimestamp());
 
         // in the end, there should be john smith and jayne doe
         Set<Object> johns = tx.find().inDefaultKeyspace().where("firstName").isEqualToIgnoreCase("john")
@@ -477,7 +483,7 @@ public class IncrementalCommitTest extends AllChronoDBBackendsTest {
         ChronoDB db = this.getChronoDB();
         // set up the "name" index
         StringIndexer nameIndexer = new NamedPayloadNameIndexer();
-        db.getIndexManager().addIndexer("name", nameIndexer);
+        db.getIndexManager().createIndex().withName("name").withIndexer(nameIndexer).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
         // generate and insert test data
         NamedPayload np1 = NamedPayload.create1KB("Hello World");
@@ -509,8 +515,9 @@ public class IncrementalCommitTest extends AllChronoDBBackendsTest {
     @Test
     public void multipleIncrementalCommitsOnExistingDataWork() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("firstName", new FirstNameIndexer());
-        db.getIndexManager().addIndexer("lastName", new LastNameIndexer());
+        db.getIndexManager().createIndex().withName("firstName").withIndexer(new FirstNameIndexer()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().createIndex().withName("lastName").withIndexer(new LastNameIndexer()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().reindexAll();
         ChronoDBTransaction tx = db.tx();
         tx.put("p1", new Person("John", "Doe"));
         tx.put("p2", new Person("Jane", "Doe"));
@@ -547,7 +554,8 @@ public class IncrementalCommitTest extends AllChronoDBBackendsTest {
     @Test
     public void canInsertAndRemoveDuringIncrementalCommit() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("name", new NamedPayloadNameIndexer());
+        db.getIndexManager().createIndex().withName("name").withIndexer(new NamedPayloadNameIndexer()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().reindexAll();
         {
             ChronoDBTransaction tx = db.tx();
             tx.put("one", NamedPayload.create1KB("Hello World"));
@@ -579,7 +587,8 @@ public class IncrementalCommitTest extends AllChronoDBBackendsTest {
     @Test
     public void canUpdateAndRemoveDuringIncrementalCommit() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("name", new NamedPayloadNameIndexer());
+        db.getIndexManager().createIndex().withName("name").withIndexer(new NamedPayloadNameIndexer()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().reindexAll();
         {
             ChronoDBTransaction tx = db.tx();
             tx.put("one", NamedPayload.create1KB("Hello World"));

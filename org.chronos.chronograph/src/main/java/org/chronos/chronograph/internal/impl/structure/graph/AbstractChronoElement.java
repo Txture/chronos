@@ -6,6 +6,7 @@ import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Property;
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
 import org.chronos.chronograph.api.structure.ChronoEdge;
+import org.chronos.chronograph.api.structure.ChronoGraph;
 import org.chronos.chronograph.api.structure.ChronoVertex;
 import org.chronos.chronograph.api.structure.ElementLifecycleStatus;
 import org.chronos.chronograph.api.structure.ElementLifecycleStatus.IllegalStateTransitionException;
@@ -15,6 +16,7 @@ import org.chronos.chronograph.internal.api.structure.ChronoGraphInternal;
 import org.chronos.chronograph.internal.api.transaction.ChronoGraphTransactionInternal;
 import org.chronos.chronograph.internal.api.transaction.GraphTransactionContextInternal;
 import org.chronos.chronograph.internal.impl.transaction.ElementLoadMode;
+import org.chronos.chronograph.internal.impl.transaction.threaded.ChronoThreadedTransactionGraph;
 import org.chronos.common.exceptions.UnknownEnumLiteralException;
 
 import java.util.Iterator;
@@ -235,11 +237,7 @@ public abstract class AbstractChronoElement implements ChronoElementInternal {
     public void checkTransaction() {
         if (this.owningTransaction.isThreadedTx()) {
             // threaded tx
-            if (this.owningTransaction.isOpen() == false) {
-                throw new IllegalStateException(
-                    "This graph element is bound to a Threaded Transaction, which was already closed. "
-                        + "Cannot continue to operate on this element.");
-            }
+            this.owningTransaction.assertIsOpen();
         } else {
             // thread-local tx
             this.graph.tx().readWrite();

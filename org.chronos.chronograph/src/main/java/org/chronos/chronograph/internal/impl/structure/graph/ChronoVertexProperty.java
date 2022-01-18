@@ -114,6 +114,13 @@ public class ChronoVertexProperty<V> extends ChronoProperty<V> implements Vertex
         throw new UnsupportedOperationException("getPropertyStatus(...) is not supported for meta-properties.");
     }
 
+    @Override
+    public boolean isLazy() {
+        // at the point where we have access to a vertex property,
+        // the properties are always loaded.
+        return false;
+    }
+
     // =================================================================================================================
     // INTERNAL API
     // =================================================================================================================

@@ -1,6 +1,9 @@
 package org.chronos.chronodb.exodus.test.cases.secondaryindex
 
+import org.chronos.chronodb.api.ChronoDBConstants
 import org.chronos.chronodb.api.Order
+import org.chronos.chronodb.api.indexing.DoubleIndexer
+import org.chronos.chronodb.api.indexing.StringIndexer
 import org.chronos.chronodb.api.query.Condition
 import org.chronos.chronodb.api.query.NumberCondition
 import org.chronos.chronodb.exodus.kotlin.ext.toByteArray
@@ -13,8 +16,12 @@ import org.chronos.common.testing.kotlin.ext.shouldBe
 import org.chronos.chronodb.exodus.transaction.ExodusTransaction
 import org.chronos.chronodb.exodus.transaction.ExodusTransactionImpl
 import org.chronos.chronodb.exodus.util.readLongsFromBytes
+import org.chronos.chronodb.internal.api.ChronoDBConfiguration
+import org.chronos.chronodb.internal.api.Period
 import org.chronos.chronodb.internal.api.query.searchspec.DoubleSearchSpecification
+import org.chronos.chronodb.internal.impl.index.SecondaryIndexImpl
 import org.chronos.chronodb.internal.impl.query.DoubleSearchSpecificationImpl
+import org.chronos.common.test.utils.NamedPayload
 import org.junit.jupiter.api.Test
 
 class SecondaryDoubleIndexStoreTest : EnvironmentTest(){
@@ -106,26 +113,38 @@ class SecondaryDoubleIndexStoreTest : EnvironmentTest(){
 
     @Test
     fun canSeparateKeyspaces() {
+        val indexId = "dd1f3a91-12d5-47bd-a343-7b15a3475f09"
         this.readWriteTx { tx ->
-            SecondaryDoubleIndexStore.insert(tx, "value", "alpha", 3.1415, "1111", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "alpha", 3.1415, "1112", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "beta", 5.12, "2222", 1000)
-            SecondaryDoubleIndexStore.terminateValidity(tx, "value", "beta", 5.12, "2222", 2000, 0L)
-            SecondaryDoubleIndexStore.insert(tx, "value", "beta", 5.12, "2223", 3000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "alpha", 3.1415, "1111", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "alpha", 3.1415, "1112", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "beta", 5.12, "2222", 1000)
+            SecondaryDoubleIndexStore.terminateValidity(tx, indexId, "beta", 5.12, "2222", 2000, 0L)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "beta", 5.12, "2223", 3000)
             tx.commit()
         }
-        val entriesAlpha = this.readOnlyTx { tx -> readEntries(tx, SecondaryDoubleIndexStore.storeName("value", "alpha")) }
+        val entriesAlpha = this.readOnlyTx { tx -> readEntries(tx, SecondaryDoubleIndexStore.storeName(indexId, "alpha")) }
         entriesAlpha shouldBe listOf(
             Triple(3.1415, "1111", listOf(1000L, Long.MAX_VALUE)),
             Triple(3.1415, "1112", listOf(1000L, Long.MAX_VALUE))
         )
-        val entriesBeta = this.readOnlyTx { tx -> readEntries(tx, SecondaryDoubleIndexStore.storeName("value", "beta")) }
+        val entriesBeta = this.readOnlyTx { tx -> readEntries(tx, SecondaryDoubleIndexStore.storeName(indexId, "beta")) }
         entriesBeta shouldBe listOf(
             Triple(5.12, "2222", listOf(1000L, 2000)),
             Triple(5.12, "2223", listOf(3000L, Long.MAX_VALUE))
         )
 
-        val spec1 = DoubleSearchSpecification.create("value", Condition.EQUALS, 3.1415, 0.001)
+        val index = SecondaryIndexImpl(
+            id = indexId,
+            name = "value",
+            indexer = DummyIndexer(),
+            validPeriod = Period.eternal(),
+            branch = ChronoDBConstants.MASTER_BRANCH_IDENTIFIER,
+            parentIndexId = null,
+            dirty = false,
+            options = emptySet()
+        )
+
+        val spec1 = DoubleSearchSpecification.create(index, Condition.EQUALS, 3.1415, 0.001)
         this.readOnlyTx { tx ->
             SecondaryDoubleIndexStore.scan(tx, spec1, "alpha", 1000) shouldBe ScanResult(
                 listOf(
@@ -141,7 +160,7 @@ class SecondaryDoubleIndexStoreTest : EnvironmentTest(){
             )
         }
 
-        val spec2 = DoubleSearchSpecification.create("value", Condition.EQUALS, 5.12, 0.001)
+        val spec2 = DoubleSearchSpecification.create(index, Condition.EQUALS, 5.12, 0.001)
         this.readOnlyTx { tx ->
             SecondaryDoubleIndexStore.scan(tx, spec2, "beta", 1000) shouldBe ScanResult(
                 listOf(
@@ -159,7 +178,19 @@ class SecondaryDoubleIndexStoreTest : EnvironmentTest(){
 
     @Test
     fun canQueryEmptyStore(){
-        val searchSpec = DoubleSearchSpecificationImpl("value", NumberCondition.EQUALS, 3.1415, 0.001)
+        val indexId = "dd1f3a91-12d5-47bd-a343-7b15a3475f09"
+        val index = SecondaryIndexImpl(
+            id = indexId,
+            name = "value",
+            indexer = DummyIndexer(),
+            validPeriod = Period.eternal(),
+            branch = ChronoDBConstants.MASTER_BRANCH_IDENTIFIER,
+            parentIndexId = null,
+            dirty = false,
+            options = emptySet()
+        )
+
+        val searchSpec = DoubleSearchSpecificationImpl(index, NumberCondition.EQUALS, 3.1415, 0.001)
         this.readOnlyTx { tx ->
             SecondaryDoubleIndexStore.scan(tx, searchSpec, "youDoNotExist", 1000) shouldBe ScanResult(
                 listOf(),
@@ -170,18 +201,31 @@ class SecondaryDoubleIndexStoreTest : EnvironmentTest(){
 
     @Test
     fun canEvaluateEquals() {
+        val indexId = "dd1f3a91-12d5-47bd-a343-7b15a3475f09"
+        val index = SecondaryIndexImpl(
+            id = indexId,
+            name = "value",
+            indexer = DummyIndexer(),
+            validPeriod = Period.eternal(),
+            branch = ChronoDBConstants.MASTER_BRANCH_IDENTIFIER,
+            parentIndexId = null,
+            dirty = false,
+            options = emptySet()
+        )
         this.readWriteTx { tx ->
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 3.0, "7487", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 3.1415, "1111", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 3.1415, "1112", 1000)
-            SecondaryDoubleIndexStore.terminateValidity(tx, "value", "default", 3.1415, "1112", 2000, 0L)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 6.75, "2222", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 6.75, "2223", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1152.35, "5555", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 56827.5864, "6666", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 3.0, "7487", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 3.1415, "1111", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 3.1415, "1112", 1000)
+            SecondaryDoubleIndexStore.terminateValidity(tx, indexId, "default", 3.1415, "1112", 2000, 0L)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 6.75, "2222", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 6.75, "2223", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1152.35, "5555", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 56827.5864, "6666", 1000)
             tx.commit()
         }
-        val searchSpec = DoubleSearchSpecificationImpl("value", NumberCondition.EQUALS, 3.1415, 0.001)
+
+
+        val searchSpec = DoubleSearchSpecificationImpl(index, NumberCondition.EQUALS, 3.1415, 0.001)
         this.readOnlyTx { tx ->
             SecondaryDoubleIndexStore.scan(tx, searchSpec, "default", 3000) shouldBe ScanResult(
                 listOf(
@@ -194,17 +238,29 @@ class SecondaryDoubleIndexStoreTest : EnvironmentTest(){
 
     @Test
     fun canEvaluateEqualsWithTolerance(){
+        val indexId = "dd1f3a91-12d5-47bd-a343-7b15a3475f09"
+        val index = SecondaryIndexImpl(
+            id = indexId,
+            name = "value",
+            indexer = DummyIndexer(),
+            validPeriod = Period.eternal(),
+            branch = ChronoDBConstants.MASTER_BRANCH_IDENTIFIER,
+            parentIndexId = null,
+            dirty = false,
+            options = emptySet()
+        )
         this.readWriteTx { tx ->
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.0, "1111", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.1, "2222", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.2, "3333", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.3, "4444", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.4, "5555", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.5, "6666", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.6, "7777", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.0, "1111", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.1, "2222", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.2, "3333", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.3, "4444", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.4, "5555", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.5, "6666", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.6, "7777", 1000)
             tx.commit()
         }
-        val searchSpec = DoubleSearchSpecificationImpl("value", NumberCondition.EQUALS, 1.3, 0.2)
+
+        val searchSpec = DoubleSearchSpecificationImpl(index, NumberCondition.EQUALS, 1.3, 0.2)
         this.readOnlyTx { tx ->
             SecondaryDoubleIndexStore.scan(tx, searchSpec, "default", 3000) shouldBe ScanResult(
                 listOf(
@@ -221,17 +277,29 @@ class SecondaryDoubleIndexStoreTest : EnvironmentTest(){
 
     @Test
     fun canEvaluateGreaterThan(){
+        val indexId = "dd1f3a91-12d5-47bd-a343-7b15a3475f09"
+        val index = SecondaryIndexImpl(
+            id = indexId,
+            name = "value",
+            indexer = DummyIndexer(),
+            validPeriod = Period.eternal(),
+            branch = ChronoDBConstants.MASTER_BRANCH_IDENTIFIER,
+            parentIndexId = null,
+            dirty = false,
+            options = emptySet()
+        )
         this.readWriteTx { tx ->
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.0, "1111", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.1, "2222", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.2, "3333", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.3, "4444", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.4, "5555", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.5, "6666", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.6, "7777", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.0, "1111", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.1, "2222", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.2, "3333", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.3, "4444", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.4, "5555", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.5, "6666", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.6, "7777", 1000)
             tx.commit()
         }
-        val searchSpec = DoubleSearchSpecificationImpl("value", NumberCondition.GREATER_THAN, 1.3, 0.001)
+
+        val searchSpec = DoubleSearchSpecificationImpl(index, NumberCondition.GREATER_THAN, 1.3, 0.001)
         this.readOnlyTx { tx ->
             SecondaryDoubleIndexStore.scan(tx, searchSpec, "default", 3000) shouldBe ScanResult(
                 listOf(
@@ -246,17 +314,29 @@ class SecondaryDoubleIndexStoreTest : EnvironmentTest(){
 
     @Test
     fun canEvaluateGreaterOrEqual(){
+        val indexId = "dd1f3a91-12d5-47bd-a343-7b15a3475f09"
+        val index = SecondaryIndexImpl(
+            id = indexId,
+            name = "value",
+            indexer = DummyIndexer(),
+            validPeriod = Period.eternal(),
+            branch = ChronoDBConstants.MASTER_BRANCH_IDENTIFIER,
+            parentIndexId = null,
+            dirty = false,
+            options = emptySet()
+        )
         this.readWriteTx { tx ->
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.0, "1111", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.1, "2222", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.2, "3333", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.3, "4444", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.4, "5555", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.5, "6666", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.6, "7777", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.0, "1111", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.1, "2222", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.2, "3333", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.3, "4444", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.4, "5555", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.5, "6666", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.6, "7777", 1000)
             tx.commit()
         }
-        val searchSpec = DoubleSearchSpecificationImpl("value", NumberCondition.GREATER_EQUAL, 1.3, 0.001)
+
+        val searchSpec = DoubleSearchSpecificationImpl(index, NumberCondition.GREATER_EQUAL, 1.3, 0.001)
         this.readOnlyTx { tx ->
             SecondaryDoubleIndexStore.scan(tx, searchSpec, "default", 3000) shouldBe ScanResult(
                 listOf(
@@ -272,17 +352,29 @@ class SecondaryDoubleIndexStoreTest : EnvironmentTest(){
 
     @Test
     fun canEvaluateLessThan(){
+        val indexId = "dd1f3a91-12d5-47bd-a343-7b15a3475f09"
+        val index = SecondaryIndexImpl(
+            id = indexId,
+            name = "value",
+            indexer = DummyIndexer(),
+            validPeriod = Period.eternal(),
+            branch = ChronoDBConstants.MASTER_BRANCH_IDENTIFIER,
+            parentIndexId = null,
+            dirty = false,
+            options = emptySet()
+        )
         this.readWriteTx { tx ->
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.0, "1111", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.1, "2222", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.2, "3333", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.3, "4444", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.4, "5555", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.5, "6666", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.6, "7777", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.0, "1111", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.1, "2222", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.2, "3333", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.3, "4444", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.4, "5555", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.5, "6666", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.6, "7777", 1000)
             tx.commit()
         }
-        val searchSpec = DoubleSearchSpecificationImpl("value", NumberCondition.LESS_THAN, 1.3, 0.001)
+
+        val searchSpec = DoubleSearchSpecificationImpl(index, NumberCondition.LESS_THAN, 1.3, 0.001)
         this.readOnlyTx { tx ->
             SecondaryDoubleIndexStore.scan(tx, searchSpec, "default", 3000) shouldBe ScanResult(
                 listOf(
@@ -297,17 +389,29 @@ class SecondaryDoubleIndexStoreTest : EnvironmentTest(){
 
     @Test
     fun canEvaluateLessOrEqual(){
+        val indexId = "dd1f3a91-12d5-47bd-a343-7b15a3475f09"
+        val index = SecondaryIndexImpl(
+            id = indexId,
+            name = "value",
+            indexer = DummyIndexer(),
+            validPeriod = Period.eternal(),
+            branch = ChronoDBConstants.MASTER_BRANCH_IDENTIFIER,
+            parentIndexId = null,
+            dirty = false,
+            options = emptySet()
+        )
         this.readWriteTx { tx ->
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.0, "1111", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.1, "2222", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.2, "3333", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.3, "4444", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.4, "5555", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.5, "6666", 1000)
-            SecondaryDoubleIndexStore.insert(tx, "value", "default", 1.6, "7777", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.0, "1111", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.1, "2222", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.2, "3333", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.3, "4444", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.4, "5555", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.5, "6666", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.6, "7777", 1000)
             tx.commit()
         }
-        val searchSpec = DoubleSearchSpecificationImpl("value", NumberCondition.LESS_EQUAL, 1.30, 0.001)
+
+        val searchSpec = DoubleSearchSpecificationImpl(index, NumberCondition.LESS_EQUAL, 1.30, 0.001)
         this.readOnlyTx { tx ->
             SecondaryDoubleIndexStore.scan(tx, searchSpec, "default", 3000) shouldBe ScanResult(
                 listOf(
@@ -363,5 +467,21 @@ class SecondaryDoubleIndexStoreTest : EnvironmentTest(){
             }
         }
         return resultList
+    }
+
+    // =================================================================================================================
+    // INNER CLASSES
+    // =================================================================================================================
+
+    private class DummyIndexer: DoubleIndexer {
+
+        override fun canIndex(`object`: Any?): Boolean {
+            return true
+        }
+
+        override fun getIndexValues(`object`: Any?): Set<Double> {
+            return emptySet()
+        }
+
     }
 }

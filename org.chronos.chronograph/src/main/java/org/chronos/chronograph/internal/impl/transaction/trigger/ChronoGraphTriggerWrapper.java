@@ -2,14 +2,17 @@ package org.chronos.chronograph.internal.impl.transaction.trigger;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.chronos.chronograph.api.transaction.trigger.*;
-import org.chronos.common.logging.ChronoLogger;
 import org.chronos.common.serialization.KryoManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Optional;
 
 import static com.google.common.base.Preconditions.*;
 
 public class ChronoGraphTriggerWrapper implements ChronoGraphPreCommitTrigger, ChronoGraphPrePersistTrigger, ChronoGraphPostPersistTrigger, ChronoGraphPostCommitTrigger {
+
+    private static final Logger log = LoggerFactory.getLogger(ChronoGraphTriggerWrapper.class);
 
     private byte[] serializedTrigger;
     private String triggerClassName;
@@ -107,7 +110,7 @@ public class ChronoGraphTriggerWrapper implements ChronoGraphPreCommitTrigger, C
             try{
                 this.trigger = KryoManager.deserialize(this.serializedTrigger);
             }catch(Exception e){
-                ChronoLogger.logWarning("Failed to deserialize ChronoGraph Trigger of type [" + this.triggerClassName + "]. This trigger will be ignored!" +
+                log.warn("Failed to deserialize ChronoGraph Trigger of type [" + this.triggerClassName + "]. This trigger will be ignored!" +
                     " Cause: " + e + ", Root Cause: " + ExceptionUtils.getRootCause(e)
                 );
                 // remember that this trigger cannot be deserialized

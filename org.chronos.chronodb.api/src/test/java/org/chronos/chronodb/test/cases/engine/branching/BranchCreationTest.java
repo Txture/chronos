@@ -3,6 +3,7 @@ package org.chronos.chronodb.test.cases.engine.branching;
 import com.google.common.collect.Sets;
 import org.chronos.chronodb.api.Branch;
 import org.chronos.chronodb.api.ChronoDB;
+import org.chronos.chronodb.api.ChronoDBConstants;
 import org.chronos.chronodb.api.ChronoDBTransaction;
 import org.chronos.chronodb.internal.api.ChronoDBConfiguration;
 import org.chronos.chronodb.test.base.AllChronoDBBackendsTest;
@@ -14,6 +15,7 @@ import org.chronos.common.test.junit.categories.IntegrationTest;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
+import java.util.Collections;
 import java.util.Set;
 
 import static org.junit.Assert.*;
@@ -380,7 +382,7 @@ public class BranchCreationTest extends AllChronoDBBackendsTest {
         String subBranchName = "*+~.,<>|";
         Person john = new Person("John", "Doe");
         Person jane = new Person("Jane", "Doe");
-        db.getIndexManager().addIndexer("firstName", PersonIndexer.firstName());
+        db.getIndexManager().createIndex().withName("firstName").withIndexer(PersonIndexer.firstName()).onMaster().acrossAllTimestamps().build();
         db.getBranchManager().createBranch(testBranchName);
         {
             ChronoDBTransaction tx = db.tx(testBranchName);

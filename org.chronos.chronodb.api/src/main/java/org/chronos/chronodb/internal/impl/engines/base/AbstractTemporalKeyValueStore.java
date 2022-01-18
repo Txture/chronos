@@ -2,19 +2,46 @@ package org.chronos.chronodb.internal.impl.engines.base;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
-import com.google.common.collect.*;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Multimaps;
+import com.google.common.collect.SetMultimap;
+import com.google.common.collect.Sets;
 import org.apache.commons.lang3.tuple.Pair;
-import org.chronos.chronodb.api.*;
+import org.chronos.chronodb.api.Branch;
+import org.chronos.chronodb.api.BranchHeadStatistics;
+import org.chronos.chronodb.api.ChangeSetEntry;
+import org.chronos.chronodb.api.ChronoDBTransaction;
+import org.chronos.chronodb.api.CommitMetadataFilter;
+import org.chronos.chronodb.api.Dateback;
 import org.chronos.chronodb.api.Dateback.KeyspaceValueTransformation;
+import org.chronos.chronodb.api.DuplicateVersionEliminationMode;
+import org.chronos.chronodb.api.Order;
+import org.chronos.chronodb.api.PutOption;
+import org.chronos.chronodb.api.SerializationManager;
 import org.chronos.chronodb.api.conflict.AtomicConflict;
 import org.chronos.chronodb.api.conflict.ConflictResolutionStrategy;
-import org.chronos.chronodb.api.exceptions.*;
+import org.chronos.chronodb.api.exceptions.ChronoDBCommitException;
+import org.chronos.chronodb.api.exceptions.ChronoDBCommitMetadataRejectedException;
+import org.chronos.chronodb.api.exceptions.DatebackException;
+import org.chronos.chronodb.api.exceptions.InvalidTransactionBranchException;
+import org.chronos.chronodb.api.exceptions.InvalidTransactionTimestampException;
 import org.chronos.chronodb.api.key.ChronoIdentifier;
 import org.chronos.chronodb.api.key.QualifiedKey;
 import org.chronos.chronodb.api.key.TemporalKey;
-import org.chronos.chronodb.internal.api.*;
+import org.chronos.chronodb.internal.api.BranchInternal;
+import org.chronos.chronodb.internal.api.ChronoDBInternal;
+import org.chronos.chronodb.internal.api.GetResult;
+import org.chronos.chronodb.internal.api.MutableTransactionConfiguration;
+import org.chronos.chronodb.internal.api.Period;
+import org.chronos.chronodb.internal.api.TemporalDataMatrix;
+import org.chronos.chronodb.internal.api.TemporalKeyValueStore;
 import org.chronos.chronodb.internal.api.cache.CacheGetResult;
 import org.chronos.chronodb.internal.api.cache.ChronoDBCache;
+import org.chronos.chronodb.internal.api.index.IndexManagerInternal;
 import org.chronos.chronodb.internal.api.stream.ChronoDBEntry;
 import org.chronos.chronodb.internal.api.stream.CloseableIterator;
 import org.chronos.chronodb.internal.impl.BranchHeadStatisticsImpl;
@@ -26,13 +53,18 @@ import org.chronos.chronodb.internal.impl.temporal.UnqualifiedTemporalKey;
 import org.chronos.chronodb.internal.util.KeySetModifications;
 import org.chronos.common.autolock.AutoLock;
 import org.chronos.common.exceptions.UnknownEnumLiteralException;
-import org.chronos.common.logging.ChronoLogger;
 import org.chronos.common.serialization.KryoManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -42,6 +74,8 @@ import java.util.stream.Collectors;
 import static com.google.common.base.Preconditions.*;
 
 public abstract class AbstractTemporalKeyValueStore extends TemporalKeyValueStoreBase implements TemporalKeyValueStore {
+
+    private static final Logger log = LoggerFactory.getLogger(AbstractTemporalKeyValueStore.class);
 
     // =================================================================================================================
     // FIELDS
@@ -61,7 +95,7 @@ public abstract class AbstractTemporalKeyValueStore extends TemporalKeyValueStor
      * Also note that (as the name implies) this lock is for commit operations only. Read operations do not need to
      * acquire this lock at all.
      */
-    private final Lock commitLock = new ReentrantLock(true);
+    private final Object commitLock = new Object();
 
     private final BranchInternal owningBranch;
     private final ChronoDBInternal owningDB;
@@ -70,7 +104,7 @@ public abstract class AbstractTemporalKeyValueStore extends TemporalKeyValueStor
     /**
      * This lock is used to protect incremental commit data from illegal concurrent access.
      */
-    protected final Lock incrementalCommitLock = new ReentrantLock(true);
+    protected final Object incrementalCommitLock = new Object();
     /**
      * This field is used to keep track of the transaction that is currently executing an incremental commit.
      */
@@ -111,8 +145,7 @@ public abstract class AbstractTemporalKeyValueStore extends TemporalKeyValueStor
             // during the shutdown of the database. Therefore, no recovery is required.
             return;
         }
-        ChronoLogger.logWarning(
-            "There has been an error during the last shutdown. ChronoDB will attempt to recover to the last consistent state (this may take a few minutes).");
+        log.warn("There has been an error during the last shutdown. ChronoDB will attempt to recover to the last consistent state (this may take a few minutes).");
         // we have a WAL-Token, so we need to perform a recovery. We roll back to the
         // last valid timestamp before the commit (which was interrupted by JVM shutdown) has occurred.
         long timestamp = walToken.getNowTimestampBeforeCommit();
@@ -217,137 +250,134 @@ public abstract class AbstractTemporalKeyValueStore extends TemporalKeyValueStor
         String perfLogPrefix = "[PERF ChronoDB] Commit (" + tx.getBranchName() + "@" + tx.getTimestamp() + ")";
         long timeBeforeLockAcquisition = System.currentTimeMillis();
         try (AutoLock lock = this.lockBranchExclusive()) {
-            this.commitLock.lock();
-            try {
-                if (performanceLoggingActive) {
-                    ChronoLogger.logInfo(perfLogPrefix + " -> Lock Acquisition: " + (System.currentTimeMillis() - timeBeforeLockAcquisition) + "ms.");
-                }
-                if (this.isIncrementalCommitProcessOngoing() && tx.getChangeSet().isEmpty() == false) {
-                    // "terminate" the incremental commit process with a FINAL incremental commit,
-                    // then continue with a true commit that has an EMPTY change set
-                    tx.commitIncremental();
-                }
-                if (this.isIncrementalCommitProcessOngoing() == false) {
-                    if (tx.getChangeSet().isEmpty()) {
-                        // change set is empty -> there is nothing to commit
-                        return -1;
-                    }
-                }
-                long time = 0;
-                if (this.isIncrementalCommitProcessOngoing()) {
-                    // use the incremental commit timestamp
-                    time = this.incrementalCommitTimestamp;
-                } else {
-                    // use the current transaction time
-                    time = this.waitForNextValidCommitTimestamp();
-                }
-
-                long beforeCommitMetadataFilter = System.currentTimeMillis();
-                CommitMetadataFilter filter = this.getOwningDB().getCommitMetadataFilter();
-                if (filter != null) {
-                    if (filter.doesAccept(tx.getBranchName(), time, commitMetadata) == false) {
-                        String className = (commitMetadata == null ? "NULL" : commitMetadata.getClass().getName());
-                        throw new ChronoDBCommitMetadataRejectedException("The given Commit Metadata object (class: " + className + ") was rejected by the commit metadata filter! Cancelling commit.");
-                    }
-                }
-                if (performanceLoggingActive) {
-                    ChronoLogger.logInfo(perfLogPrefix + " -> Commit Metadata Filter: " + (System.currentTimeMillis() - beforeCommitMetadataFilter) + "ms.");
-                }
-
-                long beforeChangeSetAnalysis = System.currentTimeMillis();
-                ChangeSet changeSet = this.analyzeChangeSet(tx, tx, time);
-                if (performanceLoggingActive) {
-                    ChronoLogger.logInfo(perfLogPrefix + " -> Change Set Analysis: " + (System.currentTimeMillis() - beforeChangeSetAnalysis) + "ms.");
-                }
-
-                if (this.isIncrementalCommitProcessOngoing() == false) {
-                    long beforeWalTokenHandling = System.currentTimeMillis();
-                    // check that no WAL token exists on disk
-                    this.performRollbackToWALTokenIfExists();
-                    // before we begin the writing to disk, we store a token as a file. This token
-                    // will allow us to recover on the next startup in the event that the JVM crashes or
-                    // is being shut down during the commit process.
-                    WriteAheadLogToken token = new WriteAheadLogToken(this.getNow(), time);
-                    this.performWriteAheadLog(token);
-                    if (performanceLoggingActive) {
-                        ChronoLogger.logInfo(perfLogPrefix + " -> WAL Token Handling: " + (System.currentTimeMillis() - beforeWalTokenHandling) + "ms.");
-                    }
-                }
-                // remember if we started to work with the index
-                boolean touchedIndex = false;
-                if (this.isIncrementalCommitProcessOngoing()) {
-                    // when committing incrementally, always assume that we touched the index, because
-                    // some of the preceeding incremental commits has very likely touched it.
-                    touchedIndex = true;
-                }
+            synchronized (this.commitLock) {
                 try {
-                    // here, we perform the actual *write* work.
-                    this.debugCallbackBeforePrimaryIndexUpdate(tx);
-                    long beforePrimaryIndexUpdate = System.currentTimeMillis();
-                    this.updatePrimaryIndex(perfLogPrefix + " -> Primary Index Update", time, changeSet);
                     if (performanceLoggingActive) {
-                        ChronoLogger.logInfo(perfLogPrefix + " -> Primary Index Update: " + (System.currentTimeMillis() - beforePrimaryIndexUpdate) + "ms.");
+                        log.info(perfLogPrefix + " -> Lock Acquisition: " + (System.currentTimeMillis() - timeBeforeLockAcquisition) + "ms.");
                     }
-                    this.debugCallbackBeforeSecondaryIndexUpdate(tx);
-                    long beforeSecondaryIndexupdate = System.currentTimeMillis();
-                    touchedIndex = this.updateSecondaryIndices(changeSet) || touchedIndex;
+                    if (this.isIncrementalCommitProcessOngoing() && tx.getChangeSet().isEmpty() == false) {
+                        // "terminate" the incremental commit process with a FINAL incremental commit,
+                        // then continue with a true commit that has an EMPTY change set
+                        tx.commitIncremental();
+                    }
+                    if (this.isIncrementalCommitProcessOngoing() == false) {
+                        if (tx.getChangeSet().isEmpty()) {
+                            // change set is empty -> there is nothing to commit
+                            return -1;
+                        }
+                    }
+                    long time = 0;
+                    if (this.isIncrementalCommitProcessOngoing()) {
+                        // use the incremental commit timestamp
+                        time = this.incrementalCommitTimestamp;
+                    } else {
+                        // use the current transaction time
+                        time = this.waitForNextValidCommitTimestamp();
+                    }
+
+                    long beforeCommitMetadataFilter = System.currentTimeMillis();
+                    CommitMetadataFilter filter = this.getOwningDB().getCommitMetadataFilter();
+                    if (filter != null) {
+                        if (filter.doesAccept(tx.getBranchName(), time, commitMetadata) == false) {
+                            String className = (commitMetadata == null ? "NULL" : commitMetadata.getClass().getName());
+                            throw new ChronoDBCommitMetadataRejectedException("The given Commit Metadata object (class: " + className + ") was rejected by the commit metadata filter! Cancelling commit.");
+                        }
+                    }
                     if (performanceLoggingActive) {
-                        ChronoLogger.logInfo(perfLogPrefix + " -> Secondary Index Update: " + (System.currentTimeMillis() - beforeSecondaryIndexupdate) + "ms.");
+                        log.info(perfLogPrefix + " -> Commit Metadata Filter: " + (System.currentTimeMillis() - beforeCommitMetadataFilter) + "ms.");
                     }
-                    this.debugCallbackBeforeMetadataUpdate(tx);
-                    // write the commit metadata object (this will also register the commit, even if no metadata is
-                    // given)
-                    long beforeCommitMetadataStoring = System.currentTimeMillis();
-                    this.getCommitMetadataStore().put(time, commitMetadata);
+
+                    long beforeChangeSetAnalysis = System.currentTimeMillis();
+                    ChangeSet changeSet = this.analyzeChangeSet(tx, tx, time);
                     if (performanceLoggingActive) {
-                        ChronoLogger.logInfo(perfLogPrefix + " -> Commit Metadata Store: " + (System.currentTimeMillis() - beforeCommitMetadataStoring) + "ms.");
+                        log.info(perfLogPrefix + " -> Change Set Analysis: " + (System.currentTimeMillis() - beforeChangeSetAnalysis) + "ms.");
                     }
-                    this.debugCallbackBeforeCacheUpdate(tx);
-                    // update the cache (if any)
-                    long beforeCacheUpdate = System.currentTimeMillis();
-                    if (this.getCache() != null && this.isIncrementalCommitProcessOngoing()) {
-                        this.getCache().rollbackToTimestamp(this.getNow());
+
+                    if (this.isIncrementalCommitProcessOngoing() == false) {
+                        long beforeWalTokenHandling = System.currentTimeMillis();
+                        // check that no WAL token exists on disk
+                        this.performRollbackToWALTokenIfExists();
+                        // before we begin the writing to disk, we store a token as a file. This token
+                        // will allow us to recover on the next startup in the event that the JVM crashes or
+                        // is being shut down during the commit process.
+                        WriteAheadLogToken token = new WriteAheadLogToken(this.getNow(), time);
+                        this.performWriteAheadLog(token);
+                        if (performanceLoggingActive) {
+                            log.info(perfLogPrefix + " -> WAL Token Handling: " + (System.currentTimeMillis() - beforeWalTokenHandling) + "ms.");
+                        }
                     }
-                    this.writeCommitThroughCache(tx.getBranchName(), time, changeSet.getEntriesByKeyspace());
+                    // remember if we started to work with the index
+                    boolean touchedIndex = false;
+                    if (this.isIncrementalCommitProcessOngoing()) {
+                        // when committing incrementally, always assume that we touched the index, because
+                        // some of the preceeding incremental commits has very likely touched it.
+                        touchedIndex = true;
+                    }
+                    try {
+                        // here, we perform the actual *write* work.
+                        this.debugCallbackBeforePrimaryIndexUpdate(tx);
+                        long beforePrimaryIndexUpdate = System.currentTimeMillis();
+                        this.updatePrimaryIndex(perfLogPrefix + " -> Primary Index Update", time, changeSet);
+                        if (performanceLoggingActive) {
+                            log.info(perfLogPrefix + " -> Primary Index Update: " + (System.currentTimeMillis() - beforePrimaryIndexUpdate) + "ms.");
+                        }
+                        this.debugCallbackBeforeSecondaryIndexUpdate(tx);
+                        long beforeSecondaryIndexupdate = System.currentTimeMillis();
+                        touchedIndex = this.updateSecondaryIndices(changeSet) || touchedIndex;
+                        if (performanceLoggingActive) {
+                            log.info(perfLogPrefix + " -> Secondary Index Update: " + (System.currentTimeMillis() - beforeSecondaryIndexupdate) + "ms.");
+                        }
+                        this.debugCallbackBeforeMetadataUpdate(tx);
+                        // write the commit metadata object (this will also register the commit, even if no metadata is
+                        // given)
+                        long beforeCommitMetadataStoring = System.currentTimeMillis();
+                        this.getCommitMetadataStore().put(time, commitMetadata);
+                        if (performanceLoggingActive) {
+                            log.info(perfLogPrefix + " -> Commit Metadata Store: " + (System.currentTimeMillis() - beforeCommitMetadataStoring) + "ms.");
+                        }
+                        this.debugCallbackBeforeCacheUpdate(tx);
+                        // update the cache (if any)
+                        long beforeCacheUpdate = System.currentTimeMillis();
+                        if (this.getCache() != null && this.isIncrementalCommitProcessOngoing()) {
+                            this.getCache().rollbackToTimestamp(this.getNow());
+                        }
+                        this.writeCommitThroughCache(tx.getBranchName(), time, changeSet.getEntriesByKeyspace());
+                        if (performanceLoggingActive) {
+                            log.info(perfLogPrefix + " -> Cache Update: " + (System.currentTimeMillis() - beforeCacheUpdate) + "ms.");
+                        }
+                        this.debugCallbackBeforeNowTimestampUpdate(tx);
+                        long beforeSetNow = System.currentTimeMillis();
+                        this.setNow(time);
+                        if (performanceLoggingActive) {
+                            log.info(perfLogPrefix + " -> Set Now: " + (System.currentTimeMillis() - beforeSetNow) + "ms.");
+                        }
+                        this.debugCallbackBeforeTransactionCommitted(tx);
+                    } catch (Throwable t) {
+                        // an error occurred, we need to perform the rollback
+                        this.rollbackCurrentCommit(changeSet, touchedIndex);
+                        // throw the commit exception
+                        throw new ChronoDBCommitException(
+                            "An error occurred during the commit. Please see root cause for details.", t);
+                    }
+                    long beforeClearWalToken = System.currentTimeMillis();
+                    // everything ok in this commit, we can clear the write ahead log
+                    this.clearWriteAheadLogToken();
                     if (performanceLoggingActive) {
-                        ChronoLogger.logInfo(perfLogPrefix + " -> Cache Update: " + (System.currentTimeMillis() - beforeCacheUpdate) + "ms.");
+                        log.info(perfLogPrefix + " -> Clear WAL token: " + (System.currentTimeMillis() - beforeClearWalToken) + "ms.");
                     }
-                    this.debugCallbackBeforeNowTimestampUpdate(tx);
-                    long beforeSetNow = System.currentTimeMillis();
-                    this.setNow(time);
-                    if (performanceLoggingActive) {
-                        ChronoLogger.logInfo(perfLogPrefix + " -> Set Now: " + (System.currentTimeMillis() - beforeSetNow) + "ms.");
-                    }
-                    this.debugCallbackBeforeTransactionCommitted(tx);
-                } catch (Throwable t) {
-                    // an error occurred, we need to perform the rollback
-                    this.rollbackCurrentCommit(changeSet, touchedIndex);
-                    // throw the commit exception
-                    throw new ChronoDBCommitException(
-                        "An error occurred during the commit. Please see root cause for details.", t);
-                }
-                long beforeClearWalToken = System.currentTimeMillis();
-                // everything ok in this commit, we can clear the write ahead log
-                this.clearWriteAheadLogToken();
-                if (performanceLoggingActive) {
-                    ChronoLogger.logInfo(perfLogPrefix + " -> Clear WAL token: " + (System.currentTimeMillis() - beforeClearWalToken) + "ms.");
-                }
-                // clear the branch head statistics cache, forcing a recalculation on the next access
-                this.owningDB.getStatisticsManager().clearBranchHeadStatistics(tx.getBranchName());
-                return time;
-            } finally {
-                try {
+                    // clear the branch head statistics cache, forcing a recalculation on the next access
+                    this.owningDB.getStatisticsManager().clearBranchHeadStatistics(tx.getBranchName());
+                    return time;
+                } finally {
                     if (this.isIncrementalCommitProcessOngoing()) {
                         this.terminateIncrementalCommitProcess();
                     }
-                } finally {
-                    this.commitLock.unlock();
-                }
-                long beforeDestroyKryo = System.currentTimeMillis();
-                // drop the kryo instance we have been using, as it has some internal caches that just consume memory
-                KryoManager.destroyKryo();
-                if (performanceLoggingActive) {
-                    ChronoLogger.logInfo(perfLogPrefix + " -> Destroy Kryo: " + (System.currentTimeMillis() - beforeDestroyKryo) + "ms.");
+                    long beforeDestroyKryo = System.currentTimeMillis();
+                    // drop the kryo instance we have been using, as it has some internal caches that just consume memory
+                    KryoManager.destroyKryo();
+                    if (performanceLoggingActive) {
+                        log.info(perfLogPrefix + " -> Destroy Kryo: " + (System.currentTimeMillis() - beforeDestroyKryo) + "ms.");
+                    }
                 }
             }
         }
@@ -368,48 +398,47 @@ public abstract class AbstractTemporalKeyValueStore extends TemporalKeyValueStor
                 WriteAheadLogToken token = new WriteAheadLogToken(this.getNow(), this.incrementalCommitTimestamp);
                 this.performWriteAheadLog(token);
             }
-            this.commitLock.lock();
-            try {
-
-                long time = this.incrementalCommitTimestamp;
-                if (tx.getChangeSet().isEmpty()) {
-                    // change set is empty -> there is nothing to commit
-                    return this.incrementalCommitTimestamp;
-                }
-                // prepare a transaction to fetch the "old values" with. The old values
-                // are the ones that existed BEFORE we started the incremental commit process.
-                ChronoDBTransaction oldValueTx = this.tx(tx.getBranchName(), this.getNow());
-                ChangeSet changeSet = this.analyzeChangeSet(tx, oldValueTx, time);
+            synchronized (this.commitLock) {
                 try {
-                    // here, we perform the actual *write* work.
-                    this.debugCallbackBeforePrimaryIndexUpdate(tx);
-                    this.updatePrimaryIndex(perfLogPrefix + " -> Primary Index Update", time, changeSet);
-                    this.debugCallbackBeforeSecondaryIndexUpdate(tx);
-                    this.updateSecondaryIndices(changeSet);
-                    this.debugCallbackBeforeCacheUpdate(tx);
-                    // update the cache (if any)
-                    this.getCache().rollbackToTimestamp(this.getNow());
-                    this.writeCommitThroughCache(tx.getBranchName(), time, changeSet.getEntriesByKeyspace());
-                    this.debugCallbackBeforeTransactionCommitted(tx);
-                } catch (Throwable t) {
-                    // an error occurred, we need to perform the rollback
-                    this.performRollbackToTimestamp(this.getNow(), changeSet.getEntriesByKeyspace().keySet(), true);
-                    // as a safety measure, we also have to clear the cache
-                    this.getCache().clear();
-                    // terminate the incremental commit process
-                    this.terminateIncrementalCommitProcess();
-                    // after rolling back, we can clear the write ahead log
-                    this.clearWriteAheadLogToken();
-                    // throw the commit exception
-                    throw new ChronoDBCommitException(
-                        "An error occurred during the commit. Please see root cause for details.", t);
+                    long time = this.incrementalCommitTimestamp;
+                    if (tx.getChangeSet().isEmpty()) {
+                        // change set is empty -> there is nothing to commit
+                        return this.incrementalCommitTimestamp;
+                    }
+                    // prepare a transaction to fetch the "old values" with. The old values
+                    // are the ones that existed BEFORE we started the incremental commit process.
+                    ChronoDBTransaction oldValueTx = this.tx(tx.getBranchName(), this.getNow());
+                    ChangeSet changeSet = this.analyzeChangeSet(tx, oldValueTx, time);
+                    try {
+                        // here, we perform the actual *write* work.
+                        this.debugCallbackBeforePrimaryIndexUpdate(tx);
+                        this.updatePrimaryIndex(perfLogPrefix + " -> Primary Index Update", time, changeSet);
+                        this.debugCallbackBeforeSecondaryIndexUpdate(tx);
+                        this.updateSecondaryIndices(changeSet);
+                        this.debugCallbackBeforeCacheUpdate(tx);
+                        // update the cache (if any)
+                        this.getCache().rollbackToTimestamp(this.getNow());
+                        this.writeCommitThroughCache(tx.getBranchName(), time, changeSet.getEntriesByKeyspace());
+                        this.debugCallbackBeforeTransactionCommitted(tx);
+                    } catch (Throwable t) {
+                        // an error occurred, we need to perform the rollback
+                        this.performRollbackToTimestamp(this.getNow(), changeSet.getEntriesByKeyspace().keySet(), true);
+                        // as a safety measure, we also have to clear the cache
+                        this.getCache().clear();
+                        // terminate the incremental commit process
+                        this.terminateIncrementalCommitProcess();
+                        // after rolling back, we can clear the write ahead log
+                        this.clearWriteAheadLogToken();
+                        // throw the commit exception
+                        throw new ChronoDBCommitException(
+                            "An error occurred during the commit. Please see root cause for details.", t);
+                    }
+                    // note: we do NOT clear the write-ahead log here, because we are still waiting for the terminating
+                    // full commit.
+                } finally {
+                    // drop the kryo instance we have been using, as it has some internal caches that just consume memory
+                    KryoManager.destroyKryo();
                 }
-                // note: we do NOT clear the write-ahead log here, because we are still waiting for the terminating
-                // full commit.
-            } finally {
-                this.commitLock.unlock();
-                // drop the kryo instance we have been using, as it has some internal caches that just consume memory
-                KryoManager.destroyKryo();
             }
             return this.incrementalCommitTimestamp;
         }
@@ -421,7 +450,7 @@ public abstract class AbstractTemporalKeyValueStore extends TemporalKeyValueStor
         if (walToken != null) {
             // a write-ahead log token already exists in our store. This means that another transaction
             // failed mid-way.
-            ChronoLogger.logWarning("The transaction log indicates that a transaction after timestamp '"
+            log.warn("The transaction log indicates that a transaction after timestamp '"
                 + walToken.getNowTimestampBeforeCommit() + "' has failed. Will perform a rollback to timestamp '"
                 + walToken.getNowTimestampBeforeCommit() + "'. This may take a while.");
             this.performRollbackToTimestamp(walToken.getNowTimestampBeforeCommit(), this.getAllKeyspaces(), true);
@@ -588,8 +617,14 @@ public abstract class AbstractTemporalKeyValueStore extends TemporalKeyValueStor
             } else {
                 // we are a sub-branch, accumulate changes along the way
                 Branch origin = this.getOwningBranch().getOrigin();
-                long branchingTS = this.getOwningBranch().getBranchingTimestamp();
-                ChronoDBTransaction tmpTX = this.getOwningDB().tx(origin.getName(), branchingTS);
+                long branchingTimestamp = this.getOwningBranch().getBranchingTimestamp();
+                long parentTimestamp;
+                if (timestamp < branchingTimestamp) {
+                    parentTimestamp = timestamp;
+                } else {
+                    parentTimestamp = branchingTimestamp;
+                }
+                ChronoDBTransaction tmpTX = this.getOwningDB().tx(origin.getName(), parentTimestamp);
                 Set<String> keySet = tmpTX.keySet(keyspaceName);
                 if (matrix == null) {
                     // the matrix does not exist in this branch, i.e. nothing was added to it yet,
@@ -667,10 +702,23 @@ public abstract class AbstractTemporalKeyValueStore extends TemporalKeyValueStor
         checkNotNull(key, "Precondition violation - argument 'key' must not be NULL!");
         try (AutoLock lock = this.lockNonExclusive()) {
             TemporalDataMatrix matrix = this.getMatrix(key.getKeyspace());
-            if (matrix == null) {
-                return -1;
+            long lastCommitTimestamp = -1;
+            if (matrix != null) {
+                lastCommitTimestamp = matrix.lastCommitTimestamp(key.getKey(), tx.getTimestamp());
             }
-            return matrix.lastCommitTimestamp(key.getKey(), tx.getTimestamp());
+            if (lastCommitTimestamp < 0) {
+                // there was no commit in OUR branch, but maybe in the parent?
+                if (this.isMasterBranchTKVS()) {
+                    // keyspace doesn't exist, history is empty by definition
+                    return -1;
+                } else {
+                    // re-route the request and ask the parent branch
+                    long newTransactionTimestamp = Math.min(tx.getTimestamp(), this.owningBranch.getBranchingTimestamp());
+                    ChronoDBTransaction tempTx = this.createOriginBranchTx(newTransactionTimestamp);
+                    return this.getOriginBranchTKVS().performGetLastModificationTimestamp(tempTx, key);
+                }
+            }
+            return lastCommitTimestamp;
         }
     }
 
@@ -1067,12 +1115,10 @@ public abstract class AbstractTemporalKeyValueStore extends TemporalKeyValueStor
         try (AutoLock lock = this.owningDB.lockExclusive()) {
             List<Long> commitTimestamps = Lists.newArrayList(this.getCommitMetadataStore()
                 .getCommitTimestampsBetween(purgeRangeStart, purgeRangeEnd, Order.ASCENDING, true));
-            System.out.println("Commit timestamps in range [" + purgeRangeStart + ";" + purgeRangeEnd + "]: " + commitTimestamps);
             for (long commitTimestamp : commitTimestamps) {
                 affectedKeys.addAll(this.datebackPurgeCommit(commitTimestamp));
             }
         }
-        System.out.println("Keys affected by PURGE[" + purgeRangeStart + ";" + purgeRangeEnd + "]: " + affectedKeys);
         return affectedKeys;
     }
 
@@ -1310,7 +1356,7 @@ public abstract class AbstractTemporalKeyValueStore extends TemporalKeyValueStor
     @Override
     public Collection<TemporalKey> datebackTransformValuesOfKeyspace(final String keyspace, final KeyspaceValueTransformation valueTransformation) {
         TemporalDataMatrix matrix = this.getMatrix(keyspace);
-        if(matrix == null){
+        if (matrix == null) {
             // the keyspace doesn't exist...
             return Collections.emptySet();
         }
@@ -1318,29 +1364,29 @@ public abstract class AbstractTemporalKeyValueStore extends TemporalKeyValueStor
         // the new data could grow to considerable sizes. However, it is the easiest way to implement this for now.
         Set<UnqualifiedTemporalEntry> newEntries = Sets.newHashSet();
         CloseableIterator<UnqualifiedTemporalEntry> iterator = matrix.allEntriesIterator(this.owningBranch.getBranchingTimestamp(), Long.MAX_VALUE);
-        try{
-            while(iterator.hasNext()){
+        try {
+            while (iterator.hasNext()) {
                 UnqualifiedTemporalEntry entry = iterator.next();
                 UnqualifiedTemporalKey temporalKey = entry.getKey();
                 String key = temporalKey.getKey();
                 long timestamp = temporalKey.getTimestamp();
                 Object oldValue = this.deserialize(entry.getValue());
-                if(oldValue == null){
+                if (oldValue == null) {
                     // do not alter deletion markers
                     continue;
                 }
                 Object newValue = valueTransformation.transformValue(key, timestamp, oldValue);
-                if(newValue == null){
+                if (newValue == null) {
                     throw new IllegalStateException("KeyspaceValueTransform unexpectedly returned NULL! It is not allowed to delete values!");
                 }
-                if(newValue == Dateback.UNCHANGED){
+                if (newValue == Dateback.UNCHANGED) {
                     // do not change this entry
                     continue;
                 }
                 UnqualifiedTemporalEntry newEntry = new UnqualifiedTemporalEntry(temporalKey, this.serialize(newValue));
                 newEntries.add(newEntry);
             }
-        }finally{
+        } finally {
             iterator.close();
         }
         matrix.insertEntries(newEntries, true);
@@ -1433,7 +1479,7 @@ public abstract class AbstractTemporalKeyValueStore extends TemporalKeyValueStor
         checkNotNull(keyspaceName, "Precondition violation - argument 'keyspaceName' must not be NULL!");
         checkArgument(creationTimestamp >= 0, "Precondition violation - argument 'creationTimestamp' must not be negative!");
         TemporalDataMatrix matrix = this.getMatrix(keyspaceName);
-        if(matrix != null){
+        if (matrix != null) {
             matrix.ensureCreationTimestampIsGreaterThanOrEqualTo(creationTimestamp);
         }
     }
@@ -1618,8 +1664,7 @@ public abstract class AbstractTemporalKeyValueStore extends TemporalKeyValueStor
     }
 
     protected void assertThatTransactionMayPerformIncrementalCommit(final ChronoDBTransaction tx) {
-        this.incrementalCommitLock.lock();
-        try {
+        synchronized (this.incrementalCommitLock) {
             if (this.incrementalCommitTransaction == null) {
                 // nobody is currently performing an incremental commit, this means
                 // that the given transaction may start an incremental commit process.
@@ -1643,14 +1688,11 @@ public abstract class AbstractTemporalKeyValueStore extends TemporalKeyValueStor
                             + "therefore this incremental commit is rejected.");
                 }
             }
-        } finally {
-            this.incrementalCommitLock.unlock();
         }
     }
 
     protected void assertThatTransactionMayPerformCommit(final ChronoDBTransaction tx) {
-        this.incrementalCommitLock.lock();
-        try {
+        synchronized (this.incrementalCommitLock) {
             if (this.incrementalCommitTransaction == null) {
                 // no incremental commit is going on; accept the regular commit
                 return;
@@ -1670,14 +1712,11 @@ public abstract class AbstractTemporalKeyValueStore extends TemporalKeyValueStor
                             + "therefore this commit is rejected.");
                 }
             }
-        } finally {
-            this.incrementalCommitLock.unlock();
         }
     }
 
     protected boolean isFirstIncrementalCommit(final ChronoDBTransaction tx) {
-        this.incrementalCommitLock.lock();
-        try {
+        synchronized (this.incrementalCommitLock) {
             if (this.incrementalCommitTimestamp > 0) {
                 // the incremental commit timestamp has already been decided -> this cannot be the first incremental
                 // commit
@@ -1686,14 +1725,11 @@ public abstract class AbstractTemporalKeyValueStore extends TemporalKeyValueStor
                 // the incremental commit timestamp has not yet been decided -> this is the first incremental commit
                 return true;
             }
-        } finally {
-            this.incrementalCommitLock.unlock();
         }
     }
 
     protected void setUpIncrementalCommit(final ChronoDBTransaction tx) {
-        this.incrementalCommitLock.lock();
-        try {
+        synchronized (this.incrementalCommitLock) {
             this.incrementalCommitTimestamp = System.currentTimeMillis();
             // make sure we do not write to the same timestamp twice
             while (this.incrementalCommitTimestamp <= this.getNow()) {
@@ -1706,31 +1742,23 @@ public abstract class AbstractTemporalKeyValueStore extends TemporalKeyValueStor
                 this.incrementalCommitTimestamp = System.currentTimeMillis();
             }
             this.incrementalCommitTransaction = tx;
-        } finally {
-            this.incrementalCommitLock.unlock();
         }
     }
 
     protected void terminateIncrementalCommitProcess() {
-        this.incrementalCommitLock.lock();
-        try {
+        synchronized (this.incrementalCommitLock) {
             this.incrementalCommitTimestamp = -1L;
             this.incrementalCommitTransaction = null;
-        } finally {
-            this.incrementalCommitLock.unlock();
         }
     }
 
     protected boolean isIncrementalCommitProcessOngoing() {
-        this.incrementalCommitLock.lock();
-        try {
+        synchronized (this.incrementalCommitLock) {
             if (this.incrementalCommitTimestamp >= 0) {
                 return true;
             } else {
                 return false;
             }
-        } finally {
-            this.incrementalCommitLock.unlock();
         }
     }
 
@@ -1822,23 +1850,15 @@ public abstract class AbstractTemporalKeyValueStore extends TemporalKeyValueStor
     // =================================================================================================================
 
     private long waitForNextValidCommitTimestamp() {
-        long time;
-        time = System.currentTimeMillis();
         // make sure we do not write to the same timestamp twice
-        while (time <= this.getNow()) {
-            try {
-                Thread.sleep(1);
-            } catch (InterruptedException ignored) {
-                // raise the interrupt flag again
-                Thread.currentThread().interrupt();
-            }
-            time = System.currentTimeMillis();
-        }
-        return time;
+        return this.owningDB.getCommitTimestampProvider().getNextCommitTimestamp(this.getNow());
     }
 
-    private ChangeSet analyzeChangeSet(final ChronoDBTransaction tx, final ChronoDBTransaction oldValueTx,
-                                       final long time) {
+    private ChangeSet analyzeChangeSet(
+        final ChronoDBTransaction tx,
+        final ChronoDBTransaction oldValueTx,
+        final long time
+    ) {
         ChangeSet changeSet = new ChangeSet();
         boolean duplicateVersionEliminationEnabled = tx.getConfiguration().getDuplicateVersionEliminationMode()
             .equals(DuplicateVersionEliminationMode.ON_COMMIT);
@@ -1894,7 +1914,7 @@ public abstract class AbstractTemporalKeyValueStore extends TemporalKeyValueStor
         Iterable<Entry<String, Map<String, byte[]>>> serializedChangeSet = changeSet
             .getSerializedEntriesByKeyspace(serializer::serialize);
         if (performanceLoggingActive) {
-            ChronoLogger.logInfo(perfLogPrefix + " -> Serialize ChangeSet (" + changeSet.size() + "): " + (System.currentTimeMillis() - beforeSerialization) + "ms.");
+            log.info(perfLogPrefix + " -> Serialize ChangeSet (" + changeSet.size() + "): " + (System.currentTimeMillis() - beforeSerialization) + "ms.");
         }
         for (Entry<String, Map<String, byte[]>> entry : serializedChangeSet) {
             String keyspace = entry.getKey();
@@ -1902,18 +1922,18 @@ public abstract class AbstractTemporalKeyValueStore extends TemporalKeyValueStor
             long beforeGetMatrix = System.currentTimeMillis();
             TemporalDataMatrix matrix = this.getOrCreateMatrix(keyspace, time);
             if (performanceLoggingActive) {
-                ChronoLogger.logInfo(perfLogPrefix + " -> Get Matrix for keyspace [" + keyspace + "]: " + (System.currentTimeMillis() - beforeGetMatrix) + "ms.");
+                log.info(perfLogPrefix + " -> Get Matrix for keyspace [" + keyspace + "]: " + (System.currentTimeMillis() - beforeGetMatrix) + "ms.");
             }
             long beforePut = System.currentTimeMillis();
             matrix.put(time, contents);
             if (performanceLoggingActive) {
-                ChronoLogger.logInfo(perfLogPrefix + " -> Put ChangeSet (" + changeSet.size() + ") into keyspace [" + keyspace + "]: " + (System.currentTimeMillis() - beforePut) + "ms.");
+                log.info(perfLogPrefix + " -> Put ChangeSet (" + changeSet.size() + ") into keyspace [" + keyspace + "]: " + (System.currentTimeMillis() - beforePut) + "ms.");
             }
         }
     }
 
     private boolean updateSecondaryIndices(final ChangeSet changeSet) {
-        IndexManager indexManager = this.getOwningDB().getIndexManager();
+        IndexManagerInternal indexManager = this.getOwningDB().getIndexManager();
         if (indexManager != null) {
             if (this.isIncrementalCommitProcessOngoing()) {
                 // clear the query cache (if any). The reason for this is that during incremental updates,

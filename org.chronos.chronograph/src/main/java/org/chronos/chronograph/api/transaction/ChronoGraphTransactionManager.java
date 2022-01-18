@@ -2,6 +2,7 @@ package org.chronos.chronograph.api.transaction;
 
 import java.util.Date;
 
+import org.apache.tinkerpop.gremlin.process.traversal.TraversalSource;
 import org.apache.tinkerpop.gremlin.structure.Transaction;
 import org.chronos.chronodb.api.exceptions.ChronoDBBranchingException;
 import org.chronos.chronograph.api.structure.ChronoGraph;
@@ -369,6 +370,10 @@ public interface ChronoGraphTransactionManager extends Transaction {
 	 */
 	public ChronoGraph createThreadedTx(String branchName, Date date);
 
+	// =================================================================================================================
+	// COMMITTING
+	// =================================================================================================================
+
 	/**
 	 *
 	 *
@@ -412,4 +417,17 @@ public interface ChronoGraphTransactionManager extends Transaction {
 	 */
 	public ChronoGraphTransaction getCurrentTransaction();
 
+	// =================================================================================================================
+	// TX().BEGIN()
+	// =================================================================================================================
+
+
+	@Override
+	public default <T extends TraversalSource> T begin(Class<T> traversalSourceClass) {
+		throw new UnsupportedOperationException(
+			"tx().begin() is not supported in ChronoGraph." +
+				" To open an ambient (thread-bound) transaction, please use tx().open(...)." +
+				" To open an explicit (threaded) transaction, please use tx().createThreadedTx(...)."
+		);
+	}
 }

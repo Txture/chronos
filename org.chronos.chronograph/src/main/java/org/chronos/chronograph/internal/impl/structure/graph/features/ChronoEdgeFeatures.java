@@ -3,6 +3,7 @@ package org.chronos.chronograph.internal.impl.structure.graph.features;
 import static com.google.common.base.Preconditions.*;
 
 import org.apache.tinkerpop.gremlin.structure.Graph;
+import org.apache.tinkerpop.gremlin.structure.Graph.Features.EdgeFeatures;
 import org.apache.tinkerpop.gremlin.structure.Graph.Features.EdgePropertyFeatures;
 import org.chronos.chronograph.internal.api.structure.ChronoGraphInternal;
 
@@ -46,6 +47,11 @@ class ChronoEdgeFeatures implements Graph.Features.EdgeFeatures {
 
 	@Override
 	public boolean supportsUuidIds() {
+		return false;
+	}
+
+	@Override
+	public boolean supportsNullPropertyValues() {
 		return false;
 	}
 

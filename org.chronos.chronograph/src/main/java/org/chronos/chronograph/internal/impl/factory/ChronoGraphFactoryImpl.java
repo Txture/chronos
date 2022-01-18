@@ -1,14 +1,14 @@
 package org.chronos.chronograph.internal.impl.factory;
 
-import static com.google.common.base.Preconditions.*;
-
-import org.apache.commons.configuration.Configuration;
+import org.apache.commons.configuration2.Configuration;
 import org.apache.tinkerpop.gremlin.structure.util.GraphFactory;
 import org.apache.tinkerpop.gremlin.structure.util.GraphFactoryClass;
 import org.chronos.chronograph.api.ChronoGraphFactory;
 import org.chronos.chronograph.api.builder.graph.ChronoGraphBaseBuilder;
 import org.chronos.chronograph.api.structure.ChronoGraph;
 import org.chronos.chronograph.internal.impl.builder.graph.ChronoGraphBaseBuilderImpl;
+
+import static com.google.common.base.Preconditions.*;
 
 public class ChronoGraphFactoryImpl implements ChronoGraphFactory {
 

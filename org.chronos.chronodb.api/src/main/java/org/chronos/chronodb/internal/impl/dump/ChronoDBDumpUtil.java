@@ -14,6 +14,7 @@ import org.chronos.chronodb.api.indexing.Indexer;
 import org.chronos.chronodb.api.key.ChronoIdentifier;
 import org.chronos.chronodb.internal.api.*;
 import org.chronos.chronodb.internal.api.dateback.log.DatebackOperation;
+import org.chronos.chronodb.internal.api.index.IndexManagerInternal;
 import org.chronos.chronodb.internal.api.stream.ChronoDBEntry;
 import org.chronos.chronodb.internal.api.stream.CloseableIterator;
 import org.chronos.chronodb.internal.api.stream.ObjectInput;
@@ -25,31 +26,23 @@ import org.chronos.chronodb.internal.impl.dump.base.ChronoDBDumpElement;
 import org.chronos.chronodb.internal.impl.dump.entry.ChronoDBDumpBinaryEntry;
 import org.chronos.chronodb.internal.impl.dump.entry.ChronoDBDumpEntry;
 import org.chronos.chronodb.internal.impl.dump.entry.ChronoDBDumpPlainEntry;
-import org.chronos.chronodb.internal.impl.dump.meta.BranchDumpMetadata;
-import org.chronos.chronodb.internal.impl.dump.meta.ChronoDBDumpMetadata;
-import org.chronos.chronodb.internal.impl.dump.meta.CommitDumpMetadata;
-import org.chronos.chronodb.internal.impl.dump.meta.IndexerDumpMetadata;
+import org.chronos.chronodb.internal.impl.dump.meta.*;
 import org.chronos.chronodb.internal.impl.dump.meta.dateback.*;
-import org.chronos.common.logging.ChronoLogger;
+import org.chronos.chronodb.internal.impl.index.SecondaryIndexImpl;
 import org.chronos.common.util.ReflectionUtils;
 import org.chronos.common.version.ChronosVersion;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
-import java.util.Stack;
-import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.*;
 
 public class ChronoDBDumpUtil {
+
+    private static final Logger log = LoggerFactory.getLogger(ChronoDBDumpUtil.class);
 
     // =====================================================================================================================
     // PUBLIC API
@@ -134,7 +127,7 @@ public class ChronoDBDumpUtil {
         try {
             return ReflectionUtils.instantiate(converterClass);
         } catch (Exception e) {
-            ChronoLogger.logWarning("Could not instantiate Plain-Text-Converter class '" + converterClass.getName()
+            log.warn("Could not instantiate Plain-Text-Converter class '" + converterClass.getName()
                 + "' for annotated class '" + value.getClass().getName() + "'. Falling back to binary.");
             return null;
         }
@@ -246,14 +239,10 @@ public class ChronoDBDumpUtil {
         }
         // copy indexer metadata
         IndexManager indexManager = db.getIndexManager();
-        Map<String, Set<Indexer<?>>> indexersByIndexName = indexManager.getIndexersByIndexName();
-        for (Entry<String, Set<Indexer<?>>> indexNameToIndexers : indexersByIndexName.entrySet()) {
-            String indexName = indexNameToIndexers.getKey();
-            Set<Indexer<?>> indexers = indexNameToIndexers.getValue();
-            for (Indexer<?> indexer : indexers) {
-                IndexerDumpMetadata indexDump = new IndexerDumpMetadata(indexName, indexer);
-                dbDumpMetadata.getIndexerDumpMetadata().add(indexDump);
-            }
+        Set<SecondaryIndex> indices = indexManager.getIndices();
+        for (SecondaryIndex index : indices) {
+            IndexerDumpMetadataV2 indexDump = new IndexerDumpMetadataV2(index);
+            dbDumpMetadata.getIndexerDumpMetadata().add(indexDump);
         }
         // copy dateback metadata
         DatebackManager datebackManager = db.getDatebackManager();
@@ -271,7 +260,7 @@ public class ChronoDBDumpUtil {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static ChronoDBDumpEntry<?> convertToDumpEntry(final ChronoDBEntry entry,
-                                                           final SerializationManager serializationManager, final ConverterRegistry converters) {
+                                                          final SerializationManager serializationManager, final ConverterRegistry converters) {
         ChronoDBDumpEntry<?> dumpEntry;
         byte[] serializedValue = entry.getValue();
         if (serializedValue == null || serializedValue.length < 1) {
@@ -288,7 +277,7 @@ public class ChronoDBDumpUtil {
                 try {
                     externalRepresentation = converter.writeToOutput(deserializedValue);
                     if (externalRepresentation == null) {
-                        ChronoLogger.logError("Plain text converter '" + converter.getClass()
+                        log.error("Plain text converter '" + converter.getClass()
                             + "' produced NULL! Falling back to binary.");
                         // set the plain text to NULL, in case that it was empty
                         externalRepresentation = null;
@@ -303,7 +292,7 @@ public class ChronoDBDumpUtil {
 
                     }
                 } catch (Exception e) {
-                    ChronoLogger.logError("Chrono converter '" + converter.getClass()
+                    log.error("Chrono converter '" + converter.getClass()
                         + "' produced an error! Falling back to binary. Exception is: " + e.toString());
                 }
             } else {
@@ -367,8 +356,8 @@ public class ChronoDBDumpUtil {
                 op.getFromTimestamp(),
                 op.getToTimestamp()
             );
-        } else if(datebackOperation instanceof PurgeKeyspaceOperation){
-            PurgeKeyspaceOperation op = (PurgeKeyspaceOperation)datebackOperation;
+        } else if (datebackOperation instanceof PurgeKeyspaceOperation) {
+            PurgeKeyspaceOperation op = (PurgeKeyspaceOperation) datebackOperation;
             return new PurgeKeyspaceOperationLog(
                 op.getId(),
                 op.getBranch(),
@@ -379,14 +368,14 @@ public class ChronoDBDumpUtil {
             );
         } else if (datebackOperation instanceof TransformCommitOperation) {
             TransformCommitOperation op = (TransformCommitOperation) datebackOperation;
-            return new TransformCommitOperationLog2 (
+            return new TransformCommitOperationLog2(
                 op.getId(),
                 op.getBranch(),
                 op.getWallClockTime(),
                 op.getCommitTimestamp()
             );
-        } else if(datebackOperation instanceof TransformCommitOperation2){
-            TransformCommitOperation2 op = (TransformCommitOperation2)datebackOperation;
+        } else if (datebackOperation instanceof TransformCommitOperation2) {
+            TransformCommitOperation2 op = (TransformCommitOperation2) datebackOperation;
             return new TransformCommitOperationLog2(
                 op.getId(),
                 op.getBranch(),
@@ -486,7 +475,7 @@ public class ChronoDBDumpUtil {
                 String childBranchName = childDumpBranch.getName();
                 long branchingTimestamp = childDumpBranch.getBranchingTimestamp();
                 String directoryName = null;
-                if(childDumpBranch.getDirectoryName() == null){
+                if (childDumpBranch.getDirectoryName() == null) {
                     if (db.isFileBased()) {
                         if (childBranchName.equals(ChronoDBConstants.MASTER_BRANCH_IDENTIFIER)) {
                             directoryName = ChronoDBConstants.MASTER_BRANCH_IDENTIFIER;
@@ -494,7 +483,7 @@ public class ChronoDBDumpUtil {
                             directoryName = UUID.randomUUID().toString().replaceAll("-", "_");
                         }
                     }
-                }else{
+                } else {
                     directoryName = childDumpBranch.getDirectoryName();
                 }
                 // create the child
@@ -533,7 +522,7 @@ public class ChronoDBDumpUtil {
             // this element should be an entry...
             if (element instanceof ChronoDBDumpEntry == false) {
                 // hm... no idea what this could be.
-                ChronoLogger.logError("Encountered unexpected element of type '" + element.getClass().getName()
+                log.error("Encountered unexpected element of type '" + element.getClass().getName()
                     + "', expected '" + ChronoDBDumpEntry.class.getName() + "'. Skipping this entry.");
                 continue;
             }
@@ -544,7 +533,9 @@ public class ChronoDBDumpUtil {
             commitMetadataMap.addEntry(entry.getIdentifier());
             // check if we need to flush our read batch into the DB
             if (readBatch.size() >= batchSize) {
-                ChronoLogger.logDebug("Reading a batch of size " + batchSize);
+                if (log.isDebugEnabled()) {
+                    log.debug("Reading a batch of size " + batchSize);
+                }
                 db.loadEntries(readBatch);
                 readBatch.clear();
             }
@@ -559,7 +550,7 @@ public class ChronoDBDumpUtil {
     }
 
     public static ChronoDBEntry convertDumpEntryToDBEntry(final ChronoDBDumpEntry<?> dumpEntry,
-                                                           final SerializationManager serializationManager, final ConverterRegistry converters) {
+                                                          final SerializationManager serializationManager, final ConverterRegistry converters) {
         checkNotNull(dumpEntry, "Precondition violation - argument 'dumpEntry' must not be NULL!");
         checkNotNull(serializationManager,
             "Precondition violation - argument 'serializationManager' must not be NULL!");
@@ -617,19 +608,43 @@ public class ChronoDBDumpUtil {
     public static void setupIndexers(final ChronoDBInternal db, final ChronoDBDumpMetadata metadata) {
         checkNotNull(db, "Precondition violation - argument 'db' must not be NULL!");
         checkNotNull(metadata, "Precondition violation - argument 'metadata' must not be NULL!");
-        IndexManager indexManager = db.getIndexManager();
-        Set<IndexerDumpMetadata> indexerDumpMetadata = metadata.getIndexerDumpMetadata();
+        IndexManagerInternal indexManager = db.getIndexManager();
+        Set<IIndexerDumpMetadata> indexerDumpMetadata = metadata.getIndexerDumpMetadata();
         // insert the indexers, one by one
-        for (IndexerDumpMetadata indexerMetadata : indexerDumpMetadata) {
-            Indexer<?> indexer = indexerMetadata.getIndexer();
-            String name = indexerMetadata.getIndexName();
-            if (indexer == null) {
-                ChronoLogger.logError("Failed to reconstruct index '" + name + "' because indexer is unavailable"
+        Set<SecondaryIndex> indices = indexerDumpMetadata.stream().map(ChronoDBDumpUtil::loadIndexerFromDump).filter(Objects::nonNull).collect(Collectors.toSet());
+        indexManager.addIndices(indices);
+    }
+
+    private static SecondaryIndex loadIndexerFromDump(final IIndexerDumpMetadata indexerMetadata) {
+        try {
+            if (indexerMetadata instanceof IndexerDumpMetadata) {
+                // Version 1 -> superseded by SecondaryIndex
+                IndexerDumpMetadata indexerDump = (IndexerDumpMetadata) indexerMetadata;
+                Indexer<?> indexer = indexerDump.getIndexer();
+                String indexName = indexerDump.getIndexName();
+                return new SecondaryIndexImpl(
+                    UUID.randomUUID().toString(),
+                    indexName,
+                    indexer,
+                    Period.eternal(),
+                    ChronoDBConstants.MASTER_BRANCH_IDENTIFIER,
+                    null, /* parent index */
+                    true, /* dirty */
+                    Collections.emptySet() /* options */
+                );
+            } else if (indexerMetadata instanceof IndexerDumpMetadataV2) {
+                return ((IndexerDumpMetadataV2) indexerMetadata).toSecondaryIndex();
+            } else {
+                log.error("Failed to reconstruct an index because the dump class '" + indexerMetadata.getClass().getName() + "' is unknown"
                     + " - skipping it!");
-                continue;
+                return null;
             }
-            indexManager.addIndexer(name, indexer);
+        } catch (Exception e) {
+            log.error("Failed to reconstruct an index because of a deserialization exception"
+                + " - skipping it!", e);
+            return null;
         }
+
     }
 
 
@@ -683,8 +698,8 @@ public class ChronoDBDumpUtil {
                 op.getFromTimestamp(),
                 op.getToTimestamp()
             );
-        } else if(operation instanceof PurgeKeyspaceOperationLog){
-            PurgeKeyspaceOperationLog op = (PurgeKeyspaceOperationLog)operation;
+        } else if (operation instanceof PurgeKeyspaceOperationLog) {
+            PurgeKeyspaceOperationLog op = (PurgeKeyspaceOperationLog) operation;
             return new PurgeKeyspaceOperation(
                 op.getId(),
                 op.getBranch(),
@@ -701,8 +716,8 @@ public class ChronoDBDumpUtil {
                 op.getWallClockTime(),
                 op.getCommitTimestamp()
             );
-        } else if(operation instanceof TransformCommitOperationLog2){
-            TransformCommitOperationLog2 op = (TransformCommitOperationLog2)operation;
+        } else if (operation instanceof TransformCommitOperationLog2) {
+            TransformCommitOperationLog2 op = (TransformCommitOperationLog2) operation;
             return new TransformCommitOperation2(
                 op.getId(),
                 op.getBranch(),

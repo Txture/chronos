@@ -5,8 +5,8 @@ import jetbrains.exodus.backup.BackupStrategy
 import jetbrains.exodus.crypto.StreamCipherProvider
 import jetbrains.exodus.env.*
 import jetbrains.exodus.management.Statistics
+import mu.KotlinLogging
 import org.chronos.chronodb.exodus.kotlin.ext.mapSingle
-import org.chronos.common.logging.ChronoLogger
 import java.io.Closeable
 import java.io.File
 import java.lang.IllegalStateException
@@ -17,6 +17,12 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.withLock
 
 class EnvironmentManager : Closeable{
+
+    companion object {
+
+        private val log = KotlinLogging.logger {}
+
+    }
 
     @Volatile
     private var isClosed = false
@@ -53,7 +59,7 @@ class EnvironmentManager : Closeable{
 
     private fun getEnvironmentForProxy(proxy: EnvironmentProxy) : Environment {
         assertNotClosed()
-        ChronoLogger.logDebug("Opening Environment ${proxy.file.absolutePath}")
+        log.debug("Opening Environment ${proxy.file.absolutePath}")
         val config = EnvironmentConfig{ key ->
             // note: The Exodus API demands the value to be a string here.
             // Internally, they parse that string again...
@@ -227,7 +233,7 @@ class EnvironmentManager : Closeable{
 
         override fun getEnvironmentConfig(): EnvironmentConfig {
             return this.inReadLock { env ->
-                return env.environmentConfig
+                env.environmentConfig
             }
         }
 
@@ -358,7 +364,7 @@ class EnvironmentManager : Closeable{
                 val myEnv = this.environment
                 val isOpen = myEnv?.isOpen ?: false
                 if (myEnv != null && isOpen) {
-                    ChronoLogger.log("Environment ${myEnv.location} will be closed.")
+                    log.debug { "Environment ${myEnv.location} will be closed." }
                     myEnv.close()
                 }
                 return true

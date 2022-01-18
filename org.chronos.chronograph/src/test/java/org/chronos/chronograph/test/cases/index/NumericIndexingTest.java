@@ -25,30 +25,30 @@ public class NumericIndexingTest extends AllChronoGraphBackendsTest {
     @Test
     public void canAddLongIndex() {
         ChronoGraph g = this.getGraph();
-        ChronoGraphIndex index = g.getIndexManager().create().longIndex().onVertexProperty("number").build();
+        ChronoGraphIndex index = g.getIndexManagerOnMaster().create().longIndex().onVertexProperty("number").acrossAllTimestamps().build();
         assertNotNull(index);
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().reindexAll();
         assertEquals(IndexType.LONG, index.getIndexType());
         assertEquals("number", index.getIndexedProperty());
-        assertTrue(g.getIndexManager().getIndexedVertexProperties().contains(index));
+        assertTrue(g.getIndexManagerOnMaster().getIndexedVertexPropertiesAtAnyPointInTime().contains(index));
     }
 
     @Test
     public void canAddDoubleIndex() {
         ChronoGraph g = this.getGraph();
-        ChronoGraphIndex index = g.getIndexManager().create().doubleIndex().onVertexProperty("number").build();
+        ChronoGraphIndex index = g.getIndexManagerOnMaster().create().doubleIndex().onVertexProperty("number").acrossAllTimestamps().build();
         assertNotNull(index);
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().reindexAll();
         assertEquals(IndexType.DOUBLE, index.getIndexType());
         assertEquals("number", index.getIndexedProperty());
-        assertTrue(g.getIndexManager().getIndexedVertexProperties().contains(index));
+        assertTrue(g.getIndexManagerOnMaster().getIndexedVertexPropertiesAtAnyPointInTime().contains(index));
     }
 
     @Test
     public void simpleLongQueryUsingGremlinWorks() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().longIndex().onVertexProperty("number").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().longIndex().onVertexProperty("number").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         { // insert some data
             g.addVertex("name", "a", "number", 24);
@@ -71,8 +71,8 @@ public class NumericIndexingTest extends AllChronoGraphBackendsTest {
     @Test
     public void simpleDoubleQueryUsingGremlinWorks() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().doubleIndex().onVertexProperty("number").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().doubleIndex().onVertexProperty("number").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         { // insert some data
             g.addVertex("name", "a", "number", 3.1415);

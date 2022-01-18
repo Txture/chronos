@@ -1,6 +1,7 @@
 package org.chronos.chronodb.test.cases.conflict;
 
 import org.chronos.chronodb.api.ChronoDB;
+import org.chronos.chronodb.api.ChronoDBConstants;
 import org.chronos.chronodb.api.ChronoDBTransaction;
 import org.chronos.chronodb.api.conflict.AtomicConflict;
 import org.chronos.chronodb.api.conflict.ConflictResolutionStrategy;
@@ -9,16 +10,19 @@ import org.chronos.chronodb.api.key.QualifiedKey;
 import org.chronos.chronodb.internal.api.ChronoDBConfiguration;
 import org.chronos.chronodb.test.base.AllChronoDBBackendsTest;
 import org.chronos.chronodb.test.base.InstantiateChronosWith;
-import org.chronos.common.test.utils.NamedPayload;
 import org.chronos.chronodb.test.cases.util.model.payload.NamedPayloadNameIndexer;
 import org.chronos.common.test.junit.categories.IntegrationTest;
+import org.chronos.common.test.utils.NamedPayload;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
+import java.util.Collections;
 import java.util.Set;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
+
 
 @Category(IntegrationTest.class)
 public class CommitConflictIntegrationTest extends AllChronoDBBackendsTest {
@@ -89,7 +93,8 @@ public class CommitConflictIntegrationTest extends AllChronoDBBackendsTest {
     @InstantiateChronosWith(property = ChronoDBConfiguration.COMMIT_CONFLICT_RESOLUTION_STRATEGY, value = "OVERWRITE_WITH_SOURCE")
     public void indexingWorksWithOverwriteWithSource() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("name", new NamedPayloadNameIndexer());
+        db.getIndexManager().createIndex().withName("name").withIndexer(new NamedPayloadNameIndexer()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().reindexAll();
         // create a transaction at an early timestamp using a different strategy
         ChronoDBTransaction tx1 = db.tx();
         // create another transaction and write something
@@ -103,32 +108,22 @@ public class CommitConflictIntegrationTest extends AllChronoDBBackendsTest {
         tx1.commit();
 
         // check the state of the store
-        assertThat(((NamedPayload) db.tx().get("k1")).getName(), is("foo"));
-        assertThat(((NamedPayload) db.tx().get("k2")).getName(), is("world"));
-        assertThat(((NamedPayload) db.tx().get("k3")).getName(), is("bar"));
+        assertEquals("foo", ((NamedPayload) db.tx().get("k1")).getName());
+        assertEquals("world", ((NamedPayload) db.tx().get("k2")).getName());
+        assertEquals("bar", ((NamedPayload) db.tx().get("k3")).getName());
 
         // check the state of the secondary index
-        {
-            Set<QualifiedKey> qKeys = db.tx().find().inDefaultKeyspace().where("name").isEqualTo("foo").getKeysAsSet();
-            assertThat(qKeys.size(), is(1));
-            assertThat(qKeys, contains(QualifiedKey.createInDefaultKeyspace("k1")));
-        }
-        {
-            Set<QualifiedKey> qKeys = db.tx().find().inDefaultKeyspace().where("name").isEqualTo("world")
-                .getKeysAsSet();
-            assertThat(qKeys.size(), is(1));
-            assertThat(qKeys, contains(QualifiedKey.createInDefaultKeyspace("k2")));
-        }
-        {
-            Set<QualifiedKey> qKeys = db.tx().find().inDefaultKeyspace().where("name").isEqualTo("bar").getKeysAsSet();
-            assertThat(qKeys.size(), is(1));
-            assertThat(qKeys, contains(QualifiedKey.createInDefaultKeyspace("k3")));
-        }
-        {
-            Set<QualifiedKey> qKeys = db.tx().find().inDefaultKeyspace().where("name").isEqualTo("hello")
-                .getKeysAsSet();
-            assertThat(qKeys.size(), is(0));
-        }
+        Set<QualifiedKey> qKeys = db.tx().find().inDefaultKeyspace().where("name").isEqualTo("foo").getKeysAsSet();
+        assertThat(qKeys.size(), is(1));
+        assertThat(qKeys, contains(QualifiedKey.createInDefaultKeyspace("k1")));
+        Set<QualifiedKey> qKeys2 = db.tx().find().inDefaultKeyspace().where("name").isEqualTo("world").getKeysAsSet();
+        assertThat(qKeys2.size(), is(1));
+        assertThat(qKeys2, contains(QualifiedKey.createInDefaultKeyspace("k2")));
+        Set<QualifiedKey> qKeys3 = db.tx().find().inDefaultKeyspace().where("name").isEqualTo("bar").getKeysAsSet();
+        assertThat(qKeys3.size(), is(1));
+        assertThat(qKeys3, contains(QualifiedKey.createInDefaultKeyspace("k3")));
+        Set<QualifiedKey> qKeys4 = db.tx().find().inDefaultKeyspace().where("name").isEqualTo("hello").getKeysAsSet();
+        assertThat(qKeys4.size(), is(0));
     }
 
     @Test
@@ -137,7 +132,8 @@ public class CommitConflictIntegrationTest extends AllChronoDBBackendsTest {
     @InstantiateChronosWith(property = ChronoDBConfiguration.COMMIT_CONFLICT_RESOLUTION_STRATEGY, value = "OVERWRITE_WITH_TARGET")
     public void indexingWorksWithOverwriteWithTarget() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("name", new NamedPayloadNameIndexer());
+        db.getIndexManager().createIndex().withName("name").withIndexer(new NamedPayloadNameIndexer()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().reindexAll();
         // create a transaction at an early timestamp using a different strategy
         ChronoDBTransaction tx1 = db.tx();
         // create another transaction and write something
@@ -227,7 +223,8 @@ public class CommitConflictIntegrationTest extends AllChronoDBBackendsTest {
     @InstantiateChronosWith(property = ChronoDBConfiguration.COMMIT_CONFLICT_RESOLUTION_STRATEGY, value = "OVERWRITE_WITH_SOURCE")
     public void canConflictResolveDeletions() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("name", new NamedPayloadNameIndexer());
+        db.getIndexManager().createIndex().withName("name").withIndexer(new NamedPayloadNameIndexer()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().reindexAll();
         ChronoDBTransaction tx0 = db.tx();
         tx0.put("k1", "hello");
         tx0.commit();

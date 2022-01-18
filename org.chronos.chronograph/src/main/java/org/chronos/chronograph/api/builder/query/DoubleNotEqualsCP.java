@@ -30,6 +30,26 @@ public class DoubleNotEqualsCP implements BiPredicate<Object, Object> {
     }
 
     @Override
+    public boolean equals(final Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        DoubleNotEqualsCP that = (DoubleNotEqualsCP) o;
+
+        return Double.compare(that.tolerance, tolerance) == 0;
+    }
+
+    @Override
+    public int hashCode() {
+        long temp = Double.doubleToLongBits(tolerance);
+        return (int) (temp ^ (temp >>> 32));
+    }
+
+    @Override
     public String toString() {
         return "Double Neq";
     }

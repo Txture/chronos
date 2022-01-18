@@ -1,5 +1,6 @@
 package org.chronos.chronodb.internal.api.query.searchspec;
 
+import org.chronos.chronodb.api.SecondaryIndex;
 import org.chronos.chronodb.api.query.DoubleContainmentCondition;
 import org.chronos.chronodb.internal.impl.query.ContainmentDoubleSearchSpecificationImpl;
 
@@ -11,8 +12,8 @@ public interface ContainmentDoubleSearchSpecification extends ContainmentSearchS
     // STATIC FACTORY METHODS
     // =================================================================================================================
 
-    static ContainmentDoubleSearchSpecification create(String indexName, DoubleContainmentCondition condition, Set<Double> comparisonValues, double equalityTolerance) {
-        return new ContainmentDoubleSearchSpecificationImpl(indexName, condition, comparisonValues, equalityTolerance);
+    static ContainmentDoubleSearchSpecification create(SecondaryIndex index, DoubleContainmentCondition condition, Set<Double> comparisonValues, double equalityTolerance) {
+        return new ContainmentDoubleSearchSpecificationImpl(index, condition, comparisonValues, equalityTolerance);
     }
 
     // =================================================================================================================

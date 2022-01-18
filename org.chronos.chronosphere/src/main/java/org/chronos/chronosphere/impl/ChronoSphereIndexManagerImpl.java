@@ -13,6 +13,8 @@ import org.chronos.chronosphere.internal.ogm.api.ChronoEPackageRegistry;
 import org.chronos.chronosphere.internal.ogm.api.ChronoSphereGraphFormat;
 import org.eclipse.emf.ecore.EAttribute;
 
+import java.util.Set;
+
 public class ChronoSphereIndexManagerImpl implements ChronoSphereIndexManager {
 
 	// =====================================================================================================================
@@ -46,12 +48,12 @@ public class ChronoSphereIndexManagerImpl implements ChronoSphereIndexManager {
 				throw new IllegalArgumentException("The given EAttribute '" + eAttribute.getName()
 						+ "' is not part of a registered EPackage! Please register the EPackage first.");
 			}
-			if (this.getGraphIndexManager().isVertexPropertyIndexed(propertyKey)) {
+			if (this.getGraphIndexManager().isVertexPropertyIndexedAtAnyPointInTime(propertyKey)) {
 				// index already exists
 				return false;
 			} else {
 				// index does not exist, create it
-				this.getGraphIndexManager().create().stringIndex().onVertexProperty(propertyKey).build();
+				this.getGraphIndexManager().create().stringIndex().onVertexProperty(propertyKey).acrossAllTimestamps().build();
 				return true;
 			}
 		}
@@ -67,7 +69,7 @@ public class ChronoSphereIndexManagerImpl implements ChronoSphereIndexManager {
 				throw new IllegalArgumentException("The given EAttribute '" + eAttribute.getName()
 						+ "' is not part of a registered EPackage! Please register the EPackage first.");
 			}
-			return this.getGraphIndexManager().isVertexPropertyIndexed(propertyKey);
+			return this.getGraphIndexManager().isVertexPropertyIndexedAtAnyPointInTime(propertyKey);
 		}
 	}
 
@@ -81,13 +83,15 @@ public class ChronoSphereIndexManagerImpl implements ChronoSphereIndexManager {
 				throw new IllegalArgumentException("The given EAttribute '" + eAttribute.getName()
 						+ "' is not part of a registered EPackage! Please register the EPackage first.");
 			}
-			ChronoGraphIndex index = this.getGraphIndexManager().getVertexIndex(propertyKey);
-			if (index == null) {
+			Set<ChronoGraphIndex> indices = this.getGraphIndexManager().getVertexIndicesAtAnyPointInTime(propertyKey);
+			if (indices.isEmpty()) {
 				// no index existed
 				return false;
 			} else {
 				// index exists, drop it
-				this.getGraphIndexManager().dropIndex(index);
+				for(ChronoGraphIndex graphIndex : indices){
+					this.getGraphIndexManager().dropIndex(graphIndex);
+				}
 				return true;
 			}
 		}
@@ -122,8 +126,7 @@ public class ChronoSphereIndexManagerImpl implements ChronoSphereIndexManager {
 				throw new IllegalArgumentException("The given EAttribute '" + eAttribute.getName()
 						+ "' is not part of a registered EPackage! Please register the EPackage first.");
 			}
-			return this.getGraphIndexManager().getDirtyIndices().stream()
-					.anyMatch(index -> index.getIndexedProperty().equals(propertyKey));
+			return this.getGraphIndexManager().getDirtyIndicesAtAnyPointInTime().stream().anyMatch(idx -> idx.getIndexedProperty().equals(propertyKey));
 		}
 	}
 
@@ -132,7 +135,7 @@ public class ChronoSphereIndexManagerImpl implements ChronoSphereIndexManager {
 	// =====================================================================================================================
 
 	protected ChronoGraphIndexManager getGraphIndexManager() {
-		return this.owningSphere.getRootGraph().getIndexManager(this.owningBranch.getName());
+		return this.owningSphere.getRootGraph().getIndexManagerOnBranch(this.owningBranch.getName());
 	}
 
 }

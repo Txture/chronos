@@ -2,20 +2,22 @@ package org.chronos.chronodb.exodus.manager
 
 import com.google.common.collect.Maps
 import com.google.common.collect.Sets
+import mu.KotlinLogging
 import org.chronos.chronodb.api.exceptions.ChronoDBBranchingException
-import org.chronos.chronodb.exodus.layout.ChronoDBStoreLayout
 import org.chronos.chronodb.exodus.kotlin.ext.parseAsString
 import org.chronos.chronodb.exodus.kotlin.ext.requireNonNegative
 import org.chronos.chronodb.exodus.kotlin.ext.toByteArray
 import org.chronos.chronodb.exodus.kotlin.ext.toByteIterable
+import org.chronos.chronodb.exodus.layout.ChronoDBStoreLayout
 import org.chronos.chronodb.exodus.transaction.ExodusTransaction
 import org.chronos.chronodb.internal.impl.engines.base.KeyspaceMetadata
-import org.chronos.common.logging.ChronoLogger.logTrace
 import org.chronos.common.serialization.KryoManager
 
 object NavigationIndex {
 
     private const val STORE_NAME = ChronoDBStoreLayout.STORE_NAME__NAVIGATION
+
+    private val log = KotlinLogging.logger {}
 
     // =====================================================================================================================
     // PUBLIC API
@@ -43,8 +45,9 @@ object NavigationIndex {
         val metadata = KeyspaceMetadata(keyspaceName, matrixName, timestamp)
         keyspaceToMetadata[keyspaceName] = metadata
         tx.put(STORE_NAME, branchName, KryoManager.serialize(keyspaceToMetadata).toByteIterable())
-        logTrace("Inserting into NavigationMap. Branch = '" + branchName + "', keypsace = '" + keyspaceName
-                + "', matrix = '" + matrixName + "'")
+        log.trace {
+            "Inserting into NavigationMap. Branch = '$branchName', keypsace = '$keyspaceName', matrix = '$matrixName'"
+        }
     }
 
     /**
@@ -55,7 +58,7 @@ object NavigationIndex {
      * @return `true` if there exists a branch with the given name, otherwise `false`.
      */
     fun existsBranch(tx: ExodusTransaction, branchName: String): Boolean {
-        logTrace("Checking branch existence for branch '$branchName'")
+        log.trace { "Checking branch existence for branch '$branchName'" }
         val keyspaceToMetadata = tx.get(STORE_NAME, branchName)
         return keyspaceToMetadata != null && keyspaceToMetadata.length > 0
     }
@@ -67,10 +70,10 @@ object NavigationIndex {
      * @return An immutable set of branch names. May be empty, but never `null`.
      */
     fun branchNames(tx: ExodusTransaction): Set<String> {
-        logTrace("Retrieving branch names")
+        log.trace { "Retrieving branch names" }
         val resultSet = Sets.newHashSet<String>()
         tx.openCursorOn(STORE_NAME).use { cursor ->
-            while(cursor.next){
+            while (cursor.next) {
                 resultSet.add(cursor.key.parseAsString())
             }
         }
@@ -85,7 +88,7 @@ object NavigationIndex {
      */
     fun deleteBranch(tx: ExodusTransaction, branchName: String) {
         assertBranchExists(tx, branchName)
-        logTrace("Deleting branch '$branchName' in navigation map")
+        log.trace { "Deleting branch '$branchName' in navigation map" }
         tx.delete(STORE_NAME, branchName)
     }
 

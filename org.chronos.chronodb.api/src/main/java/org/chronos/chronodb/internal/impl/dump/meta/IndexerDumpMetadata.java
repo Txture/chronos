@@ -5,7 +5,7 @@ import java.util.Base64;
 import org.chronos.chronodb.api.indexing.Indexer;
 import org.chronos.common.serialization.KryoManager;
 
-public class IndexerDumpMetadata {
+public class IndexerDumpMetadata implements IIndexerDumpMetadata {
 
 	private String indexName;
 	private String indexerData;

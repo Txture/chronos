@@ -2,7 +2,7 @@ package org.chronos.common.configuration;
 
 import java.util.Map;
 
-import org.apache.commons.configuration.Configuration;
+import org.apache.commons.configuration2.Configuration;
 
 /**
  * This is the basic interface for all configuration classes in Chronos.

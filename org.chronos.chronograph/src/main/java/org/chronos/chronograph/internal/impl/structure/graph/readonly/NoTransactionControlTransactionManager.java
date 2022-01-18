@@ -1,5 +1,6 @@
 package org.chronos.chronograph.internal.impl.structure.graph.readonly;
 
+import org.apache.tinkerpop.gremlin.process.traversal.TraversalSource;
 import org.apache.tinkerpop.gremlin.structure.Transaction;
 import org.chronos.chronograph.api.structure.ChronoGraph;
 import org.chronos.chronograph.api.transaction.ChronoGraphTransaction;
@@ -19,6 +20,8 @@ public class NoTransactionControlTransactionManager implements ChronoGraphTransa
         checkNotNull(txManager, "Precondition violation - argument 'txManager' must not be NULL!");
         this.txManager = txManager;
     }
+
+
 
     @Override
     public void open(final long timestamp) {
@@ -138,6 +141,11 @@ public class NoTransactionControlTransactionManager implements ChronoGraphTransa
     @Override
     public void rollback() {
         this.unsupportedOperation();
+    }
+
+    @Override
+    public <T extends TraversalSource> T begin(final Class<T> traversalSourceClass) {
+        return this.unsupportedOperation();
     }
 
     @Override

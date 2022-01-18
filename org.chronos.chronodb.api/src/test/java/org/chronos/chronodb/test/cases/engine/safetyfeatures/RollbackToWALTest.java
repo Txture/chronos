@@ -3,6 +3,7 @@ package org.chronos.chronodb.test.cases.engine.safetyfeatures;
 import com.google.common.collect.Sets;
 import org.chronos.chronodb.api.Branch;
 import org.chronos.chronodb.api.ChronoDB;
+import org.chronos.chronodb.api.ChronoDBConstants;
 import org.chronos.chronodb.api.ChronoDBTransaction;
 import org.chronos.chronodb.api.exceptions.ChronoDBCommitException;
 import org.chronos.chronodb.internal.api.BranchInternal;
@@ -11,9 +12,9 @@ import org.chronos.chronodb.internal.api.TemporalKeyValueStore;
 import org.chronos.chronodb.test.base.AllChronoDBBackendsTest;
 import org.chronos.chronodb.test.base.InstantiateChronosWith;
 import org.chronos.chronodb.test.cases.util.KillSwitchCollection;
-import org.chronos.common.test.utils.NamedPayload;
 import org.chronos.chronodb.test.cases.util.model.payload.NamedPayloadNameIndexer;
 import org.chronos.common.test.junit.categories.IntegrationTest;
+import org.chronos.common.test.utils.NamedPayload;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -254,7 +255,8 @@ public class RollbackToWALTest extends AllChronoDBBackendsTest {
 
     private void runTest(final KillSwitchCollection callbacks, final ThreadMode threadMode, final CommitMode commitMode) {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("name", new NamedPayloadNameIndexer());
+        db.getIndexManager().createIndex().withName("name").withIndexer(new NamedPayloadNameIndexer()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().reindexAll();
 
         {
             ChronoDBTransaction tx = db.tx();

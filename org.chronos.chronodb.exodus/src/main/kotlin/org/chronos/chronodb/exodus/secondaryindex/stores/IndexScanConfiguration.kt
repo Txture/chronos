@@ -2,15 +2,15 @@ package org.chronos.chronodb.exodus.secondaryindex.stores
 
 import jetbrains.exodus.ByteIterable
 import jetbrains.exodus.env.Cursor
+import mu.KotlinLogging
 import org.chronos.chronodb.exodus.kotlin.ext.ceilEntry
 import org.chronos.chronodb.exodus.kotlin.ext.floorEntry
 import org.chronos.chronodb.exodus.kotlin.ext.requireNonNegative
 import org.chronos.chronodb.exodus.secondaryindex.stores.IndexScanConfiguration.ScanDirection.ASCENDING
 import org.chronos.chronodb.exodus.secondaryindex.stores.IndexScanConfiguration.ScanDirection.DESCENDING
+import org.chronos.chronodb.exodus.secondaryindex.stores.IndexScanConfiguration.ScanStrategy
 import org.chronos.chronodb.exodus.transaction.ExodusTransaction
 import org.chronos.chronodb.internal.api.query.searchspec.SearchSpecification
-import org.chronos.common.base.CCC
-import org.chronos.common.logging.ChronoLogger
 
 /**
  * @param tx The transaction to operate on.
@@ -23,18 +23,23 @@ import org.chronos.common.logging.ChronoLogger
  * @param skip A check function that allows to skip over entries without cancelling the scan (in case of [ScanStrategy.STOP_AT_FIRST_MISMATCH]).
  * @param parseKey A function that parses the secondary index keys in the store.
  */
-data class IndexScanConfiguration<V, S: SearchSpecification<V, *>>(
-        val tx: ExodusTransaction,
-        val searchSpec: S,
-        val timestamp: Long,
-        val storeName: String,
-        val scanStart: ByteIterable?,
-        val direction: ScanDirection,
-        val scanStrategy: ScanStrategy,
-        val skip: (V) -> Boolean = { false },
-        val parseKey: (ByteIterable) -> SecondaryIndexKey<V>,
-        val scanTimeMode: ScanTimeMode
+data class IndexScanConfiguration<V, S : SearchSpecification<V, *>>(
+    val tx: ExodusTransaction,
+    val searchSpec: S,
+    val timestamp: Long,
+    val storeName: String,
+    val scanStart: ByteIterable?,
+    val direction: ScanDirection,
+    val scanStrategy: ScanStrategy,
+    val skip: (V) -> Boolean = { false },
+    val parseKey: (ByteIterable) -> SecondaryIndexKey<V>,
+    val scanTimeMode: ScanTimeMode
 ) {
+
+    companion object {
+        private val log = KotlinLogging.logger {}
+    }
+
 
     init {
         requireNonNegative(this.timestamp, "timestamp")
@@ -48,14 +53,14 @@ data class IndexScanConfiguration<V, S: SearchSpecification<V, *>>(
     }
 
     private fun moveCursorToInitialPositionAscending(cursor: Cursor): Boolean {
-        return when(this.scanStart){
+        return when (this.scanStart) {
             null -> cursor.next // start at the lowest key/value pair
             else -> cursor.ceilEntry(this.scanStart) != null  // start at the given position
         }
     }
 
     private fun moveCursorToInitialPositionDescending(cursor: Cursor): Boolean {
-        return when(this.scanStart){
+        return when (this.scanStart) {
             null -> cursor.last // start at the highest key/value pair
             else -> cursor.floorEntry(this.scanStart) != null
         }
@@ -117,9 +122,7 @@ data class IndexScanConfiguration<V, S: SearchSpecification<V, *>>(
             } while (keepGoing)
 
             val timeAfter = System.currentTimeMillis()
-            if(CCC.TRACE_ENABLED){
-                ChronoLogger.logTrace("Scanned ${scannedRows} rows in ${timeAfter - timeBefore}ms, produced ${resultList.size} results. Query: ${searchSpec}")
-            }
+            log.trace {  "Scanned ${scannedRows} rows in ${timeAfter - timeBefore}ms, produced ${resultList.size} results. Query: ${searchSpec}" }
 
             return@withCursorOn resultList
         }
@@ -129,9 +132,9 @@ data class IndexScanConfiguration<V, S: SearchSpecification<V, *>>(
 
         ASCENDING(Cursor::getNext), DESCENDING(Cursor::getPrev);
 
-        private val moveFunction: (Cursor)->Boolean
+        private val moveFunction: (Cursor) -> Boolean
 
-        constructor(moveFunction: (Cursor)->Boolean){
+        constructor(moveFunction: (Cursor) -> Boolean) {
             this.moveFunction = moveFunction
         }
 

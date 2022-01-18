@@ -104,18 +104,6 @@ public class ReadOnlyChronoGraphTransaction implements ChronoGraphTransaction {
     }
 
     @Override
-    public Iterator<Vertex> getVerticesByProperties(final Map<String, Object> propertyKeyToPropertyValue) {
-        return this.unmodifiableVertices(this.currentTransaction.getVerticesByProperties(propertyKeyToPropertyValue));
-    }
-
-    @Override
-    public Set<Vertex> evaluateVertexQuery(final ChronoDBQuery query) {
-        Set<Vertex> vertices = this.currentTransaction.evaluateVertexQuery(query);
-        Set<ReadOnlyChronoVertex> readOnlySet = vertices.stream().map(ReadOnlyChronoVertex::new).collect(Collectors.toSet());
-        return Collections.unmodifiableSet(readOnlySet);
-    }
-
-    @Override
     public Iterator<Edge> edges(final Object... edgeIds) {
         return this.unmodifiableEdges(this.currentTransaction.edges(edgeIds));
     }
@@ -128,18 +116,6 @@ public class ReadOnlyChronoGraphTransaction implements ChronoGraphTransaction {
     @Override
     public Iterator<Edge> getEdgesIterator(final Iterable<String> chronoEdgeIds, ElementLoadMode loadMode) {
         return this.unmodifiableEdges(this.currentTransaction.getEdgesIterator(chronoEdgeIds, loadMode));
-    }
-
-    @Override
-    public Iterator<Edge> getEdgesByProperties(final Map<String, Object> propertyKeyToPropertyValue) {
-        return this.unmodifiableEdges(this.currentTransaction.getEdgesByProperties(propertyKeyToPropertyValue));
-    }
-
-    @Override
-    public Set<Edge> evaluateEdgeQuery(final ChronoDBQuery query) {
-        Set<Edge> edges = this.currentTransaction.evaluateEdgeQuery(query);
-        Set<ReadOnlyChronoEdge> readOnlySet = edges.stream().map(ReadOnlyChronoEdge::new).collect(Collectors.toSet());
-        return Collections.unmodifiableSet(readOnlySet);
     }
 
     @Override

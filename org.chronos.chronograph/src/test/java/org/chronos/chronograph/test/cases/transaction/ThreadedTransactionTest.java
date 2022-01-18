@@ -134,7 +134,7 @@ public class ThreadedTransactionTest extends AllChronoGraphBackendsTest {
     @InstantiateChronosWith(property = ChronoGraphConfiguration.TRANSACTION_AUTO_OPEN, value = "false")
     public void canUseIndexManagerFromThreadedTransactionGraph() {
         ChronoGraph graph = this.getGraph();
-        graph.getIndexManager().create().stringIndex().onVertexProperty("name").build();
+        graph.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("name").acrossAllTimestamps().build();
         // work with a threaded graph, add some data
         ChronoGraph tGraph = graph.tx().createThreadedTx();
         tGraph.addVertex("name", "Martin");

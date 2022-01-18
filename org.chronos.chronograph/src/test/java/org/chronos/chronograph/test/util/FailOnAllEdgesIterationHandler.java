@@ -8,7 +8,7 @@ public class FailOnAllEdgesIterationHandler implements AllEdgesIterationHandler 
 
     @Override
     public void onAllEdgesIteration() {
-        fail("Required iteration over all Edges!");
+        fail("Required iteration over all Edges which is not supposed to happen in this test!");
     }
 
 }

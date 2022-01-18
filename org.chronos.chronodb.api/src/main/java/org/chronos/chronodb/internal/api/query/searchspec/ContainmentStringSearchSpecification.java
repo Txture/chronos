@@ -1,5 +1,6 @@
 package org.chronos.chronodb.internal.api.query.searchspec;
 
+import org.chronos.chronodb.api.SecondaryIndex;
 import org.chronos.chronodb.api.query.StringContainmentCondition;
 import org.chronos.chronodb.internal.impl.query.ContainmentStringSearchSpecificationImpl;
 import org.chronos.chronodb.internal.impl.query.TextMatchMode;
@@ -12,8 +13,8 @@ public interface ContainmentStringSearchSpecification extends ContainmentSearchS
     // FACTORY METHODS
     // =================================================================================================================
 
-    public static ContainmentStringSearchSpecification create(final String property, final StringContainmentCondition condition, final TextMatchMode matchMode, final Set<String> searchValues) {
-        return new ContainmentStringSearchSpecificationImpl(property, condition, searchValues, matchMode);
+    public static ContainmentStringSearchSpecification create(final SecondaryIndex index, final StringContainmentCondition condition, final TextMatchMode matchMode, final Set<String> searchValues) {
+        return new ContainmentStringSearchSpecificationImpl(index, condition, searchValues, matchMode);
     }
 
     // =================================================================================================================

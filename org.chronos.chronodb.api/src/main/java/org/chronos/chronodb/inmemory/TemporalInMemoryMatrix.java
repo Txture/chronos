@@ -15,7 +15,8 @@ import org.chronos.chronodb.internal.impl.temporal.UnqualifiedTemporalEntry;
 import org.chronos.chronodb.internal.impl.temporal.UnqualifiedTemporalKey;
 import org.chronos.chronodb.internal.util.KeySetModifications;
 import org.chronos.common.exceptions.UnknownEnumLiteralException;
-import org.chronos.common.logging.ChronoLogger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.Map.Entry;
@@ -25,6 +26,8 @@ import java.util.stream.Collectors;
 import static com.google.common.base.Preconditions.*;
 
 public class TemporalInMemoryMatrix extends AbstractTemporalDataMatrix {
+
+    private static final Logger log = LoggerFactory.getLogger(TemporalInMemoryMatrix.class);
 
     // =================================================================================================================
     // FIELDS
@@ -107,11 +110,15 @@ public class TemporalInMemoryMatrix extends AbstractTemporalDataMatrix {
             byte[] value = entry.getValue();
             UnqualifiedTemporalKey tk = UnqualifiedTemporalKey.create(key, time);
             if (value != null) {
-                ChronoLogger.logTrace("[PUT] " + tk + "bytes[" + value.length + "]");
+                if(log.isTraceEnabled()){
+                    log.trace("[PUT] " + tk + "bytes[" + value.length + "]");
+                }
                 this.contents.put(tk, value);
             } else {
                 this.contents.put(tk, new byte[0]);
-                ChronoLogger.logTrace("[PUT] " + tk + "NULL");
+                if(log.isTraceEnabled()){
+                    log.trace("[PUT] " + tk + "NULL");
+                }
             }
             InverseUnqualifiedTemporalKey itk = InverseUnqualifiedTemporalKey.create(time, key);
             if (value != null) {
@@ -180,7 +187,7 @@ public class TemporalInMemoryMatrix extends AbstractTemporalDataMatrix {
         checkNotNull(key, "Precondition violation - argument 'key' must not be NULL!");
         checkArgument( upperBound >= 0, "Precondition violation - argument 'upperBound' must not be negative!");
         UnqualifiedTemporalKey floorKey = this.contents.floorKey(UnqualifiedTemporalKey.create(key, upperBound));
-        if(floorKey == null){
+        if(floorKey == null || !floorKey.getKey().equals(key)){
             // has never been modified
             return -1;
         }else{

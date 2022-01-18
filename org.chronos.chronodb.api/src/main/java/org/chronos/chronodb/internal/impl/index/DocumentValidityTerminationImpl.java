@@ -31,7 +31,7 @@ public class DocumentValidityTerminationImpl implements DocumentValidityTerminat
 	public String toString() {
 		StringBuilder builder = new StringBuilder();
 		builder.append("TERMINATE(");
-		builder.append(this.document.getIndexName());
+		builder.append(this.document.getIndex());
 		builder.append("->");
 		builder.append(this.document.getKeyspace());
 		builder.append("->");

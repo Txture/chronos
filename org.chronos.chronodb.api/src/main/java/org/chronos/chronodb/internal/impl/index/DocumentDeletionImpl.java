@@ -53,7 +53,7 @@ public class DocumentDeletionImpl implements DocumentDeletion {
 	public String toString() {
 		StringBuilder builder = new StringBuilder();
 		builder.append("DELETE(");
-		builder.append(this.documentToDelete.getIndexName());
+		builder.append(this.documentToDelete.getIndex());
 		builder.append("->");
 		builder.append(this.documentToDelete.getKeyspace());
 		builder.append("->");

@@ -40,9 +40,4 @@ public class ChronoGraphEdgeIndex extends AbstractChronoGraphIndex implements IC
 		return "Index[Edge, " + this.getIndexedProperty() + "]";
 	}
 
-	@Override
-	public Indexer<?> createIndexer() {
-		return new EdgeRecordPropertyIndexer(this.getIndexedProperty());
-	}
-
 }

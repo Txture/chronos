@@ -8,7 +8,6 @@ import java.util.Stack;
 
 import org.chronos.chronosphere.emf.impl.ChronoEFactory;
 import org.chronos.chronosphere.internal.ogm.api.ChronoEPackageRegistryInternal;
-import org.chronos.common.logging.ChronoLogger;
 import org.eclipse.emf.ecore.EAttribute;
 import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EPackage;
@@ -18,8 +17,12 @@ import org.eclipse.emf.ecore.EStructuralFeature;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ChronoEPackageRegistryImpl implements ChronoEPackageRegistryInternal {
+
+	private static final Logger log = LoggerFactory.getLogger(ChronoEPackageRegistryImpl.class);
 
 	private final BiMap<String, EPackage> nsURItoEPackage = HashBiMap.create();
 	private final BiMap<EClass, String> eClassToID = HashBiMap.create();
@@ -152,7 +155,7 @@ public class ChronoEPackageRegistryImpl implements ChronoEPackageRegistryInterna
 		}
 		EPackage existingEPackage = this.nsURItoEPackage.put(ePackage.getNsURI(), ePackage);
 		if (existingEPackage != null) {
-			ChronoLogger.logWarning("Registration of EPackage with Namespace URI '" + ePackage.getNsURI()
+			log.warn("Registration of EPackage with Namespace URI '" + ePackage.getNsURI()
 					+ "' overrides an existing EPackage!");
 		}
 	}

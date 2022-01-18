@@ -13,8 +13,10 @@ import org.junit.Test;
 
 import java.util.Set;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
+
 
 public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
 
@@ -39,8 +41,8 @@ public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerEqualsQueryOnIndexedStringMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -77,8 +79,8 @@ public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerNotEqualsQueryOnIndexedStringMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -117,8 +119,8 @@ public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerWithinQueryOnIndexedStringMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -157,8 +159,8 @@ public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerWithoutQueryOnIndexedStringMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -197,8 +199,8 @@ public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerStartsWithQueryOnIndexedStringMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -237,8 +239,8 @@ public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerNotStartsWithQueryOnIndexedStringMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -277,8 +279,8 @@ public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerEndsWithQueryOnIndexedStringMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -317,8 +319,8 @@ public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerNotEndsWithQueryOnIndexedStringMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -357,8 +359,8 @@ public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerContainsQueryOnIndexedStringMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -397,8 +399,8 @@ public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerNotContainsQueryOnIndexedStringMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -420,8 +422,8 @@ public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerMatchesRegexQueryOnIndexedStringMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -461,8 +463,8 @@ public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerNotMatchesRegexQueryOnIndexedStringMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -522,8 +524,8 @@ public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerEqualsIgnoreCaseQueryOnIndexedStringMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -560,8 +562,8 @@ public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerNotEqualsIgnoreCaseQueryOnIndexedStringMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -600,8 +602,8 @@ public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerWithinIgnoreCaseQueryOnIndexedStringMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -640,8 +642,8 @@ public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerWithoutIgnoreCaseQueryOnIndexedStringMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -680,8 +682,8 @@ public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerStartsWithIgnoreCaseQueryOnIndexedStringMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -720,8 +722,8 @@ public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerNotStartsWithIgnoreCaseQueryOnIndexedStringMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -760,8 +762,8 @@ public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerEndsWithIgnoreCaseQueryOnIndexedStringMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -800,8 +802,8 @@ public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerNotEndsWithIgnoreCaseQueryOnIndexedStringMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -840,8 +842,8 @@ public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerContainsIgnoreCaseQueryOnIndexedStringMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -881,8 +883,8 @@ public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerMatchesRegexIgnoreCaseQueryOnIndexedStringMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -922,8 +924,8 @@ public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerNotMatchesRegexIgnoreCaseQueryOnIndexedStringMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -964,8 +966,8 @@ public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
     @Test
     public void cannotUseMultipleStringValuesForEqualityChecking() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         try {
@@ -979,8 +981,8 @@ public class GremlinStringMultivalueTest extends AllChronoGraphBackendsTest {
     @Test
     public void cannotUseMultipleStringValuesForInequalityChecking() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().stringIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().stringIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         try {

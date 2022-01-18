@@ -1,6 +1,7 @@
 package org.chronos.chronodb.internal.impl.query.parser.ast;
 
 import com.google.common.collect.Sets;
+import org.chronos.chronodb.api.SecondaryIndex;
 import org.chronos.chronodb.api.query.ContainmentCondition;
 import org.chronos.chronodb.api.query.LongContainmentCondition;
 import org.chronos.chronodb.api.query.NumberCondition;
@@ -8,6 +9,7 @@ import org.chronos.chronodb.internal.api.query.searchspec.ContainmentLongSearchS
 import org.chronos.chronodb.internal.api.query.searchspec.ContainmentStringSearchSpecification;
 import org.chronos.chronodb.internal.api.query.searchspec.SearchSpecification;
 
+import java.util.Objects;
 import java.util.Set;
 
 public class SetLongWhereElement extends WhereElement<Set<Long>, LongContainmentCondition> {
@@ -22,8 +24,11 @@ public class SetLongWhereElement extends WhereElement<Set<Long>, LongContainment
     }
 
     @Override
-    public SearchSpecification<?, ?> toSearchSpecification() {
-        return ContainmentLongSearchSpecification.create(this.getIndexName(), this.getCondition(), this.getComparisonValue());
+    public SearchSpecification<?, ?> toSearchSpecification(SecondaryIndex index) {
+        if(!Objects.equals(index.getName(), this.indexName)){
+            throw new IllegalArgumentException("Cannot use index '" + index.getName() + "' for search specification - expected index name is '" + this.indexName + "'!");
+        }
+        return ContainmentLongSearchSpecification.create(index, this.getCondition(), this.getComparisonValue());
     }
 
     @Override

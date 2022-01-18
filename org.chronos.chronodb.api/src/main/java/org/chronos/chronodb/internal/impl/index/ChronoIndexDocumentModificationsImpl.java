@@ -54,7 +54,7 @@ public class ChronoIndexDocumentModificationsImpl implements ChronoIndexDocument
 
 	@Override
 	public Set<DocumentDeletion> getDocumentDeletions() {
-		return this.documentDeletions;
+		return Collections.unmodifiableSet(this.documentDeletions);
 	}
 
 	@Override

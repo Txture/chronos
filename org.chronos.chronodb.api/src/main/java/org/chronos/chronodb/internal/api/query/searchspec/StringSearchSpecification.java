@@ -1,5 +1,6 @@
 package org.chronos.chronodb.internal.api.query.searchspec;
 
+import org.chronos.chronodb.api.SecondaryIndex;
 import org.chronos.chronodb.api.query.StringCondition;
 import org.chronos.chronodb.internal.impl.query.StringSearchSpecificationImpl;
 import org.chronos.chronodb.internal.impl.query.TextMatchMode;
@@ -10,8 +11,8 @@ public interface StringSearchSpecification extends SearchSpecification<String, S
 	// FACTORY METHODS
 	// =================================================================================================================
 
-	public static StringSearchSpecification create(final String property, final StringCondition condition, final TextMatchMode matchMode, final String searchText) {
-		return new StringSearchSpecificationImpl(property, condition, searchText, matchMode);
+	public static StringSearchSpecification create(final SecondaryIndex index, final StringCondition condition, final TextMatchMode matchMode, final String searchText) {
+		return new StringSearchSpecificationImpl(index, condition, searchText, matchMode);
 	}
 
 	// =================================================================================================================

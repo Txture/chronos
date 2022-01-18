@@ -3,12 +3,12 @@ package org.chronos.chronograph.internal.impl.builder.graph;
 import static com.google.common.base.Preconditions.*;
 
 import java.io.File;
+import java.io.FileReader;
 import java.util.Set;
 
-import org.apache.commons.configuration.Configuration;
-import org.apache.commons.configuration.ConfigurationException;
-import org.apache.commons.configuration.PropertiesConfiguration;
-import org.chronos.chronodb.internal.api.ChronoDBConfiguration;
+import org.apache.commons.configuration2.Configuration;
+import org.apache.commons.configuration2.ex.ConfigurationException;
+import org.apache.commons.configuration2.PropertiesConfiguration;
 import org.chronos.chronograph.api.exceptions.ChronoGraphConfigurationException;
 
 import com.google.common.collect.Sets;
@@ -22,9 +22,12 @@ public class ChronoGraphPropertyFileBuilderImpl extends AbstractChronoGraphFinal
 		checkArgument(propertiesFile.isFile(),
 				"Precondition violation - argument 'propertiesFile' must refer to a file (not a directory)!");
 		try {
-			Configuration configuration = new PropertiesConfiguration(propertiesFile);
+			PropertiesConfiguration configuration = new PropertiesConfiguration();
+			try(FileReader reader = new FileReader(propertiesFile)){
+				configuration.read(reader);
+			}
 			this.applyConfiguration(configuration);
-		} catch (ConfigurationException e) {
+		} catch (Exception e) {
 			throw new ChronoGraphConfigurationException(
 					"Failed to read properties file '" + propertiesFile.getAbsolutePath() + "'!", e);
 		}

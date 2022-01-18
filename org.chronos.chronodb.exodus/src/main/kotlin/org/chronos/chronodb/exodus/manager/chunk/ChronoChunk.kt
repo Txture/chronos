@@ -1,6 +1,7 @@
 package org.chronos.chronodb.exodus.manager.chunk
 
 import org.apache.commons.io.FileUtils
+import org.chronos.chronodb.api.ChronoDBConstants
 import org.chronos.chronodb.exodus.kotlin.ext.createDirectoryIfNotExists
 import org.chronos.chronodb.exodus.layout.ChronoDBDirectoryLayout
 import org.chronos.chronodb.exodus.kotlin.ext.requireDirectory
@@ -172,6 +173,24 @@ class ChronoChunk {
         this.metadata.writeBinaryTo(this.metaDirectory)
         this.metadata.writePlainTextTo(File(this.chunkDirectory, ChronoDBDirectoryLayout.CHUNK_INFO_PROPERTIES))
     }
+
+    /**
+     * Checks if the given chunk is the first in the chunk series for a non-master branch.
+     *
+     * Those chunks contain the delta to their origin branch at the branching timestamp. After the first rollover, they will contain the full information.
+     *
+     * @param this@isBranchDeltaChunk The chunk to check.
+     * @return `true` if the given chunk is a delta chunk, i.e. the first chunk after a branching operation, otherwise `false`.
+     */
+    val isDeltaChunk: Boolean
+        get() {
+            if (ChronoDBConstants.MASTER_BRANCH_IDENTIFIER == this.branchName) {
+                // the master branch has no delta chunks
+                return false
+            }
+            // the first chunk in each branch is the delta chunk
+            return sequenceNumber == 0L
+        }
 
     override fun toString(): String {
         return "Chunk[${this.branchName} -> ${this.sequenceNumber}]"

@@ -4,6 +4,7 @@ import org.chronos.chronodb.api.key.QualifiedKey;
 import org.chronos.chronodb.internal.api.ChronoDBConfiguration;
 import org.chronos.chronodb.internal.api.GetResult;
 import org.chronos.chronodb.internal.impl.cache.bogus.ChronoDBBogusCache;
+import org.chronos.chronodb.internal.impl.cache.headfirst.HeadFirstCache;
 import org.chronos.chronodb.internal.impl.cache.mosaic.MosaicCache;
 
 import java.util.Map;
@@ -34,10 +35,19 @@ public interface ChronoDBCache {
     public static ChronoDBCache createCacheForConfiguration(final ChronoDBConfiguration config) {
         checkNotNull(config, "Precondition violation - argument 'config' must not be NULL!");
         if (config.isCachingEnabled()) {
-            return new MosaicCache(config.getCacheMaxSize());
-        } else {
-            return new ChronoDBBogusCache();
+            switch (config.getCacheType()) {
+                case MOSAIC:
+                    return new MosaicCache(config.getCacheMaxSize());
+                case HEAD_FIRST:
+                    return new HeadFirstCache(
+                        config.getCacheMaxSize(),
+                        config.getCacheHeadFirstPreferredBranch(),
+                        config.getCacheHeadFirstPreferredKeyspace()
+                    );
+            }
         }
+        return new ChronoDBBogusCache();
+
     }
 
     // =====================================================================================================================
@@ -84,6 +94,16 @@ public interface ChronoDBCache {
      * @return The current size of the cache. Never negative, may be zero.
      */
     public int size();
+
+
+    /**
+     * Returns the maximum number of entries permitted in this cache.
+     *
+     * Implementations that do not have a hard limit should return -1.
+     *
+     * @return The maximum size of this cache.
+     */
+    public int maxSize();
 
     /**
      * Returns the statistics of this cache.
@@ -167,6 +187,31 @@ public interface ChronoDBCache {
         public long getCacheMissCount();
 
         /**
+         * Returns the number of elements that have been evicted from this cache due to limited population size.
+         *
+         * Evictions due to cache clearing or rollback do not count towards this number.
+         *
+         * Implementations without a hard limit on the population size should return 0.
+         *
+         * @return The number of elements removed from the cache due to the eviction policy.
+         */
+        public long getEvictionCount();
+
+        /**
+         * Returns the number of times a rollback has occurred on this cache.
+         *
+         * @return The number of times a rollback has occurred so far.
+         */
+        public long getRollbackCount();
+
+        /**
+         * Returns the number of times this cache has been explicitly cleared.
+         *
+         * @return The number of times this cache has been explicitly cleared.
+         */
+        public long getClearCount();
+
+        /**
          * Returns the request count, i.e. the number of {@link ChronoDBCache#get(String, long, QualifiedKey)} calls received by this cache.
          *
          * @return The request count. May be zero, but never negative.
@@ -192,7 +237,7 @@ public interface ChronoDBCache {
                 // by definition, if we have no requests, we have no hit ratio
                 return Double.NaN;
             }
-            return ((double)getCacheHitCount()) / requestCount;
+            return ((double) getCacheHitCount()) / requestCount;
         }
 
         /**
@@ -212,7 +257,7 @@ public interface ChronoDBCache {
                 // by definition, if we have no requests, we have no miss ratio
                 return Double.NaN;
             }
-            return ((double)getCacheMissCount()) / requestCount;
+            return ((double) getCacheMissCount()) / requestCount;
         }
 
     }

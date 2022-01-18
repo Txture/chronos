@@ -1,6 +1,7 @@
 package org.chronos.chronodb.test.cases.engine.indexing;
 
 import org.chronos.chronodb.api.ChronoDB;
+import org.chronos.chronodb.api.ChronoDBConstants;
 import org.chronos.chronodb.api.ChronoDBTransaction;
 import org.chronos.chronodb.api.exceptions.InvalidIndexAccessException;
 import org.chronos.chronodb.api.exceptions.UnknownIndexException;
@@ -25,15 +26,14 @@ public class NumericIndexingTest extends AllChronoDBBackendsTest {
     @Test
     public void canCreateLongIndex() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("value", new ReflectiveLongIndexer(LongBean.class, "value"));
-        assertEquals(1, db.getIndexManager().getIndexers().size());
-        assertEquals(1, db.getIndexManager().getLongIndexers().size());
+        db.getIndexManager().createIndex().withName("value").withIndexer(new ReflectiveLongIndexer(LongBean.class, "value")).onMaster().acrossAllTimestamps().build();
+        assertEquals(1, db.getIndexManager().getIndices().size());
     }
 
     @Test
     public void canExecuteBasicQueryOnLongIndex() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("value", new ReflectiveLongIndexer(LongBean.class, "value"));
+        db.getIndexManager().createIndex().withName("value").withIndexer(new ReflectiveLongIndexer(LongBean.class, "value")).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
         { // insert some data
             ChronoDBTransaction tx = db.tx();
@@ -60,15 +60,14 @@ public class NumericIndexingTest extends AllChronoDBBackendsTest {
     @Test
     public void canCreateDoubleIndex() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("value", new ReflectiveDoubleIndexer(DoubleBean.class, "value"));
-        assertEquals(1, db.getIndexManager().getIndexers().size());
-        assertEquals(1, db.getIndexManager().getDoubleIndexers().size());
+        db.getIndexManager().createIndex().withName("value").withIndexer(new ReflectiveDoubleIndexer(DoubleBean.class, "value")).onMaster().acrossAllTimestamps().build();
+        assertEquals(1, db.getIndexManager().getIndices().size());
     }
 
     @Test
     public void canExecuteBasicQueryOnDoubleIndex() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("value", new ReflectiveDoubleIndexer(DoubleBean.class, "value"));
+        db.getIndexManager().createIndex().withName("value").withIndexer(new ReflectiveDoubleIndexer(DoubleBean.class, "value")).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
         { // insert some data
             ChronoDBTransaction tx = db.tx();
@@ -95,7 +94,7 @@ public class NumericIndexingTest extends AllChronoDBBackendsTest {
     @Test
     public void cannotSearchForDoubleValueInLongIndex() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("value", new ReflectiveLongIndexer(LongBean.class, "value"));
+        db.getIndexManager().createIndex().withName("value").withIndexer(new ReflectiveLongIndexer(LongBean.class, "value")).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
         { // insert some data
             ChronoDBTransaction tx = db.tx();
@@ -117,7 +116,7 @@ public class NumericIndexingTest extends AllChronoDBBackendsTest {
     @Test
     public void cannotSearchForStringValueInLongIndex() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("value", new ReflectiveLongIndexer(LongBean.class, "value"));
+        db.getIndexManager().createIndex().withName("value").withIndexer(new ReflectiveLongIndexer(LongBean.class, "value")).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
         { // insert some data
             ChronoDBTransaction tx = db.tx();
@@ -139,7 +138,7 @@ public class NumericIndexingTest extends AllChronoDBBackendsTest {
     @Test
     public void cannotSearchForLongValueInDoubleIndex() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("value", new ReflectiveDoubleIndexer(DoubleBean.class, "value"));
+        db.getIndexManager().createIndex().withName("value").withIndexer(new ReflectiveDoubleIndexer(DoubleBean.class, "value")).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
         { // insert some data
             ChronoDBTransaction tx = db.tx();
@@ -161,7 +160,7 @@ public class NumericIndexingTest extends AllChronoDBBackendsTest {
     @Test
     public void cannotSearchForStringValueInDoubleIndex() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("value", new ReflectiveDoubleIndexer(DoubleBean.class, "value"));
+        db.getIndexManager().createIndex().withName("value").withIndexer(new ReflectiveDoubleIndexer(DoubleBean.class, "value")).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
         { // insert some data
             ChronoDBTransaction tx = db.tx();
@@ -183,7 +182,7 @@ public class NumericIndexingTest extends AllChronoDBBackendsTest {
     @Test
     public void cannotSearchForLongValueInStringIndex() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("value", new ReflectiveStringIndexer(StringBean.class, "value"));
+        db.getIndexManager().createIndex().withName("value").withIndexer(new ReflectiveStringIndexer(StringBean.class, "value")).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
         { // insert some data
             ChronoDBTransaction tx = db.tx();
@@ -205,7 +204,7 @@ public class NumericIndexingTest extends AllChronoDBBackendsTest {
     @Test
     public void cannotSearchForDoubleValueInStringIndex() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("value", new ReflectiveStringIndexer(StringBean.class, "value"));
+        db.getIndexManager().createIndex().withName("value").withIndexer(new ReflectiveStringIndexer(StringBean.class, "value")).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
         { // insert some data
             ChronoDBTransaction tx = db.tx();

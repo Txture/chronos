@@ -18,8 +18,6 @@ import org.chronos.chronodb.api.Order;
 import org.chronos.chronodb.api.PutOption;
 import org.chronos.chronodb.api.exceptions.ChronoDBCommitException;
 import org.chronos.chronodb.api.key.TemporalKey;
-import org.chronos.chronodb.internal.api.query.ChronoDBQuery;
-import org.chronos.chronodb.internal.api.query.searchspec.SearchSpecification;
 import org.chronos.chronodb.internal.impl.engines.base.StandardChronoDBTransaction;
 import org.chronos.chronograph.api.branch.GraphBranch;
 import org.chronos.chronograph.api.exceptions.ChronoGraphCommitConflictException;
@@ -70,23 +68,23 @@ import org.chronos.chronograph.internal.impl.util.ChronoGraphLoggingUtil;
 import org.chronos.chronograph.internal.impl.util.ChronoId;
 import org.chronos.chronograph.internal.impl.util.ChronoProxyUtil;
 import org.chronos.common.autolock.AutoLock;
-import org.chronos.common.base.CCC;
 import org.chronos.common.exceptions.UnknownEnumLiteralException;
-import org.chronos.common.logging.ChronoLogger;
-import org.chronos.common.logging.LogLevel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.*;
+import static org.chronos.common.logging.ChronosLogMarker.*;
 
 public class StandardChronoGraphTransaction implements ChronoGraphTransaction, ChronoGraphTransactionInternal {
+
+    private static final Logger log = LoggerFactory.getLogger(StandardChronoGraphTransaction.class);
 
     private final String transactionId;
     private final ChronoGraphInternal graph;
@@ -114,11 +112,13 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
 
     @Override
     public ChronoDBTransaction getBackingDBTransaction() {
+        this.assertIsOpen();
         return this.backendTransaction;
     }
 
     @Override
     public GraphTransactionContext getContext() {
+        this.assertIsOpen();
         return this.context;
     }
 
@@ -156,7 +156,8 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
     @Override
     public boolean isOpen() {
         // can be overridden in subclasses.
-        return true;
+        // by default, the tx is open as long as the graph is open.
+        return !this.graph.isClosed();
     }
 
     // =====================================================================================================================
@@ -170,6 +171,7 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
 
     @Override
     public long commit(final Object metadata) {
+        this.assertIsOpen();
         boolean performanceLoggingActive = this.graph.getBackingDB().getConfiguration().isCommitPerformanceLoggingActive();
         long timeBeforeGraphCommit = System.currentTimeMillis();
         long commitTimestamp = -1;
@@ -177,25 +179,25 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
         this.firePreCommitTriggers(metadata);
         String perfLogPrefix = "[PERF ChronoGraph] Graph Commit (" + this.getBranchName() + "@" + this.getTimestamp() + ")";
         if (performanceLoggingActive) {
-            ChronoLogger.logInfo(perfLogPrefix + " -> Pre-Commit Triggers: " + (System.currentTimeMillis() - beforePreCommitTriggers) + "ms.");
+            log.info(CHRONOS_LOG_MARKER__PERFORMANCE, perfLogPrefix + " -> Pre-Commit Triggers: " + (System.currentTimeMillis() - beforePreCommitTriggers) + "ms.");
         }
         long timeBeforeLockAcquisition = System.currentTimeMillis();
         try (AutoLock lock = this.graph.commitLock()) {
             if (performanceLoggingActive) {
-                ChronoLogger.logInfo(perfLogPrefix + " -> Graph Commit Lock Acquisition: " + (System.currentTimeMillis() - timeBeforeLockAcquisition) + "ms.");
+                log.info(CHRONOS_LOG_MARKER__PERFORMANCE, perfLogPrefix + " -> Graph Commit Lock Acquisition: " + (System.currentTimeMillis() - timeBeforeLockAcquisition) + "ms.");
             }
             // only try to merge if not in incremental commit mode
             if (this.getBackingDBTransaction().isInIncrementalCommitMode() == false) {
                 long timeBeforeMerge = System.currentTimeMillis();
                 this.performGraphLevelMergeWithStoreState();
                 if (performanceLoggingActive) {
-                    ChronoLogger.logInfo(perfLogPrefix + " -> Graph-Level Merge With Store: " + (System.currentTimeMillis() - timeBeforeMerge) + "ms.");
+                    log.info(CHRONOS_LOG_MARKER__PERFORMANCE, perfLogPrefix + " -> Graph-Level Merge With Store: " + (System.currentTimeMillis() - timeBeforeMerge) + "ms.");
                 }
             }
             long timeBeforePrePersistTriggers = System.currentTimeMillis();
             this.firePrePersistTriggers(metadata);
             if (performanceLoggingActive) {
-                ChronoLogger.logInfo(perfLogPrefix + " -> Pre-Persist Triggers: " + (System.currentTimeMillis() - timeBeforePrePersistTriggers) + "ms.");
+                log.info(CHRONOS_LOG_MARKER__PERFORMANCE, perfLogPrefix + " -> Pre-Persist Triggers: " + (System.currentTimeMillis() - timeBeforePrePersistTriggers) + "ms.");
             }
             ChronoGraphConfiguration config = this.getGraph().getChronoGraphConfiguration();
             if (config.isGraphInvariantCheckActive()) {
@@ -203,14 +205,14 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
                 long timeBeforeGraphInvariantCheck = System.currentTimeMillis();
                 this.validateGraphInvariant();
                 if (performanceLoggingActive) {
-                    ChronoLogger.logInfo(perfLogPrefix + " -> Graph Invariant Check: " + (System.currentTimeMillis() - timeBeforeGraphInvariantCheck) + "ms.");
+                    log.info(CHRONOS_LOG_MARKER__PERFORMANCE, perfLogPrefix + " -> Graph Invariant Check: " + (System.currentTimeMillis() - timeBeforeGraphInvariantCheck) + "ms.");
                 }
             }
             // perform the schema validation (if any)
             long timeBeforeSchemaValidation = System.currentTimeMillis();
             SchemaValidationResult schemaValidationResult = this.performGraphSchemaValidation();
             if (performanceLoggingActive) {
-                ChronoLogger.logInfo(perfLogPrefix + " -> Schema Validation Check: " + (System.currentTimeMillis() - timeBeforeSchemaValidation) + "ms.");
+                log.info(CHRONOS_LOG_MARKER__PERFORMANCE, perfLogPrefix + " -> Schema Validation Check: " + (System.currentTimeMillis() - timeBeforeSchemaValidation) + "ms.");
             }
             if (schemaValidationResult.isFailure()) {
                 this.rollback();
@@ -220,28 +222,27 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
             long timeBeforeVertexMap = System.currentTimeMillis();
             this.mapModifiedVerticesToChronoDB();
             if (performanceLoggingActive) {
-                ChronoLogger.logInfo(perfLogPrefix + " -> Mapping Vertices to Key-Value pairs: " + (System.currentTimeMillis() - timeBeforeVertexMap) + "ms.");
+                log.info(CHRONOS_LOG_MARKER__PERFORMANCE, perfLogPrefix + " -> Mapping Vertices to Key-Value pairs: " + (System.currentTimeMillis() - timeBeforeVertexMap) + "ms.");
             }
             long timeBeforeEdgesMap = System.currentTimeMillis();
             this.mapModifiedEdgesToChronoDB();
             if (performanceLoggingActive) {
-                ChronoLogger.logInfo(perfLogPrefix + " -> Mapping Edges to Key-Value pairs: " + (System.currentTimeMillis() - timeBeforeEdgesMap) + "ms.");
+                log.info(CHRONOS_LOG_MARKER__PERFORMANCE, perfLogPrefix + " -> Mapping Edges to Key-Value pairs: " + (System.currentTimeMillis() - timeBeforeEdgesMap) + "ms.");
             }
             long timeBeforeVariablesMap = System.currentTimeMillis();
             this.mapModifiedGraphVariablesToChronoDB();
             if (performanceLoggingActive) {
-                ChronoLogger.logInfo(perfLogPrefix + " -> Mapping Graph Variables to Key-Value pairs: " + (System.currentTimeMillis() - timeBeforeVariablesMap) + "ms.");
+                log.info(CHRONOS_LOG_MARKER__PERFORMANCE, perfLogPrefix + " -> Mapping Graph Variables to Key-Value pairs: " + (System.currentTimeMillis() - timeBeforeVariablesMap) + "ms.");
             }
-            if (config.isGraphModificationLoggingActive()) {
-                LogLevel logLevel = config.getGraphModificationLogLevel();
+            if (log.isTraceEnabled(CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS)) {
                 String header = ChronoGraphLoggingUtil.createLogHeader(this);
-                ChronoLogger.log(logLevel, header + "Committing Transaction.");
+                log.trace(CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS, header + "Committing Transaction.");
             }
             // commit the transaction
             long timeBeforeChronoDBCommit = System.currentTimeMillis();
             commitTimestamp = this.getBackingDBTransaction().commit(metadata);
             if (performanceLoggingActive) {
-                ChronoLogger.logInfo(perfLogPrefix + " -> ChronoDB commit: " + (System.currentTimeMillis() - timeBeforeChronoDBCommit) + "ms. Commit Timestamp: " + commitTimestamp);
+                log.info(CHRONOS_LOG_MARKER__PERFORMANCE, perfLogPrefix + " -> ChronoDB commit: " + (System.currentTimeMillis() - timeBeforeChronoDBCommit) + "ms. Commit Timestamp: " + commitTimestamp);
             }
             // preserve some information for the post-persist triggers (if necessary)
             if (commitTimestamp >= 0) {
@@ -249,7 +250,7 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
                 long timeBeforePostPersistTriggers = System.currentTimeMillis();
                 this.firePostPersistTriggers(commitTimestamp, metadata);
                 if (performanceLoggingActive) {
-                    ChronoLogger.logInfo(perfLogPrefix + " -> Post Persist Triggers: " + (System.currentTimeMillis() - timeBeforePostPersistTriggers) + "ms.");
+                    log.info(CHRONOS_LOG_MARKER__PERFORMANCE, perfLogPrefix + " -> Post Persist Triggers: " + (System.currentTimeMillis() - timeBeforePostPersistTriggers) + "ms.");
                 }
             }
         }
@@ -258,13 +259,13 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
             long timeBeforePostCommitTriggers = System.currentTimeMillis();
             this.firePostCommitTriggers(commitTimestamp, metadata);
             if (performanceLoggingActive) {
-                ChronoLogger.logInfo(perfLogPrefix + " -> Post Commit Triggers: " + (System.currentTimeMillis() - timeBeforePostCommitTriggers) + "ms.");
+                log.info(CHRONOS_LOG_MARKER__PERFORMANCE, perfLogPrefix + " -> Post Commit Triggers: " + (System.currentTimeMillis() - timeBeforePostCommitTriggers) + "ms.");
             }
         }
         // clear the transaction context
         this.context = new GraphTransactionContextImpl();
         if (performanceLoggingActive) {
-            ChronoLogger.logInfo(perfLogPrefix + ": " + (System.currentTimeMillis() - timeBeforeGraphCommit) + "ms.");
+            log.info(CHRONOS_LOG_MARKER__PERFORMANCE, perfLogPrefix + ": " + (System.currentTimeMillis() - timeBeforeGraphCommit) + "ms.");
         }
         return commitTimestamp;
     }
@@ -272,6 +273,7 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
 
     @Override
     public void commitIncremental() {
+        this.assertIsOpen();
         try (AutoLock lock = this.graph.commitLock()) {
             if (this.getBackingDBTransaction().isInIncrementalCommitMode() == false) {
                 // we're not yet in incremental commit mode, assert that the timestamp is the latest
@@ -298,10 +300,9 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
             this.mapModifiedVerticesToChronoDB();
             this.mapModifiedEdgesToChronoDB();
             this.mapModifiedGraphVariablesToChronoDB();
-            if (config.isGraphModificationLoggingActive()) {
-                LogLevel logLevel = config.getGraphModificationLogLevel();
+            if (log.isTraceEnabled(CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS)) {
                 String header = ChronoGraphLoggingUtil.createLogHeader(this);
-                ChronoLogger.log(logLevel, header + "Performing Incremental Commit.");
+                log.trace(CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS, header + "Performing Incremental Commit.");
             }
             // commit the transaction
             this.getBackingDBTransaction().commitIncremental();
@@ -318,11 +319,9 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
     public void rollback() {
         this.context.clear();
         this.rollbackCount++;
-        ChronoGraphConfiguration config = this.graph.getChronoGraphConfiguration();
-        if (config.isGraphModificationLoggingActive()) {
-            LogLevel logLevel = config.getGraphModificationLogLevel();
+        if (log.isTraceEnabled(CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS)) {
             String header = ChronoGraphLoggingUtil.createLogHeader(this);
-            ChronoLogger.log(logLevel, header + "Rolling back transaction.");
+            log.trace(CHRONOS_LOG_MARKER__PERFORMANCE, header + "Rolling back transaction.");
         }
         this.getBackingDBTransaction().rollback();
     }
@@ -333,13 +332,14 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
 
     @Override
     public Iterator<Vertex> vertices(final Object... vertexIds) {
+        this.assertIsOpen();
         if (vertexIds == null || vertexIds.length <= 0) {
             // query all vertices... this is bad.
             AllVerticesIterationHandler handler = this.getGraph().getChronoGraphConfiguration().getAllVerticesIterationHandler();
             if (handler != null) {
                 handler.onAllVerticesIteration();
             }
-            ChronoLogger.logWarning("Query requires iterating over all vertices."
+            log.warn("Query requires iterating over all vertices."
                 + " For better performance, use 'has(...)' clauses in your gremlin.");
             return this.getAllVerticesIterator();
         }
@@ -361,6 +361,7 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
 
     @Override
     public Iterator<Vertex> getAllVerticesIterator() {
+        this.assertIsOpen();
         return this.queryProcessor.getAllVerticesIterator();
     }
 
@@ -369,28 +370,8 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
                                                 final ElementLoadMode loadMode) {
         checkNotNull(chronoVertexIds, "Precondition violation - argument 'chronoVertexIds' must not be NULL!");
         checkNotNull(loadMode, "Precondition violation - argument 'loadMode' must not be NULL!");
+        this.assertIsOpen();
         return this.queryProcessor.getVerticesIterator(chronoVertexIds, loadMode);
-    }
-
-    @Override
-    public Iterator<Vertex> getVerticesByProperties(final Map<String, Object> propertyKeyToPropertyValue) {
-        checkNotNull(propertyKeyToPropertyValue,
-            "Precondition violation - argument 'propertyKeyToPropertyValue' must not be NULL!");
-        return this.queryProcessor.getVerticesByProperties(propertyKeyToPropertyValue);
-    }
-
-    @Override
-    public Iterator<Vertex> getVerticesBySearchSpecifications(
-        final Collection<SearchSpecification<?, ?>> searchSpecifications) {
-        checkNotNull(searchSpecifications,
-            "Precondition violation - argument 'searchSpecifications' must not be NULL!");
-        return this.queryProcessor.getVerticesBySearchSpecifications(Sets.newLinkedHashSet(searchSpecifications));
-    }
-
-    @Override
-    public Set<Vertex> evaluateVertexQuery(final ChronoDBQuery query) {
-        checkNotNull(query, "Precondition violation - argument 'query' must not be NULL!");
-        return this.queryProcessor.evaluateVertexQuery(query);
     }
 
     @Override
@@ -401,7 +382,7 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
             if (handler != null) {
                 handler.onAllEdgesIteration();
             }
-            ChronoLogger.logWarning("Query requires iterating over all edges."
+            log.warn("Query requires iterating over all edges."
                 + " For better performance, use 'has(...)' clauses in your gremlin.");
             return this.getAllEdgesIterator();
         }
@@ -430,27 +411,6 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
     public Iterator<Edge> getEdgesIterator(final Iterable<String> edgeIds, final ElementLoadMode loadMode) {
         checkNotNull(edgeIds, "Precondition violation - argument 'edgeIds' must not be NULL!");
         return this.queryProcessor.getEdgesIterator(edgeIds, loadMode);
-    }
-
-    @Override
-    public Iterator<Edge> getEdgesByProperties(final Map<String, Object> propertyKeyToPropertyValue) {
-        checkNotNull(propertyKeyToPropertyValue,
-            "Precondition violation - argument 'propertyKeyToPropertyValue' must not be NULL!");
-        return this.queryProcessor.getEdgesByProperties(propertyKeyToPropertyValue);
-    }
-
-    @Override
-    public Iterator<Edge> getEdgesBySearchSpecifications(
-        final Collection<SearchSpecification<?, ?>> searchSpecifications) {
-        checkNotNull(searchSpecifications,
-            "Precondition violation - argument 'searchSpecifications' must not be NULL!");
-        return this.queryProcessor.getEdgesBySearchSpecifications(Sets.newLinkedHashSet(searchSpecifications));
-    }
-
-    @Override
-    public Set<Edge> evaluateEdgeQuery(final ChronoDBQuery query) {
-        checkNotNull(query, "Precondition violation - argument 'query' must not be NULL!");
-        return this.queryProcessor.evaluateEdgeQuery(query);
     }
 
     // =====================================================================================================================
@@ -681,15 +641,7 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
         }
 
         // set the properties (if any)
-        if (keyValues != null && keyValues.length > 0) {
-            for (int i = 0; i < keyValues.length; i += 2) {
-                if (keyValues[i] instanceof T == false) {
-                    String key = (String) keyValues[i];
-                    Object value = keyValues[i + 1];
-                    edge.property(key, value);
-                }
-            }
-        }
+        ElementHelper.attachProperties(edge, keyValues);
         this.context.registerLoadedEdge(edge);
         return this.context.getOrCreateEdgeProxy(edge);
     }
@@ -1125,7 +1077,7 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
                             || !storeEdge.label().equals(edge.label())
                         ) {
                             // recreate the edge in the store
-                            Vertex storeOutV = storeEdge.outVertex();
+                            Vertex storeOutV = this.graph.vertex(edge.outVertex().id());
                             Vertex storeInV = this.graph.vertex(edge.inVertex().id());
                             storeEdge.remove();
                             if (storeOutV == null || storeInV == null) {
@@ -1310,8 +1262,8 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
             ElementLifecycleStatus edgeStatus = edge.getStatus();
             switch (edgeStatus) {
                 case NEW:
-                    if (CCC.TRACE_ENABLED) {
-                        ChronoLogger.logTrace("[COMMIT]: Committing Edge '" + edgeId + "' in status NEW");
+                    if (log.isTraceEnabled()) {
+                        log.trace("[COMMIT]: Committing Edge '" + edgeId + "' in status NEW");
                     }
                     tx.put(ChronoGraphConstants.KEYSPACE_EDGE, edgeId, ((ChronoEdgeImpl) edge).toRecord());
                     break;
@@ -1319,8 +1271,8 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
                     throw new IllegalStateException(
                         "Unreachable code reached: Detected edge '" + edgeId + "' in state EDGE_CHANGED!");
                 case OBSOLETE:
-                    if (CCC.TRACE_ENABLED) {
-                        ChronoLogger.logTrace("[COMMIT]: Ignoring Edge '" + edgeId + "' in status OBSOLETE");
+                    if (log.isTraceEnabled()) {
+                        log.trace("[COMMIT]: Ignoring Edge '" + edgeId + "' in status OBSOLETE");
                     }
                     // obsolete graph elements are not committed to the store,
                     // they have been created AND removed in the same transaction
@@ -1329,14 +1281,14 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
                     throw new IllegalStateException(
                         "Unreachable code reached: PERSISTED edge '" + edgeId + "' is listed as dirty!");
                 case PROPERTY_CHANGED:
-                    if (CCC.TRACE_ENABLED) {
-                        ChronoLogger.logTrace("[COMMIT]: Committing Edge '" + edgeId + "' in status PROPERTY_CHANGED");
+                    if (log.isTraceEnabled()) {
+                        log.trace("[COMMIT]: Committing Edge '" + edgeId + "' in status PROPERTY_CHANGED");
                     }
                     tx.put(ChronoGraphConstants.KEYSPACE_EDGE, edgeId, ((ChronoEdgeImpl) edge).toRecord());
                     break;
                 case REMOVED:
-                    if (CCC.TRACE_ENABLED) {
-                        ChronoLogger.logTrace("[COMMIT]: Removing Edge '" + edgeId + "' in status REMOVED");
+                    if (log.isTraceEnabled()) {
+                        log.trace("[COMMIT]: Removing Edge '" + edgeId + "' in status REMOVED");
                     }
                     tx.remove(ChronoGraphConstants.KEYSPACE_EDGE, edgeId);
                     break;
@@ -1382,7 +1334,7 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
                 } catch (CancelCommitException cancelException) {
                     throw new ChronoDBCommitException("Commit was rejected by Trigger '" + triggerName + "'!");
                 } catch (Exception otherException) {
-                    ChronoLogger.logError("Exception when evaluating Trigger '" + triggerName + "' in PRE COMMIT timing. Commit will continue.", otherException);
+                    log.error("Exception when evaluating Trigger '" + triggerName + "' in PRE COMMIT timing. Commit will continue.", otherException);
                 }
             }
         }
@@ -1403,7 +1355,7 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
                 } catch (CancelCommitException cancelException) {
                     throw new ChronoDBCommitException("Commit was rejected by Trigger '" + triggerName + "'!");
                 } catch (Exception otherException) {
-                    ChronoLogger.logError("Exception when evaluating Trigger '" + triggerName + "' in PRE PERSIST timing. Commit will continue.", otherException);
+                    log.error("Exception when evaluating Trigger '" + triggerName + "' in PRE PERSIST timing. Commit will continue.", otherException);
                 }
             }
         }
@@ -1424,7 +1376,7 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
                 } catch (CancelCommitException cancelException) {
                     throw new ChronoDBCommitException("Commit was rejected by Trigger '" + triggerName + "'!");
                 } catch (Exception otherException) {
-                    ChronoLogger.logError("Exception when evaluating Trigger '" + triggerName + "' in POST PERSIST timing. Commit will continue.", otherException);
+                    log.error("Exception when evaluating Trigger '" + triggerName + "' in POST PERSIST timing. Commit will continue.", otherException);
                 }
             }
         }
@@ -1445,7 +1397,7 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
                 } catch (CancelCommitException cancelException) {
                     throw new ChronoDBCommitException("Commit was rejected by Trigger '" + triggerName + "'!");
                 } catch (Exception otherException) {
-                    ChronoLogger.logError("Exception when evaluating Trigger '" + triggerName + "' in POST COMMIT timing. Commit will continue.", otherException);
+                    log.error("Exception when evaluating Trigger '" + triggerName + "' in POST COMMIT timing. Commit will continue.", otherException);
                 }
             }
         }
@@ -1480,11 +1432,9 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
     // =====================================================================================================================
 
     private void logAddVertex(final String vertexId, final boolean isUserProvided) {
-        ChronoGraphConfiguration config = this.graph.getChronoGraphConfiguration();
-        if (!config.isGraphModificationLoggingActive()) {
+        if (!log.isTraceEnabled(CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS)) {
             return;
         }
-        LogLevel logLevel = config.getGraphModificationLogLevel();
         // prepare some debug output
         StringBuilder messageBuilder = new StringBuilder();
         messageBuilder.append(ChronoGraphLoggingUtil.createLogHeader(this));
@@ -1497,7 +1447,7 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
         messageBuilder.append("ID '");
         messageBuilder.append(vertexId);
         messageBuilder.append("' to graph.");
-        ChronoLogger.log(logLevel, messageBuilder.toString());
+        log.trace(CHRONOS_LOG_MARKER__GRAPH_MODIFICATIONS, messageBuilder.toString());
     }
 
 }

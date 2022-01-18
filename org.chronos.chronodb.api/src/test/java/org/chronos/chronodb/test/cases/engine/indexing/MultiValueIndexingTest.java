@@ -2,6 +2,7 @@ package org.chronos.chronodb.test.cases.engine.indexing;
 
 import com.google.common.collect.Sets;
 import org.chronos.chronodb.api.ChronoDB;
+import org.chronos.chronodb.api.ChronoDBConstants;
 import org.chronos.chronodb.api.ChronoDBTransaction;
 import org.chronos.chronodb.api.IndexManager;
 import org.chronos.chronodb.api.indexing.StringIndexer;
@@ -10,6 +11,7 @@ import org.chronos.common.test.junit.categories.IntegrationTest;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -23,7 +25,7 @@ public class MultiValueIndexingTest extends AllChronoDBBackendsTest {
     public void multiValuedIndexRetrievalWorks() {
         ChronoDB db = this.getChronoDB();
         IndexManager indexManager = db.getIndexManager();
-        indexManager.addIndexer("name", new TestBeanIndexer());
+        db.getIndexManager().createIndex().withName("name").withIndexer(new TestBeanIndexer()).onMaster().acrossAllTimestamps().build();
         indexManager.reindexAll();
 
         ChronoDBTransaction tx = db.tx();
@@ -36,8 +38,7 @@ public class MultiValueIndexingTest extends AllChronoDBBackendsTest {
         Set<Object> values = tx.find().inDefaultKeyspace().where("name").isEqualTo("First").getValuesAsSet();
         // should contain TestBean 1 and TestBean 4
         assertEquals(2, values.size());
-        Set<String> allNames = values.stream().map(tb -> ((TestBean) tb).getNames()).flatMap(s -> s.stream())
-            .collect(Collectors.toSet());
+        Set<String> allNames = values.stream().map(tb -> ((TestBean) tb).getNames()).flatMap(Collection::stream).collect(Collectors.toSet());
         assertTrue(allNames.contains("TB1"));
         assertTrue(allNames.contains("TB4"));
         assertFalse(allNames.contains("TB2"));
@@ -48,7 +49,7 @@ public class MultiValueIndexingTest extends AllChronoDBBackendsTest {
     public void multiValuedIndexingTemporalAddValueWorks() {
         ChronoDB db = this.getChronoDB();
         IndexManager indexManager = db.getIndexManager();
-        indexManager.addIndexer("name", new TestBeanIndexer());
+        db.getIndexManager().createIndex().withName("name").withIndexer(new TestBeanIndexer()).onMaster().acrossAllTimestamps().build();
         indexManager.reindexAll();
 
         ChronoDBTransaction tx = db.tx();
@@ -81,7 +82,7 @@ public class MultiValueIndexingTest extends AllChronoDBBackendsTest {
     public void multiValuedIndexingTemporalRemoveValueWorks() {
         ChronoDB db = this.getChronoDB();
         IndexManager indexManager = db.getIndexManager();
-        indexManager.addIndexer("name", new TestBeanIndexer());
+        db.getIndexManager().createIndex().withName("name").withIndexer(new TestBeanIndexer()).onMaster().acrossAllTimestamps().build();
         indexManager.reindexAll();
 
         ChronoDBTransaction tx = db.tx();
@@ -112,7 +113,7 @@ public class MultiValueIndexingTest extends AllChronoDBBackendsTest {
 
     private static class TestBean {
 
-        private Set<String> names = Sets.newHashSet();
+        private final Set<String> names = Sets.newHashSet();
 
         @SuppressWarnings("unused")
         public TestBean() {
@@ -120,9 +121,7 @@ public class MultiValueIndexingTest extends AllChronoDBBackendsTest {
         }
 
         public TestBean(final String... names) {
-            for (String name : names) {
-                this.names.add(name);
-            }
+            Collections.addAll(this.names, names);
         }
 
         public Set<String> getNames() {

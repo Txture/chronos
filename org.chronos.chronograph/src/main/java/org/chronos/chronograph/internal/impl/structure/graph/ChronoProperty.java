@@ -11,8 +11,6 @@ import org.chronos.chronograph.internal.impl.structure.record2.PropertyRecord2;
 
 import java.util.NoSuchElementException;
 
-import static com.google.common.base.Preconditions.*;
-
 public class ChronoProperty<V> implements Property<V> {
 
     private final ChronoElementInternal owner;
@@ -52,11 +50,14 @@ public class ChronoProperty<V> implements Property<V> {
         if (this.removed) {
             throw new NoSuchElementException("Property '" + this.key + "' was removed and is no longer present!");
         }
-        checkNotNull(value, "Precondition violation - argument 'value' must not be NULL!");
-        this.value = value;
-        if (silent == false) {
-            this.element().notifyPropertyChanged(this);
-            this.getTransactionContext().markPropertyAsModified(this);
+        if (value == null) {
+            this.remove();
+        } else {
+            this.value = value;
+            if (silent == false) {
+                this.element().notifyPropertyChanged(this);
+                this.getTransactionContext().markPropertyAsModified(this);
+            }
         }
     }
 

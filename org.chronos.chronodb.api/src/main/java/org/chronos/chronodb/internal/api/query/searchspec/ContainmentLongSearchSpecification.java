@@ -1,5 +1,6 @@
 package org.chronos.chronodb.internal.api.query.searchspec;
 
+import org.chronos.chronodb.api.SecondaryIndex;
 import org.chronos.chronodb.api.query.LongContainmentCondition;
 import org.chronos.chronodb.api.query.StringContainmentCondition;
 import org.chronos.chronodb.internal.impl.query.ContainmentLongSearchSpecificationImpl;
@@ -14,8 +15,8 @@ public interface ContainmentLongSearchSpecification extends ContainmentSearchSpe
     // STATIC FACTORY METHODS
     // =================================================================================================================
 
-    static ContainmentLongSearchSpecification create(String property, LongContainmentCondition condition, Set<Long> searchValues) {
-        return new ContainmentLongSearchSpecificationImpl(property, condition, searchValues);
+    static ContainmentLongSearchSpecification create(SecondaryIndex index, LongContainmentCondition condition, Set<Long> searchValues) {
+        return new ContainmentLongSearchSpecificationImpl(index, condition, searchValues);
     }
 
     // =================================================================================================================

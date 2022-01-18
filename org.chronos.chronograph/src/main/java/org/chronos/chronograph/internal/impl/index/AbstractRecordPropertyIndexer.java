@@ -21,7 +21,7 @@ import static com.google.common.base.Preconditions.*;
  */
 @Deprecated
 @PersistentClass("kryo")
-public abstract class AbstractRecordPropertyIndexer implements StringIndexer {
+public abstract class AbstractRecordPropertyIndexer implements StringIndexer, GraphPropertyIndexer<String> {
 
 	protected String propertyName;
 
@@ -62,6 +62,11 @@ public abstract class AbstractRecordPropertyIndexer implements StringIndexer {
 
 	protected String convertToString(final Object element) {
 		return String.valueOf(element);
+	}
+
+	@Override
+	public String getGraphElementPropertyName() {
+		return this.propertyName;
 	}
 
 	@Override

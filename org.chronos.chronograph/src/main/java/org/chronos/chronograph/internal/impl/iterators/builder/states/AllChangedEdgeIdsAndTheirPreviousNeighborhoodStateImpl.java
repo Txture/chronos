@@ -8,6 +8,7 @@ import org.chronos.chronograph.api.iterators.states.AllChangedEdgeIdsAndTheirPre
 import org.chronos.chronograph.api.structure.ChronoGraph;
 import org.chronos.chronograph.internal.impl.transaction.threaded.ChronoThreadedTransactionGraph;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Set;
 
@@ -37,7 +38,7 @@ public class AllChangedEdgeIdsAndTheirPreviousNeighborhoodStateImpl extends Grap
         if (this.neighborhoodVertexIds == null) {
             this.neighborhoodVertexIds = this.calculatePreviousNeighborhoodIds();
         }
-        return this.neighborhoodVertexIds;
+        return Collections.unmodifiableSet(this.neighborhoodVertexIds);
     }
 
     private Set<String> calculatePreviousNeighborhoodIds() {

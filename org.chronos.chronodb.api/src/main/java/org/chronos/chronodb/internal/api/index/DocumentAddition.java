@@ -2,6 +2,7 @@ package org.chronos.chronodb.internal.api.index;
 
 import static com.google.common.base.Preconditions.*;
 
+import org.chronos.chronodb.api.SecondaryIndex;
 import org.chronos.chronodb.api.key.ChronoIdentifier;
 import org.chronos.chronodb.internal.impl.index.DocumentAdditionImpl;
 
@@ -20,19 +21,19 @@ public interface DocumentAddition {
 	 *
 	 * @param identifier
 	 *            The {@link ChronoIdentifier} to which the new document should refer. Must not be <code>null</code>.
-	 * @param indexName
-	 *            The name of the index to which the new document should belong. Must not be <code>null</code>.
+	 * @param index
+	 *            The index to which the new document should belong. Must not be <code>null</code>.
 	 * @param indexValue
 	 *            The indexed value to store in the new document. Must not be <code>null</code>.
 	 *
 	 * @return The newly created document addition. Never <code>null</code>.
 	 */
-	public static DocumentAddition create(final ChronoIdentifier identifier, final String indexName,
-                                          final Object indexValue) {
+	public static DocumentAddition create(final ChronoIdentifier identifier, final SecondaryIndex index,
+										  final Object indexValue) {
 		checkNotNull(identifier, "Precondition violation - argument 'identifier' must not be NULL!");
-		checkNotNull(indexName, "Precondition violation - argument 'indexName' must not be NULL!");
+		checkNotNull(index, "Precondition violation - argument 'index' must not be NULL!");
 		checkNotNull(indexValue, "Precondition violation - argument 'indexValue' must not be NULL!");
-		return new DocumentAdditionImpl(identifier, indexName, indexValue);
+		return new DocumentAdditionImpl(identifier, index, indexValue);
 	}
 
 	/**

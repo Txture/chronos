@@ -7,7 +7,7 @@ buildscript {
     dependencies {
         classpath "org.jfrog.buildinfo:build-info-extractor-gradle:4.0.0"
         classpath "com.github.ben-manes:gradle-versions-plugin:0.20.0"
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.3.61"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.5.32"
     }
 }
 
@@ -19,7 +19,6 @@ plugins {
 
 apply plugin: 'java'
 apply plugin: 'idea'
-apply plugin: 'jacoco'
 apply plugin: 'com.github.ben-manes.versions'
 
 sourceCompatibility = 1.8
@@ -33,19 +32,16 @@ repositories {
     }
 }
 
-def allTestCoverageFile = "$buildDir/jacoco/allTestCoverage.exec"
 
 allprojects{
 	apply plugin: 'java'
 	apply plugin: 'maven-publish'
-	apply plugin: 'findbugs'
-	apply plugin: 'jacoco'
 	apply plugin: 'maven'
 	apply plugin: 'signing'
 
     // configure the group and version for this project
     group = 'com.github.martinhaeusler'
-    version = '1.0.0'
+    version = '1.2.16'
 
     // java version
     sourceCompatibility = JavaVersion.VERSION_1_8
@@ -101,21 +97,22 @@ allprojects{
         mavenVersion = "${project.buildVersion}"
 
         // standard libraries
-        guavaVersion = '27.1-jre'
-        commonsLang3Version = '3.8.1'
-        commonsCollectionsVersion = '4.3'
-        commonsIoVersion = '2.6'
-        commonsConfigurationVersion = '1.10'
+        guavaVersion = '31.0.1-jre'
+        commonsLang3Version = '3.12.0'
+        commonsCollectionsVersion = '4.4'
+        commonsIoVersion = '2.11.0'
+        commonsConfigurationVersion = '2.7'
 
         // Logging
-        slf4jVersion = '1.7.12'
-        logbackVersion = '1.1.3'
+        slf4jVersion = '1.7.32'
+        logbackVersion = '1.2.10'
+        kotlinLoggingVersion= '1.12.0'
 
         // Apache Tinkerpop
-        tinkerpopVersion = '3.4.2'
+        tinkerpopVersion = '3.5.1'
         tinkergraphVersion = '3.0.0.M7'
 
-        groovyVersion = '2.5.2'
+        groovyVersion = '3.0.9'
 
         // Storage Backends
         mapDBVersion = '2.0-beta13'
@@ -123,23 +120,25 @@ allprojects{
         h2Version = '1.4.187'
         tuplVersion = '1.3.11'
 
-        exodusVersion = '1.3.124'
+        exodusVersion = '1.3.232'
 
         // Additional JDBC resources
         c3p0Version = '0.9.5.4'
 
         // Object Serialization
         kryoVersion = '3.0.3'
-        xstreamVersion = '1.4.11.1'
+        xstreamVersion = '1.4.18'
 
         // Testing
-        jUnitVersion = '4.12'
-        jUnit5Version = '5.3.1'
+        jUnitVersion = '4.13.2'
+        jUnit5Version = '5.8.2'
         hamcrestVersion = '1.3'
 
         // code coverage & quality assurance tools
         jacocoVersion = '0.7.6.201602180812'
-        findbugsVersion = '3.0.0'
+
+        striktVersion = '0.32.0'
+
     }
 
     repositories {
@@ -149,10 +148,6 @@ allprojects{
         maven {
             url "https://repository.apache.org/content/groups/snapshots"
         }
-    }
-
-    jacoco {
-        toolVersion = "${project.jacocoVersion}"
     }
 
     jar {
@@ -181,9 +176,9 @@ subprojects {
         compile("org.apache.commons:commons-lang3:${project.commonsLang3Version}")
         compile("org.apache.commons:commons-collections4:${project.commonsCollectionsVersion}")
         compile("commons-io:commons-io:${project.commonsIoVersion}")
-        compile("commons-configuration:commons-configuration:${project.commonsConfigurationVersion}")
+        compile("org.apache.commons:commons-configuration2:${project.commonsConfigurationVersion}")
 
-        compile 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.3.61'
+        compile 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.5.32'
         // Logging Dependencies
         compile("org.slf4j:slf4j-api:${project.slf4jVersion}")
         compile("org.slf4j:jcl-over-slf4j:${project.slf4jVersion}")
@@ -200,29 +195,7 @@ subprojects {
         testCompile("org.hamcrest:hamcrest-all:${project.hamcrestVersion}")
     }
 
-    findbugs {
-        toolVersion = project.findbugsVersion
-        ignoreFailures = true
-        reportsDir = file("$project.buildDir/findbugsReports")
-        effort = 'max'
-        omitVisitors = ['SerializableIdiom']
-    }
-
-    sonarqube {
-        properties {
-            property "sonar.projectKey", "chronos"
-            property "sonar.core.codeCoveragePlugin", "jacoco"
-            property "sonar.jacoco.reportPath", allTestCoverageFile
-        }
-    }
-
-    jacocoTestReport {
-        additionalSourceDirs = files(sourceSets.main.allSource.srcDirs)
-        sourceDirectories = files(sourceSets.main.allSource.srcDirs)
-        classDirectories = files(sourceSets.main.output)
-    }
-
-        task javadocJar(type: Jar) {
+    task javadocJar(type: Jar) {
         classifier = 'javadoc'
         from javadoc
     }
@@ -240,7 +213,7 @@ subprojects {
    		sign configurations.archives
 	}
 
-    uploadArchives {
+    /* uploadArchives {
 	  repositories {
 	    mavenDeployer {
 	      beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
@@ -283,41 +256,11 @@ subprojects {
 	      }
 	    }
 	  }
-	}
+	} */
 
 }
 
 test.dependsOn = subprojects.test
 clean.dependsOn = subprojects.clean
 
-task wrapper(type: Wrapper) {
-    gradleVersion = '4.10.1'
-}
 
-task debug {
-    doLast {
-        println "java.home is " + System.properties['java.home']
-    }
-}
-
-task jacocoMergeTest(type: JacocoMerge) {
-    destinationFile = file(allTestCoverageFile)
-    executionData = project.fileTree(dir: '.', include:'**/build/jacoco/test.exec')
-}
-
-task jacocoMerge(dependsOn: ['jacocoMergeTest']) {
-    // used to run the other merge tasks
-}
-
-tasks['sonarqube'].with {
-    dependsOn.clear()
-    dependsOn 'test'
-    dependsOn 'jacocoMerge'
-}
-
-sonarqube {
-    properties {
-        property "sonar.projectKey", "chronos"
-        property "sonar.jacoco.reportPaths", allTestCoverageFile
-    }
-}

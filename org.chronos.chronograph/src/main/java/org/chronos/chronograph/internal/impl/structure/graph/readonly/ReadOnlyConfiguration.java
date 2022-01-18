@@ -1,7 +1,13 @@
 package org.chronos.chronograph.internal.impl.structure.graph.readonly;
 
 import com.google.common.collect.Iterators;
-import org.apache.commons.configuration.Configuration;
+import org.apache.commons.configuration2.Configuration;
+import org.apache.commons.configuration2.ConfigurationDecoder;
+import org.apache.commons.configuration2.ImmutableConfiguration;
+import org.apache.commons.configuration2.interpol.ConfigurationInterpolator;
+import org.apache.commons.configuration2.interpol.Lookup;
+import org.apache.commons.configuration2.sync.LockMode;
+import org.apache.commons.configuration2.sync.Synchronizer;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -16,6 +22,37 @@ public class ReadOnlyConfiguration implements Configuration {
     public ReadOnlyConfiguration(final Configuration configuration) {
         checkNotNull(configuration, "Precondition violation - argument 'configuration' must not be NULL!");
         this.configuration = configuration;
+    }
+
+    @Override
+    public ConfigurationInterpolator getInterpolator() {
+        // the interpolator is mutable so we hide it completely.
+        return null;
+    }
+
+    @Override
+    public void setInterpolator(final ConfigurationInterpolator ci) {
+        this.unsupportedOperation();
+    }
+
+    @Override
+    public void installInterpolator(final Map<String, ? extends Lookup> prefixLookups, final Collection<? extends Lookup> defLookups) {
+        this.unsupportedOperation();
+    }
+
+    @Override
+    public int size() {
+        return this.configuration.size();
+    }
+
+    @Override
+    public String getEncodedString(final String key) {
+        return this.configuration.getEncodedString(key);
+    }
+
+    @Override
+    public String getEncodedString(final String key, final ConfigurationDecoder decoder) {
+        return this.configuration.getEncodedString(key, decoder);
     }
 
     @Override
@@ -224,7 +261,73 @@ public class ReadOnlyConfiguration implements Configuration {
         return Collections.unmodifiableList(this.configuration.getList(key, defaultValue));
     }
 
+    @Override
+    public <T> T get(final Class<T> cls, final String key) {
+        return this.configuration.get(cls, key);
+    }
+
+    @Override
+    public <T> T get(final Class<T> cls, final String key, final T defaultValue) {
+        return this.configuration.get(cls, key, defaultValue);
+    }
+
+    @Override
+    public Object getArray(final Class<?> cls, final String key) {
+        return this.configuration.getArray(cls, key);
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    public Object getArray(final Class<?> cls, final String key, final Object defaultValue) {
+        return this.configuration.getArray(cls, key, defaultValue);
+    }
+
+    @Override
+    public <T> List<T> getList(final Class<T> cls, final String key) {
+        return Collections.unmodifiableList(this.configuration.getList(cls, key));
+    }
+
+    @Override
+    public <T> List<T> getList(final Class<T> cls, final String key, final List<T> defaultValue) {
+        return Collections.unmodifiableList(this.configuration.getList(cls, key, defaultValue));
+    }
+
+    @Override
+    public <T> Collection<T> getCollection(final Class<T> cls, final String key, final Collection<T> target) {
+        return Collections.unmodifiableCollection(this.configuration.getCollection(cls, key, target));
+    }
+
+    @Override
+    public <T> Collection<T> getCollection(final Class<T> cls, final String key, final Collection<T> target, final Collection<T> defaultValue) {
+        return Collections.unmodifiableCollection(this.configuration.getCollection(cls, key, target, defaultValue));
+    }
+
+    @Override
+    public ImmutableConfiguration immutableSubset(final String prefix) {
+        return this.configuration.immutableSubset(prefix);
+    }
+
     private void unsupportedOperation() {
         throw new UnsupportedOperationException("Unsupported method for readOnly graph!");
+    }
+
+    @Override
+    public Synchronizer getSynchronizer() {
+        return this.configuration.getSynchronizer();
+    }
+
+    @Override
+    public void setSynchronizer(final Synchronizer sync) {
+        this.unsupportedOperation();
+    }
+
+    @Override
+    public void lock(final LockMode mode) {
+        this.configuration.lock(mode);
+    }
+
+    @Override
+    public void unlock(final LockMode mode) {
+        this.configuration.unlock(mode);
     }
 }

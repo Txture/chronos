@@ -37,8 +37,8 @@ public class GremlinLongMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerEqualsQueryOnIndexedLongMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().longIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().longIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -76,8 +76,8 @@ public class GremlinLongMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerNotEqualsQueryOnIndexedLongMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().longIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().longIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -117,8 +117,8 @@ public class GremlinLongMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerWithinQueryOnIndexedLongMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().longIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().longIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -158,8 +158,8 @@ public class GremlinLongMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerWithoutQueryOnIndexedLongMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().longIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().longIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -198,8 +198,8 @@ public class GremlinLongMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerLessThanQueryOnIndexedLongMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().longIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().longIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -238,8 +238,8 @@ public class GremlinLongMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerLessThanOrEqualToQueryOnIndexedLongMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().longIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().longIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -282,8 +282,8 @@ public class GremlinLongMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerGreaterThanQueryOnIndexedLongMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().longIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().longIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -322,8 +322,8 @@ public class GremlinLongMultivalueTest extends AllChronoGraphBackendsTest {
     @FailOnAllEdgesQuery
     public void canAnswerGreaterThanOrEqualToQueryOnIndexedLongMultivalues() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().longIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().longIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         g.addVertex(T.id, "1");
@@ -347,8 +347,8 @@ public class GremlinLongMultivalueTest extends AllChronoGraphBackendsTest {
     @Test
     public void cannotUseMultipleLongValuesForEqualityChecking() {
         ChronoGraph g = this.getGraph();
-        g.getIndexManager().create().longIndex().onVertexProperty("p").build();
-        g.getIndexManager().reindexAll();
+        g.getIndexManagerOnMaster().create().longIndex().onVertexProperty("p").acrossAllTimestamps().build();
+        g.getIndexManagerOnMaster().reindexAll();
 
         g.tx().open();
         try {

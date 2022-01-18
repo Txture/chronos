@@ -1,5 +1,6 @@
 package org.chronos.chronodb.internal.api.query.searchspec;
 
+import org.chronos.chronodb.api.SecondaryIndex;
 import org.chronos.chronodb.api.query.NumberCondition;
 import org.chronos.chronodb.internal.impl.query.DoubleSearchSpecificationImpl;
 
@@ -9,8 +10,8 @@ public interface DoubleSearchSpecification extends SearchSpecification<Double, D
 	// FACTORY METHODS
 	// =================================================================================================================
 
-	public static DoubleSearchSpecification create(final String property, final NumberCondition condition, final double searchValue, final double equalityTolerance) {
-		return new DoubleSearchSpecificationImpl(property, condition, searchValue, equalityTolerance);
+	public static DoubleSearchSpecification create(SecondaryIndex index, final NumberCondition condition, final double searchValue, final double equalityTolerance) {
+		return new DoubleSearchSpecificationImpl(index, condition, searchValue, equalityTolerance);
 	}
 
 	// =================================================================================================================

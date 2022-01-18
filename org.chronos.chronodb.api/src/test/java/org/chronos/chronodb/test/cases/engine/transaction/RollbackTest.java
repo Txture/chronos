@@ -80,7 +80,7 @@ public class RollbackTest extends AllChronoDBBackendsTest {
     @Test
     public void rollbackOnSecondaryIndexWorks() {
         ChronoDB db = this.getChronoDB();
-        db.getIndexManager().addIndexer("name", new NamedPayloadNameIndexer());
+        db.getIndexManager().createIndex().withName("name").withIndexer(new NamedPayloadNameIndexer()).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
         ChronoDBTransaction tx = db.tx();
         tx.put("np1", NamedPayload.create1KB("np1"));

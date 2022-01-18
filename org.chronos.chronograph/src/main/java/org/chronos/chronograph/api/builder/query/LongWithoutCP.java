@@ -22,6 +22,19 @@ public class LongWithoutCP implements BiPredicate<Object, Collection> {
     }
 
     @Override
+    public int hashCode(){
+        return this.getClass().hashCode();
+    }
+
+    @Override
+    public boolean equals(Object other){
+        if(other == null){
+            return false;
+        }
+        return other instanceof LongWithoutCP;
+    }
+
+    @Override
     public String toString() {
         return "Long Without";
     }

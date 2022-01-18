@@ -1,17 +1,11 @@
 package org.chronos.chronodb.inmemory;
 
 import org.chronos.chronodb.api.ChronoDBConstants;
-import org.chronos.chronodb.internal.api.BranchInternal;
-import org.chronos.chronodb.internal.api.ChronoDBInternal;
-import org.chronos.chronodb.internal.api.CommitMetadataStore;
-import org.chronos.chronodb.internal.api.TemporalDataMatrix;
-import org.chronos.chronodb.internal.api.TemporalKeyValueStore;
+import org.chronos.chronodb.internal.api.*;
 import org.chronos.chronodb.internal.impl.engines.base.AbstractTemporalKeyValueStore;
 import org.chronos.chronodb.internal.impl.engines.base.WriteAheadLogToken;
 
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 import static com.google.common.base.Preconditions.*;
 
@@ -25,7 +19,6 @@ public class InMemoryTKVS extends AbstractTemporalKeyValueStore implements Tempo
     private final CommitMetadataStore commitMetadataStore;
 
     private WriteAheadLogToken walToken = null;
-    private final Lock walLock = new ReentrantLock();
 
     // =================================================================================================================
     // CONSTRUCTOR
@@ -60,24 +53,14 @@ public class InMemoryTKVS extends AbstractTemporalKeyValueStore implements Tempo
     }
 
     @Override
-    protected void performWriteAheadLog(final WriteAheadLogToken token) {
+    protected synchronized void performWriteAheadLog(final WriteAheadLogToken token) {
         checkNotNull(token, "Precondition violation - argument 'token' must not be NULL!");
-        this.walLock.lock();
-        try {
-            this.walToken = token;
-        } finally {
-            this.walLock.unlock();
-        }
+        this.walToken = token;
     }
 
     @Override
-    protected void clearWriteAheadLogToken() {
-        this.walLock.lock();
-        try {
-            this.walToken = null;
-        } finally {
-            this.walLock.unlock();
-        }
+    protected synchronized void clearWriteAheadLogToken() {
+        this.walToken = null;
     }
 
     @Override
@@ -86,13 +69,8 @@ public class InMemoryTKVS extends AbstractTemporalKeyValueStore implements Tempo
     }
 
     @Override
-    protected WriteAheadLogToken getWriteAheadLogTokenIfExists() {
-        this.walLock.lock();
-        try {
-            return this.walToken;
-        } finally {
-            this.walLock.unlock();
-        }
+    protected synchronized WriteAheadLogToken getWriteAheadLogTokenIfExists() {
+        return this.walToken;
     }
 
     @Override

@@ -11,22 +11,26 @@ import org.chronos.chronodb.internal.impl.temporal.InverseUnqualifiedTemporalKey
 import org.chronos.chronodb.internal.impl.temporal.UnqualifiedTemporalEntry;
 import org.chronos.chronodb.internal.impl.temporal.UnqualifiedTemporalKey;
 import org.chronos.common.exceptions.UnknownEnumLiteralException;
-import org.chronos.common.logging.ChronoLogger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.*;
-import static org.chronos.common.logging.ChronoLogger.*;
 
 public class DataMatrixUtil {
+
+    private static final Logger log = LoggerFactory.getLogger(DataMatrixUtil.class);
 
     public static GetResult<byte[]> get(final NavigableMap<String, byte[]> map, final String keyspace,
                                         final long timestamp, final String key) {
         checkArgument(timestamp >= 0, "Precondition violation - argument 'timestamp' must not be negative!");
         checkNotNull(key, "Precondition violation - argument 'key' must not be NULL!");
-        logTrace("[GTR] keyspace = '" + keyspace + "', key = '" + key + "', timestamp = " + timestamp);
+        if(log.isTraceEnabled()){
+            log.trace("[GTR] keyspace = '" + keyspace + "', key = '" + key + "', timestamp = " + timestamp);
+        }
         QualifiedKey qKey = QualifiedKey.create(keyspace, key);
         String temporalKey = UnqualifiedTemporalKey.create(key, timestamp).toSerializableFormat();
         Entry<String, byte[]> floorEntry = map.floorEntry(temporalKey);
@@ -67,7 +71,7 @@ public class DataMatrixUtil {
                 long floorTimestamp = floorKey.getTimestamp();
                 long ceilTimestamp = ceilKey.getTimestamp();
                 if (floorTimestamp >= ceilTimestamp) {
-                    ChronoLogger.logError("Invalid 'getRanged' state - floor timestamp (" + floorTimestamp
+                    log.error("Invalid 'getRanged' state - floor timestamp (" + floorTimestamp
                         + ") >= ceil timestamp (" + ceilTimestamp + ")! Requested: '" + key + "@" + timestamp
                         + "', floor: '" + floorKey + "', ceil: '" + ceilKey + "'");
                 }
@@ -93,10 +97,14 @@ public class DataMatrixUtil {
             byte[] value = entry.getValue();
             UnqualifiedTemporalKey tk = UnqualifiedTemporalKey.create(key, time);
             if (value != null) {
-                logTrace("[PUT] Key = '" + key + "', value = byte[" + value.length + "], timestamp = " + time);
+                if(log.isTraceEnabled()){
+                    log.trace("[PUT] Key = '" + key + "', value = byte[" + value.length + "], timestamp = " + time);
+                }
                 map.put(tk.toSerializableFormat(), value);
             } else {
-                logTrace("[PUT] Key = '" + key + "', value = NULL, timestamp = " + time);
+                if(log.isTraceEnabled()){
+                    log.trace("[PUT] Key = '" + key + "', value = NULL, timestamp = " + time);
+                }
                 map.put(tk.toSerializableFormat(), new byte[0]);
             }
             InverseUnqualifiedTemporalKey itk = InverseUnqualifiedTemporalKey.create(time, key);
@@ -145,8 +153,9 @@ public class DataMatrixUtil {
         checkNotNull(keyspace, "Precondition violation - argument 'keyspace' must not be NULL!");
         checkArgument(maxTime >= 0, "Precondition violation - argument 'maxTime' must not be negative!");
         checkNotNull(key, "Precondition violation - argument 'key' must not be NULL!");
-        logTrace(
-            "[HST] Retrieving history of key '" + key + "' in keyspace '" + keyspace + "' at timestamp " + maxTime);
+        if(log.isTraceEnabled()){
+            log.trace("[HST] Retrieving history of key '" + key + "' in keyspace '" + keyspace + "' at timestamp " + maxTime);
+        }
         String tkMin = UnqualifiedTemporalKey.createMin(key).toSerializableFormat();
         String tkMax = UnqualifiedTemporalKey.create(key, maxTime).toSerializableFormat();
         NavigableMap<String, byte[]> subMap = map.subMap(tkMin, true, tkMax, true);
@@ -163,7 +172,9 @@ public class DataMatrixUtil {
         checkArgument(upperBound >= 0, "Precondition violation - argument 'upperBound' must not be negative!");
         checkArgument(lowerBound <= upperBound, "Precondition violation - argument 'lowerBound' must be less than or equal to argument 'upperBound'!");
         checkNotNull(order, "Precondition violation - argument 'order' must not be NULL!");
-        logTrace("[HST] Retrieving history of key '" + key + "' in keyspace '" + keyspace + "' at range " + lowerBound + ":" + upperBound);
+        if(log.isTraceEnabled()){
+            log.trace("[HST] Retrieving history of key '" + key + "' in keyspace '" + keyspace + "' at range " + lowerBound + ":" + upperBound);
+        }
         String tkMin = UnqualifiedTemporalKey.create(key, lowerBound).toSerializableFormat();
         String tkMax = UnqualifiedTemporalKey.create(key, upperBound).toSerializableFormat();
         NavigableMap<String, byte[]> subMap = map.subMap(tkMin, true, tkMax, true);
@@ -190,7 +201,9 @@ public class DataMatrixUtil {
         checkNotNull(map, "Precondition violation - argument 'map' must not be NULL!");
         checkNotNull(keyspace, "Precondition violation - argument 'keyspace' must not be NULL!");
         checkNotNull(entries, "Precondition violation - argument 'entries' must not be NULL!");
-        logTrace("[INS] Inserting " + entries.size() + " entries into keyspace '" + keyspace + "'.");
+        if(log.isTraceEnabled()){
+            log.trace("[INS] Inserting " + entries.size() + " entries into keyspace '" + keyspace + "'.");
+        }
         for (UnqualifiedTemporalEntry entry : entries) {
             UnqualifiedTemporalKey tKey = entry.getKey();
             byte[] value = entry.getValue();
@@ -206,7 +219,9 @@ public class DataMatrixUtil {
         checkNotNull(keyspace, "Precondition violation - argument 'keyspace' must not be NULL!");
         checkNotNull(key, "Precondition violation - argument 'key' must not be NULL!");
         checkArgument(upperBound >= 0, "Precondition violation - argument 'upperBound' must not be negative!");
-        logTrace("[LCT] Retrieving last commit timestamp in keyspace '" + keyspace + "' on key '" + key + "'");
+        if(log.isTraceEnabled()){
+            log.trace("[LCT] Retrieving last commit timestamp in keyspace '" + keyspace + "' on key '" + key + "'");
+        }
         String kMax = UnqualifiedTemporalKey.create(key, upperBound).toSerializableFormat();
         String lastKey = map.floorKey(kMax);
         if (lastKey == null) {

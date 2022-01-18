@@ -1,7 +1,8 @@
 package org.chronos.chronograph.test.cases.configuration;
 
-import org.apache.commons.configuration.BaseConfiguration;
-import org.apache.commons.configuration.Configuration;
+import groovy.lang.Script;
+import org.apache.commons.configuration2.BaseConfiguration;
+import org.apache.commons.configuration2.Configuration;
 import org.apache.tinkerpop.gremlin.structure.T;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.util.TransactionException;
@@ -10,6 +11,7 @@ import org.chronos.chronodb.internal.api.ChronoDBConfiguration;
 import org.chronos.chronodb.test.base.InstantiateChronosWith;
 import org.chronos.chronograph.api.structure.ChronoGraph;
 import org.chronos.chronograph.internal.api.configuration.ChronoGraphConfiguration;
+import org.chronos.chronograph.internal.impl.groovy.StaticGroovyCompilationCache;
 import org.chronos.chronograph.test.base.AllChronoGraphBackendsTest;
 import org.chronos.common.test.junit.categories.IntegrationTest;
 import org.junit.Test;
@@ -139,6 +141,40 @@ public class ChronoGraphConfigurationTest extends AllChronoGraphBackendsTest {
         } catch (TransactionException expected) {
             // pass
         }
+    }
+
+    @Test
+    @InstantiateChronosWith(property = ChronoGraphConfiguration.USE_STATIC_GROOVY_COMPILATION_CACHE, value = "true")
+    public void canUseSharedGroovyCache(){
+        ChronoGraph graph = this.getGraph();
+
+        // make sure we have no leftovers from other tests in the static cache
+        StaticGroovyCompilationCache.getInstance().clear();
+
+        String groovyScript = "return;";
+        boolean added = graph.getSchemaManager().addOrOverrideValidator("dummyValidator", groovyScript);
+
+        assertFalse(added);
+
+        Class<? extends Script> compiledScript = StaticGroovyCompilationCache.getInstance().get(groovyScript);
+        assertNotNull(compiledScript);
+    }
+
+    @Test
+    @InstantiateChronosWith(property = ChronoGraphConfiguration.USE_STATIC_GROOVY_COMPILATION_CACHE, value = "false")
+    public void canUseLocalGroovyCache(){
+        ChronoGraph graph = this.getGraph();
+
+        // make sure we have no leftovers from other tests in the static cache
+        StaticGroovyCompilationCache.getInstance().clear();
+
+        String groovyScript = "return;";
+        boolean added = graph.getSchemaManager().addOrOverrideValidator("dummyValidator", groovyScript);
+
+        assertFalse(added);
+
+        Class<? extends Script> compiledScript = StaticGroovyCompilationCache.getInstance().get(groovyScript);
+        assertNull(compiledScript); // cache miss in the static cache, because we used the local one
     }
 
     // =================================================================================================================

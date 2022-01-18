@@ -12,6 +12,9 @@ public class CacheStatisticsImpl implements CacheStatistics {
 
 	private AtomicLong hitCount;
 	private AtomicLong missCount;
+	private AtomicLong evictedCount;
+	private AtomicLong rollbackCount;
+	private AtomicLong clearCount;
 
 	// =====================================================================================================================
 	// CONSTRUCTOR
@@ -20,6 +23,9 @@ public class CacheStatisticsImpl implements CacheStatistics {
 	public CacheStatisticsImpl() {
 		this.hitCount = new AtomicLong(0L);
 		this.missCount = new AtomicLong(0L);
+		this.evictedCount = new AtomicLong(0L);
+		this.rollbackCount = new AtomicLong(0L);
+		this.clearCount = new AtomicLong(0L);
 	}
 
 	// =====================================================================================================================
@@ -36,10 +42,28 @@ public class CacheStatisticsImpl implements CacheStatistics {
 		return this.missCount.get();
 	}
 
+	@Override
+	public long getEvictionCount() {
+		return this.evictedCount.get();
+	}
+
+	@Override
+	public long getRollbackCount() {
+		return rollbackCount.get();
+	}
+
+	@Override
+	public long getClearCount() {
+		return clearCount.get();
+	}
+
 	public CacheStatisticsImpl duplicate() {
 		CacheStatisticsImpl clone = new CacheStatisticsImpl();
 		clone.hitCount.set(this.getCacheHitCount());
 		clone.missCount.set(this.getCacheMissCount());
+		clone.evictedCount.set(this.getEvictionCount());
+		clone.rollbackCount.set(this.getRollbackCount());
+		clone.clearCount.set(this.getClearCount());
 		return clone;
 	}
 
@@ -53,6 +77,22 @@ public class CacheStatisticsImpl implements CacheStatistics {
 
 	public void registerMiss() {
 		this.missCount.incrementAndGet();
+	}
+
+	public void registerEviction(){
+		this.evictedCount.incrementAndGet();
+	}
+
+	public void registerEvictions(long amount){
+		this.evictedCount.addAndGet(amount);
+	}
+
+	public void registerRollback(){
+		this.rollbackCount.incrementAndGet();
+	}
+
+	public void registerClear(){
+		this.clearCount.incrementAndGet();
 	}
 
 	public void reset() {

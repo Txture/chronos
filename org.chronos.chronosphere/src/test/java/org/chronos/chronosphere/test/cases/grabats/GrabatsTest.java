@@ -1,5 +1,6 @@
 package org.chronos.chronosphere.test.cases.grabats;
 
+import com.google.common.base.Charsets;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 import org.apache.commons.io.IOUtils;
@@ -8,7 +9,6 @@ import org.chronos.chronosphere.api.ChronoSphereTransaction;
 import org.chronos.chronosphere.emf.internal.util.EMFUtils;
 import org.chronos.chronosphere.test.base.AllChronoSphereBackendsTest;
 import org.chronos.chronosphere.test.testmodels.meta.GrabatsMetamodel;
-import org.chronos.common.logging.ChronoLogger;
 import org.chronos.common.test.junit.categories.PerformanceTest;
 import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EClassifier;
@@ -17,6 +17,8 @@ import org.eclipse.emf.ecore.EPackage;
 import org.eclipse.emf.ecore.EReference;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
 import java.util.List;
@@ -27,6 +29,8 @@ import static org.junit.Assert.*;
 
 @Category(PerformanceTest.class)
 public class GrabatsTest extends AllChronoSphereBackendsTest {
+
+    private static final Logger log = LoggerFactory.getLogger(GrabatsTest.class);
 
     @Test
     public void grabatsMetamodelFilesArePresent() {
@@ -54,21 +58,19 @@ public class GrabatsTest extends AllChronoSphereBackendsTest {
         long timeBeforeXMIread = System.currentTimeMillis();
         InputStream stream = new GZIPInputStream(
             GrabatsTest.class.getClassLoader().getResourceAsStream("testinstancemodels/grabats/set0.xmi.gz"));
-        String xmiContents = IOUtils.toString(stream);
+        String xmiContents = IOUtils.toString(stream, Charsets.UTF_8);
         long timeAfterXMIread = System.currentTimeMillis();
-        ChronoLogger
-            .logInfo("Loaded GRABATS set0.xmi into a String in " + (timeAfterXMIread - timeBeforeXMIread) + "ms.");
+        log.info("Loaded GRABATS set0.xmi into a String in " + (timeAfterXMIread - timeBeforeXMIread) + "ms.");
         long timeBeforeBatchLoad = System.currentTimeMillis();
         List<EObject> eObjects = EMFUtils.readEObjectsFromXMI(xmiContents,
             Sets.newHashSet(GrabatsMetamodel.createAllEPackages()));
         long timeAfterBatchLoad = System.currentTimeMillis();
-        ChronoLogger
-            .logInfo("Loaded GRABATS set0.xmi into Ecore in " + (timeAfterBatchLoad - timeBeforeBatchLoad) + "ms.");
+        log.info("Loaded GRABATS set0.xmi into Ecore in " + (timeAfterBatchLoad - timeBeforeBatchLoad) + "ms.");
         int count = 0;
         for (EObject eObject : eObjects) {
             count += Iterators.size(eObject.eAllContents()) + 1;
         }
-        ChronoLogger.log("GRABATS set0.xmi contains " + count + " EObjects.");
+        log.info("GRABATS set0.xmi contains " + count + " EObjects.");
     }
 
     @Test
@@ -78,15 +80,13 @@ public class GrabatsTest extends AllChronoSphereBackendsTest {
         long timeBeforeXMIread = System.currentTimeMillis();
         InputStream stream = new GZIPInputStream(
             GrabatsMetamodel.class.getClassLoader().getResourceAsStream("testinstancemodels/grabats/set0.xmi.gz"));
-        String xmiContents = IOUtils.toString(stream);
+        String xmiContents = IOUtils.toString(stream, Charsets.UTF_8);
         long timeAfterXMIread = System.currentTimeMillis();
-        ChronoLogger
-            .logInfo("Loaded GRABATS set0.xmi into a String in " + (timeAfterXMIread - timeBeforeXMIread) + "ms.");
+        log.info("Loaded GRABATS set0.xmi into a String in " + (timeAfterXMIread - timeBeforeXMIread) + "ms.");
         long timeBeforeBatchLoad = System.currentTimeMillis();
         sphere.batchInsertModelData(xmiContents);
         long timeAfterBatchLoad = System.currentTimeMillis();
-        ChronoLogger.logInfo(
-            "Loaded GRABATS set0.xmi into ChronoSphere in " + (timeAfterBatchLoad - timeBeforeBatchLoad) + "ms.");
+        log.info("Loaded GRABATS set0.xmi into ChronoSphere in " + (timeAfterBatchLoad - timeBeforeBatchLoad) + "ms.");
 
     }
 

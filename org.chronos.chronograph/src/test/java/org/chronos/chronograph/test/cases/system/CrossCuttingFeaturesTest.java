@@ -125,12 +125,12 @@ public class CrossCuttingFeaturesTest extends AllChronoGraphBackendsTest {
     private static void runPhase1(final ChronoGraph graph) {
         try {
             // create indices
-            graph.getIndexManager().create().stringIndex().onVertexProperty(P_FIRST_NAME).build();
-            graph.getIndexManager().create().stringIndex().onVertexProperty(P_LAST_NAME).build();
-            graph.getIndexManager().create().stringIndex().onEdgeProperty(E_KIND).build();
-            graph.getIndexManager().create().stringIndex().onVertexProperty(P_NICKNAMES).build();
+            graph.getIndexManagerOnMaster().create().stringIndex().onVertexProperty(P_FIRST_NAME).acrossAllTimestamps().build();
+            graph.getIndexManagerOnMaster().create().stringIndex().onVertexProperty(P_LAST_NAME).acrossAllTimestamps().build();
+            graph.getIndexManagerOnMaster().create().stringIndex().onEdgeProperty(E_KIND).acrossAllTimestamps().build();
+            graph.getIndexManagerOnMaster().create().stringIndex().onVertexProperty(P_NICKNAMES).acrossAllTimestamps().build();
 
-            graph.getIndexManager().reindexAll();
+            graph.getIndexManagerOnMaster().reindexAll();
 
             // create the base graph
             graph.tx().open();

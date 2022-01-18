@@ -2,8 +2,18 @@ package org.chronos.chronograph.internal.impl.index;
 
 import static com.google.common.base.Preconditions.*;
 
+import org.chronos.chronodb.api.ChronoDBConstants;
+import org.chronos.chronodb.internal.api.Period;
+import org.chronos.chronodb.internal.impl.index.IndexingOption;
 import org.chronos.chronograph.internal.api.index.ChronoGraphIndexInternal;
 
+import java.util.Collections;
+import java.util.Set;
+
+/**
+ * @deprecated  Use {@link ChronoGraphIndex3} instead. This class only exists for backwards compatibility.
+ */
+@Deprecated
 public abstract class AbstractChronoGraphIndex2 implements ChronoGraphIndexInternal {
 
 	// =====================================================================================================================
@@ -26,6 +36,31 @@ public abstract class AbstractChronoGraphIndex2 implements ChronoGraphIndexInter
 		checkNotNull(indexType, "Precondition violation - argument 'indexType' must not be NULL!");
 		this.indexedProperty = indexedProperty;
 		this.indexType = indexType;
+	}
+
+	@Override
+	public String getId() {
+		return this.getBackendIndexKey();
+	}
+
+	@Override
+	public String getParentIndexId() {
+		return null;
+	}
+
+	@Override
+	public boolean isDirty() {
+		return true;
+	}
+
+	@Override
+	public String getBranch() {
+		return ChronoDBConstants.MASTER_BRANCH_IDENTIFIER;
+	}
+
+	@Override
+	public Period getValidPeriod() {
+		return Period.eternal();
 	}
 
 	@Override
@@ -72,4 +107,8 @@ public abstract class AbstractChronoGraphIndex2 implements ChronoGraphIndexInter
 		return true;
 	}
 
+	@Override
+	public Set<IndexingOption> getIndexingOptions() {
+		return Collections.emptySet();
+	}
 }

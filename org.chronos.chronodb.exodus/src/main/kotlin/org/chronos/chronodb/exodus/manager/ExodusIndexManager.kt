@@ -2,60 +2,64 @@ package org.chronos.chronodb.exodus.manager
 
 import org.apache.commons.lang3.tuple.Pair
 import org.chronos.chronodb.api.Branch
+import org.chronos.chronodb.api.Order
+import org.chronos.chronodb.api.SecondaryIndex
+import org.chronos.chronodb.api.TextCompare
 import org.chronos.chronodb.api.key.ChronoIdentifier
+import org.chronos.chronodb.api.key.QualifiedKey
 import org.chronos.chronodb.exodus.ExodusChronoDB
-import org.chronos.chronodb.exodus.secondaryindex.ExodusIndexEntryAddition
-import org.chronos.chronodb.exodus.secondaryindex.ExodusIndexEntryTermination
-import org.chronos.chronodb.exodus.secondaryindex.ExodusIndexManagerBackend
-import org.chronos.chronodb.exodus.secondaryindex.ExodusIndexModifications
+import org.chronos.chronodb.exodus.secondaryindex.*
 import org.chronos.chronodb.exodus.secondaryindex.stores.IndexEntryConsumer
-import org.chronos.chronodb.exodus.secondaryindex.stores.ScanResultEntry
 import org.chronos.chronodb.internal.api.query.searchspec.SearchSpecification
-import org.chronos.chronodb.internal.impl.index.AbstractBackendDelegatingIndexManager
+import org.chronos.chronodb.internal.impl.index.AbstractIndexManager
 import org.chronos.chronodb.internal.impl.index.IndexerWorkloadSorter
+import org.chronos.chronodb.internal.impl.index.SecondaryIndexImpl
+import org.chronos.chronodb.internal.impl.index.cursor.DeltaResolvingScanCursor
+import org.chronos.chronodb.internal.impl.index.cursor.IndexScanCursor
 import org.chronos.chronodb.internal.impl.index.diff.IndexingUtils
 import java.util.*
+import kotlin.math.min
 import kotlin.reflect.KClass
 
-class ExodusIndexManager : AbstractBackendDelegatingIndexManager<ExodusChronoDB, ExodusIndexManagerBackend> {
+class ExodusIndexManager : AbstractIndexManager<ExodusChronoDB> {
 
+    private val backend: ExodusIndexManagerBackend
 
     // =================================================================================================================
     // CONSTRUCTOR
     // =================================================================================================================
 
-    constructor(owningDB: ExodusChronoDB) : super(owningDB, ExodusIndexManagerBackend(owningDB))
+    constructor(owningDB: ExodusChronoDB) : super(owningDB) {
+        this.backend = ExodusIndexManagerBackend(owningDB)
+        this.initializeIndicesFromDisk()
+    }
 
     // =================================================================================================================
     // PUBLIC API
     // =================================================================================================================
 
-    override fun reindex(indexName: String?) {
-        this.reindexAll(false)
-    }
-
     override fun reindexAll(force: Boolean) {
         this.owningDB.lockExclusive().use {
-            if (this.dirtyIndices.isEmpty() && !force) {
+            if (this.getDirtyIndices().isEmpty() && !force) {
                 // no indices are dirty -> no need to re-index
                 return
             }
-            this.indexManagerBackend.rebuildIndexOnAllChunks()
-            for (indexName in this.indexNames) {
-                this.setIndexClean(indexName)
-            }
-            this.indexManagerBackend.persistIndexDirtyStates(this.indexNameToDirtyFlag)
+            this.backend.rebuildIndexOnAllChunks(force)
+            val allIndices = this.indexTree.getAllIndices().asSequence().filterIsInstance<SecondaryIndexImpl>().toSet()
+            allIndices.forEach { it.dirty = false }
+            this.backend.persistIndices(allIndices)
             this.clearQueryCache()
             this.owningDB.statisticsManager.clearBranchHeadStatistics()
         }
     }
 
-    override fun index(identifierToOldAndNewValue: MutableMap<ChronoIdentifier, Pair<Any?, Any?>>) {
+
+    override fun index(identifierToOldAndNewValue: Map<ChronoIdentifier, Pair<Any?, Any?>>) {
         if (identifierToOldAndNewValue.isEmpty()) {
             // no workload to index
             return
         }
-        if (this.indexNames.isEmpty()) {
+        if (this.indexTree.isEmpty()) {
             // no indices registered
             return
         }
@@ -64,7 +68,7 @@ class ExodusIndexManager : AbstractBackendDelegatingIndexManager<ExodusChronoDB,
         }
     }
 
-    override fun performIndexQuery(timestamp: Long, branch: Branch, keyspace: String, searchSpec: SearchSpecification<*,*>): Set<String> {
+    override fun performIndexQuery(timestamp: Long, branch: Branch, keyspace: String, searchSpec: SearchSpecification<*, *>): Set<String> {
         this.owningDB.lockNonExclusive().use {
             // check if we are dealing with a negated search specification that accepts empty values.
             if (searchSpec.condition.isNegated && searchSpec.condition.acceptsEmptyValue()) {
@@ -75,26 +79,70 @@ class ExodusIndexManager : AbstractBackendDelegatingIndexManager<ExodusChronoDB,
                 // - subtract the matches from the keyset
                 val keySet = this.owningDB.tx(branch.name, timestamp).keySet(keyspace)
                 val nonNegatedSearch = searchSpec.negate()
-                val scanResult = this.indexManagerBackend.performSearch(timestamp, branch, keyspace, nonNegatedSearch)
+                val scanResult = this.backend.performSearch(timestamp, branch, keyspace, nonNegatedSearch)
                 // subtract the matches from the keyset
                 for (resultEntry in scanResult) {
                     keySet.remove(resultEntry)
                 }
                 return Collections.unmodifiableSet(keySet)
             } else {
-                val scanResult = this.indexManagerBackend.performSearch(timestamp, branch, keyspace, searchSpec)
+                val scanResult = this.backend.performSearch(timestamp, branch, keyspace, searchSpec)
                 return Collections.unmodifiableSet(scanResult)
             }
         }
 
     }
 
-    fun <T: Any> allEntries(branch: String, keyspace: String, propertyName: String, type: KClass<T>, consumer: IndexEntryConsumer<T>){
-        this.indexManagerBackend.allEntries(branch, keyspace, propertyName, type, consumer)
+    fun <T : Any> allEntries(branch: String, keyspace: String, propertyName: String, type: KClass<T>, consumer: IndexEntryConsumer<T>) {
+        this.backend.allEntries(branch, keyspace, propertyName, type, consumer)
     }
 
     fun reindexHeadRevision(branchName: String) {
-        this.indexManagerBackend.rebuildIndexOnHeadChunk(branchName)
+        this.backend.rebuildIndexOnHeadChunk(branchName)
+    }
+
+    override fun createCursorInternal(
+        branch: Branch,
+        timestamp: Long,
+        index: SecondaryIndex,
+        keyspace: String,
+        indexName: String,
+        sortOrder: Order,
+        textCompare: TextCompare,
+        keys: Set<String>?
+    ): IndexScanCursor<*> {
+        val globalChunkManager = this.owningDB.globalChunkManager
+        val chunk = globalChunkManager.getChunkManagerForBranch(branch.name).getChunkForTimestamp(timestamp)
+            ?: throw IllegalArgumentException("There is no chunk for timestamp ${timestamp} on branch ${branch.name}!")
+
+        val scanCursor = if (chunk.isDeltaChunk && index.parentIndexId != null) {
+            // we require delta computation
+
+            // create the cursor on the parent
+            val parentBranch = branch.origin
+            val parentTimestamp = min(timestamp, branch.branchingTimestamp)
+
+            val parentCursor = this.createCursor<Comparable<*>>(parentTimestamp, parentBranch, keyspace, indexName, sortOrder, textCompare, keys)
+
+            val tx = globalChunkManager.openReadOnlyTransactionOn(chunk.indexDirectory)
+            val rawCursor = ExodusChunkIndex.createRawIndexCursor<Comparable<*>>(tx, keyspace, index, sortOrder, textCompare)
+            val scanCursor = DeltaResolvingScanCursor(parentCursor, timestamp, rawCursor)
+            scanCursor.onClose { tx.rollback() }
+            scanCursor
+        } else {
+            // simple case: only scan one chunk.
+            val tx = globalChunkManager.openReadOnlyTransactionOn(chunk.indexDirectory)
+            val scanCursor = ExodusChunkIndex.createIndexScanCursor<Comparable<*>>(tx, keyspace, timestamp, index, sortOrder, textCompare)
+            scanCursor.onClose { tx.rollback() }
+            scanCursor
+        }
+        return if (keys != null) {
+            scanCursor.filter {
+                it.second in keys
+            }
+        } else {
+            scanCursor
+        }
     }
 
 
@@ -124,7 +172,7 @@ class ExodusIndexManager : AbstractBackendDelegatingIndexManager<ExodusChronoDB,
             }
             // apply any remaining index modifications
             if (this.indexModifications != null && this.indexModifications!!.isNotEmpty) {
-                this@ExodusIndexManager.indexManagerBackend.applyModifications(this.indexModifications!!)
+                this@ExodusIndexManager.backend.applyModifications(this.indexModifications!!)
             }
         }
 
@@ -134,7 +182,7 @@ class ExodusIndexManager : AbstractBackendDelegatingIndexManager<ExodusChronoDB,
                 // the timestamp of the new work item is different from the one before. We need
                 // to apply any index modifications (if any) and open a new modifications object
                 if (this.indexModifications != null && this.indexModifications!!.isNotEmpty) {
-                    this@ExodusIndexManager.indexManagerBackend.applyModifications(this.indexModifications!!)
+                    this@ExodusIndexManager.backend.applyModifications(this.indexModifications!!)
                 }
                 this.currentTimestamp = nextTimestamp
                 this.indexModifications = ExodusIndexModifications(nextTimestamp)
@@ -142,32 +190,66 @@ class ExodusIndexManager : AbstractBackendDelegatingIndexManager<ExodusChronoDB,
         }
 
         private fun indexSingleEntry(identifier: ChronoIdentifier, oldValue: Any?, newValue: Any?) {
-            val indexNameToIndexers = this@ExodusIndexManager.indexNameToIndexers
-            val diff = IndexingUtils.calculateDiff(indexNameToIndexers, oldValue, newValue)
-            diff.changedIndices.forEach { indexName ->
-                diff.getAdditions(indexName).forEach { addedValue ->
+            val indices = this@ExodusIndexManager.indexTree.getAllIndices()
+            val diff = IndexingUtils.calculateDiff(indices, oldValue, newValue)
+            diff.changedIndices.forEach { index ->
+                diff.getAdditions(index).forEach { addedValue ->
                     this.indexModifications!!.addEntryAddition(
-                            ExodusIndexEntryAddition(
-                                    branch = identifier.branchName,
-                                    index = indexName,
-                                    keyspace = identifier.keyspace,
-                                    key = identifier.key,
-                                    value = addedValue
-                            )
+                        ExodusIndexEntryAddition(
+                            branch = identifier.branchName,
+                            index = index,
+                            keyspace = identifier.keyspace,
+                            key = identifier.key,
+                            value = addedValue
+                        )
                     )
                 }
-                diff.getRemovals(indexName).forEach { removedValue ->
+                diff.getRemovals(index).forEach { removedValue ->
                     this.indexModifications!!.addEntryTermination(
-                            ExodusIndexEntryTermination(
-                                    branch = identifier.branchName,
-                                    index = indexName,
-                                    keyspace = identifier.keyspace,
-                                    key = identifier.key,
-                                    value = removedValue
-                            )
+                        ExodusIndexEntryTermination(
+                            branch = identifier.branchName,
+                            index = index,
+                            keyspace = identifier.keyspace,
+                            key = identifier.key,
+                            value = removedValue
+                        )
                     )
                 }
             }
         }
     }
+
+    @Suppress("UNCHECKED_CAST")
+    override fun loadIndicesFromPersistence(): Set<SecondaryIndexImpl> {
+        return this.backend.loadIndicesFromPersistence() as Set<SecondaryIndexImpl>
+    }
+
+    override fun deleteIndexInternal(index: SecondaryIndexImpl) {
+        this.backend.deleteIndex(index)
+    }
+
+    override fun deleteAllIndicesInternal() {
+        this.backend.deleteAllIndices()
+    }
+
+    override fun saveIndexInternal(index: SecondaryIndexImpl) {
+        this.backend.persistIndex(index)
+    }
+
+    override fun saveIndicesInternal(indices: Set<SecondaryIndexImpl>) {
+        this.backend.persistIndices(indices)
+    }
+
+    override fun rollback(index: SecondaryIndexImpl, timestamp: Long) {
+        this.rollback(setOf(index), timestamp)
+    }
+
+    override fun rollback(indices: Set<SecondaryIndexImpl>, timestamp: Long) {
+        this.backend.rollback(indices, timestamp)
+    }
+
+    override fun rollback(indices: Set<SecondaryIndexImpl>, timestamp: Long, keys: Set<QualifiedKey>) {
+        this.backend.rollback(indices, timestamp, keys)
+    }
+
 }

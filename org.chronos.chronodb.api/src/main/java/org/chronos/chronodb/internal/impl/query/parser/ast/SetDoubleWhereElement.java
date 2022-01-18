@@ -1,12 +1,14 @@
 package org.chronos.chronodb.internal.impl.query.parser.ast;
 
 import com.google.common.collect.Sets;
+import org.chronos.chronodb.api.SecondaryIndex;
 import org.chronos.chronodb.api.query.ContainmentCondition;
 import org.chronos.chronodb.api.query.DoubleContainmentCondition;
 import org.chronos.chronodb.api.query.StringContainmentCondition;
 import org.chronos.chronodb.internal.api.query.searchspec.ContainmentDoubleSearchSpecification;
 import org.chronos.chronodb.internal.api.query.searchspec.SearchSpecification;
 
+import java.util.Objects;
 import java.util.Set;
 
 public class SetDoubleWhereElement extends WhereElement<Set<Double>, DoubleContainmentCondition> {
@@ -24,8 +26,11 @@ public class SetDoubleWhereElement extends WhereElement<Set<Double>, DoubleConta
     }
 
     @Override
-    public SearchSpecification<?, ?> toSearchSpecification() {
-        return ContainmentDoubleSearchSpecification.create(this.getIndexName(), this.getCondition(), this.getComparisonValue(), this.equalityTolerance);
+    public SearchSpecification<?, ?> toSearchSpecification(SecondaryIndex index) {
+        if(!Objects.equals(index.getName(), this.indexName)){
+            throw new IllegalArgumentException("Cannot use index '" + index.getName() + "' for search specification - expected index name is '" + this.indexName + "'!");
+        }
+        return ContainmentDoubleSearchSpecification.create(index, this.getCondition(), this.getComparisonValue(), this.equalityTolerance);
     }
 
 

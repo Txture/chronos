@@ -17,9 +17,13 @@ import java.util.stream.Collectors;
 
 public interface GraphTransactionContextInternal extends GraphTransactionContext {
 
+    Set<String> getLoadedVertexIds();
+
     public ChronoVertexImpl getLoadedVertexForId(String id);
 
     public void registerLoadedVertex(ChronoVertexImpl vertex);
+
+    Set<String> getLoadedEdgeIds();
 
     public ChronoEdgeImpl getLoadedEdgeForId(String id);
 
@@ -44,10 +48,6 @@ public interface GraphTransactionContextInternal extends GraphTransactionContext
     public void removeVariable(String keyspace, String variableName);
 
     public void setVariableValue(String keyspace, String variableName, Object value);
-
-    public Collection<Property<?>> getModifiedVertexProperties(SearchSpecification<?,?> searchSpecification);
-
-    public Collection<Property<?>> getModifiedEdgeProperties(SearchSpecification<?,?> searchSpecification);
 
     public Set<Vertex> getVerticesWithModificationsOnProperty(String property);
 

@@ -1,5 +1,6 @@
 package org.chronos.chronodb.exodus.secondaryindex
 
+import org.chronos.chronodb.api.SecondaryIndex
 import org.chronos.chronodb.exodus.kotlin.ext.requireNonNegative
 import java.util.*
 
@@ -72,7 +73,7 @@ class ExodusIndexModifications {
 
 data class ExodusIndexEntryAddition(
     val branch: String,
-    val index: String,
+    val index: SecondaryIndex,
     val keyspace: String,
     val key: String,
     val value: Any
@@ -80,7 +81,7 @@ data class ExodusIndexEntryAddition(
 
 data class ExodusIndexEntryTermination(
     val branch: String,
-    val index: String,
+    val index: SecondaryIndex,
     val keyspace: String,
     val key: String,
     val value: Any

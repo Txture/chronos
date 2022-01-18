@@ -29,6 +29,11 @@ public class ChronoDBBogusCache implements ChronoDBCache {
 	}
 
 	@Override
+	public int maxSize() {
+		return 0;
+	}
+
+	@Override
 	public CacheStatistics getStatistics() {
 		return new CacheStatisticsImpl();
 	}

@@ -107,6 +107,14 @@ public abstract class AbstractElementProxy<T extends AbstractChronoElement> impl
         return ElementHelper.areEqual(this, obj);
     }
 
+    @Override
+    public boolean isLazy() {
+        if(this.element == null){
+            return true;
+        }
+        return this.getElement().isLazy();
+    }
+
     public void rebindTo(T newElement) {
         checkNotNull(newElement, "Precondition violation - argument 'newElement' must not be NULL!");
         if (!Objects.equal(this.id, newElement.id())) {

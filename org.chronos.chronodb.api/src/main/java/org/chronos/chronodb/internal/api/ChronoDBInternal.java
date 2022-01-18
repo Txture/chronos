@@ -3,6 +3,7 @@ package org.chronos.chronodb.internal.api;
 import java.util.List;
 
 import org.chronos.chronodb.api.*;
+import org.chronos.chronodb.internal.api.index.IndexManagerInternal;
 import org.chronos.chronodb.internal.api.query.QueryManager;
 import org.chronos.chronodb.internal.api.stream.ChronoDBEntry;
 import org.chronos.chronodb.internal.api.stream.CloseableIterator;
@@ -36,6 +37,9 @@ public interface ChronoDBInternal extends ChronoDB, ReadWriteAutoLockable {
 	 */
 	@Override
 	public DatebackManagerInternal getDatebackManager();
+
+	@Override
+	public IndexManagerInternal getIndexManager();
 
 	/**
 	 * A method called by the {@link ChronoDBFactory} after initializing this new instance.
@@ -198,5 +202,12 @@ public interface ChronoDBInternal extends ChronoDB, ReadWriteAutoLockable {
 	 * @return <code>true</code> if an auto-reindex should be performed after reading a dump, otherwise <code>false</code>.
 	 */
     public boolean requiresAutoReindexAfterDumpRead();
+
+	/**
+	 * Returns the commit timestamp provider of this database.
+	 *
+	 * @return The commit timestamp provider.
+	 */
+	public CommitTimestampProvider getCommitTimestampProvider();
 
 }

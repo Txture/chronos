@@ -2,7 +2,9 @@ package org.chronos.common.testing.kotlin.ext
 
 import org.hamcrest.Matcher
 import org.hamcrest.Matchers.*
-import org.junit.Assert.assertThat
+
+import org.hamcrest.MatcherAssert.assertThat
+
 
 infix fun <T> T?.shouldBe(other: T) {
     assertThat(this, `is`(other))

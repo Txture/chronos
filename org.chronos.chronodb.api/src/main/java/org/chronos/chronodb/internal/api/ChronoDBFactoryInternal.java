@@ -1,6 +1,6 @@
 package org.chronos.chronodb.internal.api;
 
-import org.apache.commons.configuration.Configuration;
+import org.apache.commons.configuration2.Configuration;
 import org.chronos.chronodb.api.ChronoDB;
 import org.chronos.chronodb.api.ChronoDBFactory;
 import org.chronos.chronodb.api.exceptions.ChronoDBConfigurationException;

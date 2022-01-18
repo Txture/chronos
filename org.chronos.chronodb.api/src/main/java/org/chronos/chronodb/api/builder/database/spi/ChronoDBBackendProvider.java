@@ -1,6 +1,6 @@
 package org.chronos.chronodb.api.builder.database.spi;
 
-import org.apache.commons.configuration.Configuration;
+import org.apache.commons.configuration2.Configuration;
 import org.chronos.chronodb.api.builder.database.ChronoDBBackendBuilder;
 import org.chronos.chronodb.internal.api.ChronoDBConfiguration;
 import org.chronos.chronodb.internal.api.ChronoDBInternal;

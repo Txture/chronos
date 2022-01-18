@@ -55,7 +55,7 @@ class ExodusBackupManager(owningDB: ExodusChronoDB) : AbstractBackupManager(owni
                 )
                 val startTime = datebackOperationsSinceLastRequest.asSequence()
                         .map { it.earliestAffectedTimestamp }
-                        .min().let {
+                        .minOrNull().let {
                             if (it == null || it >= minTimestamp) {
                                 minTimestamp
                             } else {
@@ -77,7 +77,7 @@ class ExodusBackupManager(owningDB: ExodusChronoDB) : AbstractBackupManager(owni
         this.writeGlobalDataIntoFile(globals, File(filesDir, "global.xml"))
 
         // create the metadata
-        val now = this.owningDb.branchManager.branches.asSequence().map { it.now }.max() ?: 0
+        val now = this.owningDb.branchManager.branches.asSequence().map { it.now }.maxOrNull() ?: 0
         val metadata = IncrementalBackupInfo(ChronosVersion.getCurrentVersion(), 2, minTimestamp, lastRequestWallClockTime, now, System.currentTimeMillis())
         // write it to a properties file
         this.writeBackupMetadataIntoFile(metadata, File(filesDir, "metadata.properties"))

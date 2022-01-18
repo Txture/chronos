@@ -1,19 +1,23 @@
 package org.chronos.chronodb.test.cases.engine.reopening;
 
 import org.chronos.chronodb.api.ChronoDB;
+import org.chronos.chronodb.api.ChronoDBConstants;
 import org.chronos.chronodb.api.ChronoDBTransaction;
+import org.chronos.chronodb.api.SecondaryIndex;
 import org.chronos.chronodb.inmemory.InMemoryChronoDB;
 import org.chronos.chronodb.internal.api.ChronoDBConfiguration;
 import org.chronos.chronodb.test.base.AllBackendsTest.DontRunWithBackend;
 import org.chronos.chronodb.test.base.AllChronoDBBackendsTest;
 import org.chronos.chronodb.test.base.InstantiateChronosWith;
 import org.chronos.chronodb.test.cases.util.model.payload.NamedPayloadNameIndexer;
-import org.chronos.common.logging.ChronoLogger;
 import org.chronos.common.test.junit.categories.IntegrationTest;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
@@ -22,6 +26,8 @@ import static org.junit.Assert.*;
 // these tests do not make sense with non-persistent backends.
 @DontRunWithBackend({InMemoryChronoDB.BACKEND_NAME})
 public class ChronoDBReopeningTest extends AllChronoDBBackendsTest {
+
+    private static final Logger log = LoggerFactory.getLogger(ChronoDBReopeningTest.class);
 
     @Test
     public void reopeningChronoDbWorks() {
@@ -60,7 +66,7 @@ public class ChronoDBReopeningTest extends AllChronoDBBackendsTest {
         tx.put("k3", 42);
         tx.commit();
         // reinstantiate
-        ChronoLogger.log("Reinstantiating DB");
+        log.info("Reinstantiating DB");
         ChronoDB db2 = this.closeAndReopenDB();
         // check that the content is still there
         ChronoDBTransaction tx2 = db2.tx();
@@ -79,19 +85,21 @@ public class ChronoDBReopeningTest extends AllChronoDBBackendsTest {
         ChronoDB db = this.getChronoDB();
         assertNotNull(db);
         // add some indexers
-        db.getIndexManager().addIndexer("name", new NamedPayloadNameIndexer());
-        db.getIndexManager().addIndexer("test", new NamedPayloadNameIndexer());
+        db.getIndexManager().createIndex().withName("name").withIndexer(new NamedPayloadNameIndexer()).onMaster().acrossAllTimestamps().build();
+        db.getIndexManager().createIndex().withName("test").withIndexer(new NamedPayloadNameIndexer()).onMaster().acrossAllTimestamps().build();
         // assert that the indices are present
-        assertTrue(db.getIndexManager().getIndexNames().contains("name"));
-        assertTrue(db.getIndexManager().getIndexNames().contains("test"));
-        assertEquals(2, db.getIndexManager().getIndexNames().size());
+        Set<String> indexNames = db.getIndexManager().getIndices().stream().map(SecondaryIndex::getName).collect(Collectors.toSet());
+        assertTrue(indexNames.contains("name"));
+        assertTrue(indexNames.contains("test"));
+        assertEquals(2, indexNames.size());
 
         // reinstantiate the DB
         ChronoDB db2 = this.closeAndReopenDB();
         // assert that the indices are still present
-        assertTrue(db2.getIndexManager().getIndexNames().contains("name"));
-        assertTrue(db2.getIndexManager().getIndexNames().contains("test"));
-        assertEquals(2, db2.getIndexManager().getIndexNames().size());
+        Set<String> indexNames2 = db2.getIndexManager().getIndices().stream().map(SecondaryIndex::getName).collect(Collectors.toSet());
+        assertTrue(indexNames2.contains("name"));
+        assertTrue(indexNames2.contains("test"));
+        assertEquals(2, indexNames2.size());
     }
 
     @Test
@@ -99,20 +107,22 @@ public class ChronoDBReopeningTest extends AllChronoDBBackendsTest {
         ChronoDB db = this.getChronoDB();
         assertNotNull(db);
         // add some indexers
-        db.getIndexManager().addIndexer("name", new NamedPayloadNameIndexer());
+        db.getIndexManager().createIndex().withName("name").withIndexer(new NamedPayloadNameIndexer()).onMaster().acrossAllTimestamps().build();
         db.getIndexManager().reindexAll();
-        db.getIndexManager().addIndexer("test", new NamedPayloadNameIndexer());
+        db.getIndexManager().createIndex().withName("test").withIndexer(new NamedPayloadNameIndexer()).onMaster().acrossAllTimestamps().build();
         // make sure that 'name' isn't dirty
-        assertFalse(db.getIndexManager().getDirtyIndices().contains("name"));
+        Set<String> dirtyIndexNames = db.getIndexManager().getDirtyIndices().stream().map(SecondaryIndex::getName).collect(Collectors.toSet());
+        assertFalse(dirtyIndexNames.contains("name"));
         // ... but the 'test' index should still be dirty
-        assertTrue(db.getIndexManager().getDirtyIndices().contains("test"));
+        assertTrue(dirtyIndexNames.contains("test"));
 
         // reopen the db
         ChronoDB db2 = this.closeAndReopenDB();
 
         // assert that the 'name' index is not dirty, but the 'test' index is
-        assertFalse(db2.getIndexManager().getDirtyIndices().contains("name"));
-        assertTrue(db2.getIndexManager().getDirtyIndices().contains("test"));
+        Set<String> dirtyIndexNames2 = db2.getIndexManager().getDirtyIndices().stream().map(SecondaryIndex::getName).collect(Collectors.toSet());
+        assertFalse(dirtyIndexNames2.contains("name"));
+        assertTrue(dirtyIndexNames2.contains("test"));
     }
 
     @Test
@@ -153,7 +163,7 @@ public class ChronoDBReopeningTest extends AllChronoDBBackendsTest {
     @Test
     @InstantiateChronosWith(property = ChronoDBConfiguration.CACHING_ENABLED, value = "true")
     @InstantiateChronosWith(property = ChronoDBConfiguration.CACHE_MAX_SIZE, value = "200000")
-    public void mosaicCacheWorksWithReopenedRolloverDB(){
+    public void mosaicCacheWorksWithReopenedRolloverDB() {
         ChronoDB db = this.getChronoDB();
         this.assumeRolloverIsSupported(db);
         this.assumeIsPersistent(db);

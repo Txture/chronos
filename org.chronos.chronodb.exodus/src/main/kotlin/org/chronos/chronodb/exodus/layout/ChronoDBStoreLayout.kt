@@ -19,6 +19,7 @@ object ChronoDBStoreLayout {
     const val STORE_NAME_PREFIX__SECONDARY_INDEX_LONG = "secondaryIndex_Long_"
 
     const val KEY__CHRONOS_VERSION = "chronos.version"
+    @Deprecated("indexers are not stored under a single key anymore, but by their ID instead.")
     const val KEY__ALL_INDEXERS = "chronos.indexers"
 
 

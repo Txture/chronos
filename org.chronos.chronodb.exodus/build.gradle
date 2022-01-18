@@ -1,4 +1,5 @@
 plugins {
+    id 'java'
     id 'org.jetbrains.kotlin.jvm'
 }
 
@@ -37,6 +38,16 @@ afterEvaluate { project ->
                 version project.mavenVersion
             }
         }
+
+        repositories {
+            maven {
+                url project.s3Url
+                credentials(AwsCredentials) {
+                    accessKey project.s3AccessKey
+                    secretKey project.s3SecretKey
+                }
+            }
+        }
     }
 }
 
@@ -58,6 +69,8 @@ dependencies {
     // Utilities
     compile("com.esotericsoftware:kryo:${project.kryoVersion}");
     compile("com.thoughtworks.xstream:xstream:${project.xstreamVersion}");
+
+    compile group: 'io.github.microutils', name: 'kotlin-logging', version: '${project.kotlinLoggingVersion}', ext: 'pom'
 
     testCompile project(':org.chronos.common.testing')
 }

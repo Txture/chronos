@@ -1,7 +1,7 @@
 package org.chronos.chronodb.internal.impl.builder.database;
 
-import org.apache.commons.configuration.Configuration;
-import org.apache.commons.configuration.MapConfiguration;
+import org.apache.commons.configuration2.Configuration;
+import org.apache.commons.configuration2.MapConfiguration;
 import org.chronos.common.builder.AbstractChronoBuilder;
 import org.chronos.common.builder.ChronoBuilder;
 

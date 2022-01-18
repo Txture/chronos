@@ -63,6 +63,11 @@ public class ReadOnlyChronoGraphBranchManager implements ChronoGraphBranchManage
         return this.unsupportedOperation();
     }
 
+    @Override
+    public GraphBranch getActualBranchForQuerying(final String branchName, final long timestamp) {
+        return this.manager.getActualBranchForQuerying(branchName, timestamp);
+    }
+
     private <T> T unsupportedOperation() {
         throw new UnsupportedOperationException("This operation is not supported on a readOnly graph!");
     }

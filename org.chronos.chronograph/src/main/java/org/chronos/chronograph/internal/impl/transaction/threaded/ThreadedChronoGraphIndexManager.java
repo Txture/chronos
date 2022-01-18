@@ -2,11 +2,13 @@ package org.chronos.chronograph.internal.impl.transaction.threaded;
 
 import org.apache.tinkerpop.gremlin.structure.Element;
 import org.chronos.chronodb.internal.api.query.searchspec.SearchSpecification;
+import org.chronos.chronodb.internal.impl.index.IndexingOption;
 import org.chronos.chronograph.api.builder.index.IndexBuilderStarter;
 import org.chronos.chronograph.api.index.ChronoGraphIndex;
 import org.chronos.chronograph.api.index.ChronoGraphIndexManager;
 import org.chronos.chronograph.api.transaction.ChronoGraphTransaction;
 import org.chronos.chronograph.internal.api.index.ChronoGraphIndexManagerInternal;
+import org.chronos.chronograph.internal.impl.index.IndexType;
 
 import java.util.Iterator;
 import java.util.Set;
@@ -23,26 +25,35 @@ public class ThreadedChronoGraphIndexManager implements ChronoGraphIndexManager,
         checkNotNull(branchName, "Precondition violation - argument 'branchName' must not be NULL!");
         this.graph = graph;
         this.wrappedManager = (ChronoGraphIndexManagerInternal) this.graph.getOriginalGraph()
-            .getIndexManager(branchName);
+            .getIndexManagerOnBranch(branchName);
+    }
+
+
+    @Override
+    public ChronoGraphIndex addIndex(
+        final Class<? extends Element> elementType,
+        final IndexType indexType,
+        final String propertyName,
+        final long startTimestamp,
+        final long endTimestamp,
+        Set<IndexingOption> options
+    ) {
+        return this.wrappedManager.addIndex(elementType, indexType, propertyName, startTimestamp, endTimestamp, options);
     }
 
     @Override
-    public void addIndex(final ChronoGraphIndex index) {
-        this.wrappedManager.addIndex(index);
-    }
-
-    @Override
-    public void addIndex(final ChronoGraphIndex index, Object commitMetadata) {
-        this.wrappedManager.addIndex(index, commitMetadata);
-    }
-
-    @Override
-    public Iterator<String> findVertexIdsByIndexedProperties(final ChronoGraphTransaction tx, final Set<SearchSpecification<?,?>> searchSpecifications) {
+    public Iterator<String> findVertexIdsByIndexedProperties(
+        final ChronoGraphTransaction tx,
+        final Set<SearchSpecification<?, ?>> searchSpecifications
+    ) {
         return this.wrappedManager.findVertexIdsByIndexedProperties(tx, searchSpecifications);
     }
 
     @Override
-    public Iterator<String> findEdgeIdsByIndexedProperties(final ChronoGraphTransaction tx, final Set<SearchSpecification<?,?>> searchSpecifications) {
+    public Iterator<String> findEdgeIdsByIndexedProperties(
+        final ChronoGraphTransaction tx,
+        final Set<SearchSpecification<?, ?>> searchSpecifications
+    ) {
         return this.wrappedManager.findEdgeIdsByIndexedProperties(tx, searchSpecifications);
     }
 
@@ -52,9 +63,46 @@ public class ThreadedChronoGraphIndexManager implements ChronoGraphIndexManager,
     }
 
     @Override
-    public Set<ChronoGraphIndex> getIndexedPropertiesOf(final Class<? extends Element> clazz) {
-        return this.wrappedManager.getIndexedPropertiesOf(clazz);
+    public Set<ChronoGraphIndex> getIndexedPropertiesAtTimestamp(final Class<? extends Element> clazz, final long timestamp) {
+        return this.wrappedManager.getIndexedPropertiesAtTimestamp(clazz, timestamp);
     }
+
+    @Override
+    public Set<ChronoGraphIndex> getIndexedPropertiesAtAnyPointInTime(final Class<? extends Element> clazz) {
+        return this.wrappedManager.getIndexedPropertiesAtAnyPointInTime(clazz);
+    }
+
+
+    @Override
+    public Set<ChronoGraphIndex> getAllIndicesAtAnyPointInTime() {
+        return this.wrappedManager.getAllIndicesAtAnyPointInTime();
+    }
+
+    @Override
+    public Set<ChronoGraphIndex> getAllIndicesAtTimestamp(final long timestamp) {
+        return this.wrappedManager.getAllIndicesAtTimestamp(timestamp);
+    }
+
+    @Override
+    public ChronoGraphIndex getVertexIndexAtTimestamp(final String indexedPropertyName, final long timestamp) {
+        return this.wrappedManager.getVertexIndexAtTimestamp(indexedPropertyName, timestamp);
+    }
+
+    @Override
+    public Set<ChronoGraphIndex> getVertexIndicesAtAnyPointInTime(final String indexedPropertyName) {
+        return this.wrappedManager.getVertexIndicesAtAnyPointInTime(indexedPropertyName);
+    }
+
+    @Override
+    public ChronoGraphIndex getEdgeIndexAtTimestamp(final String indexedPropertyName, final long timestamp) {
+        return this.wrappedManager.getEdgeIndexAtTimestamp(indexedPropertyName, timestamp);
+    }
+
+    @Override
+    public Set<ChronoGraphIndex> getEdgeIndicesAtAnyPointInTime(final String indexedPropertyName) {
+        return this.wrappedManager.getEdgeIndicesAtAnyPointInTime(indexedPropertyName);
+    }
+
 
     @Override
     public void reindexAll(boolean force) {
@@ -62,18 +110,8 @@ public class ThreadedChronoGraphIndexManager implements ChronoGraphIndexManager,
     }
 
     @Override
-    public void reindex(final ChronoGraphIndex index) {
-        this.wrappedManager.reindexAll();
-    }
-
-    @Override
     public void dropIndex(final ChronoGraphIndex index) {
         this.wrappedManager.dropIndex(index);
-    }
-
-    @Override
-    public void dropIndex(final ChronoGraphIndex index, final Object commitMetadata) {
-        this.wrappedManager.dropIndex(index, commitMetadata);
     }
 
     @Override
@@ -87,13 +125,14 @@ public class ThreadedChronoGraphIndexManager implements ChronoGraphIndexManager,
     }
 
     @Override
+    public ChronoGraphIndex terminateIndex(final ChronoGraphIndex index, final long timestamp) {
+        return this.wrappedManager.terminateIndex(index, timestamp);
+    }
+
+    @Override
     public boolean isReindexingRequired() {
         return this.wrappedManager.isReindexingRequired();
     }
 
-    @Override
-    public Set<ChronoGraphIndex> getDirtyIndices() {
-        return this.wrappedManager.getDirtyIndices();
-    }
 
 }
