@@ -39,7 +39,7 @@ allprojects {
     apply plugin: 'signing'
 
     // configure the group and version for this project
-    group = 'org.chronos'
+    group = 'io.txture'
     version = '1.3.7'
 
     // java version
