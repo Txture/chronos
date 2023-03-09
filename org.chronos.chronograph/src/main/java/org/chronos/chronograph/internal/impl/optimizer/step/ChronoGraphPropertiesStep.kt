@@ -9,10 +9,13 @@ import org.apache.tinkerpop.gremlin.structure.Element
 import org.apache.tinkerpop.gremlin.structure.PropertyType
 import org.chronos.chronograph.api.structure.ChronoElement
 import org.chronos.chronograph.api.structure.ElementLifecycleStatus
+import org.chronos.chronograph.api.structure.ElementLifecycleStatus.PERSISTED
 import org.chronos.chronograph.internal.api.index.ChronoGraphIndexInternal
+import org.chronos.chronograph.internal.api.index.ChronoGraphIndexManagerInternal
 import org.chronos.chronograph.internal.api.structure.ChronoGraphInternal
 import org.chronos.chronograph.internal.impl.util.ChronoGraphStepUtil
 import org.chronos.chronograph.internal.impl.util.ChronoGraphTraversalUtil
+import java.util.concurrent.Callable
 
 
 class ChronoGraphPropertiesStep<E> : PropertiesStep<E>, Configuring {
@@ -94,38 +97,41 @@ class ChronoGraphPropertiesStep<E> : PropertiesStep<E>, Configuring {
     }
 
     private fun getValuesByIndexScan(traversers: List<Traverser.Admin<Element>>): Map<String, Set<Comparable<*>>>? {
-        val (indices, keyspace) = ChronoGraphStepUtil.getIndicesAndKeyspace(traversal, traversers, this.propertyKeys.toSet())
-            ?: return null
-        val primaryKeys = traversers.asSequence()
-            .map { it.get() }
-            // no need to query the secondary index for dirty elements
-            .filter { (it is ChronoElement) && it.status == ElementLifecycleStatus.PERSISTED }
-            .map { it.id() as String }
-            .toSet()
-        val propertyKeysAsSet = this.propertyKeys.toSet()
-        val chronoDBPropertyKeys = indices.asSequence()
-            .filter { it.indexedProperty in propertyKeysAsSet }
-            .map { (it as ChronoGraphIndexInternal).backendIndexKey }
-            .toSet()
-        val graph = this.traversal.graph.orElse(null) as ChronoGraphInternal
-        graph.tx().readWrite()
-        val tx = ChronoGraphTraversalUtil.getTransaction(getTraversal<Any, Any>())
-        val branch = graph.backingDB.branchManager.getBranch(tx.branchName)
-        val resultMap = mutableMapOf<String, MutableSet<Comparable<*>>>()
-        for (chronoDBPropertyKey in chronoDBPropertyKeys) {
-            val indexScanResult = graph.backingDB.indexManager.getIndexedValuesByKey(
-                tx.timestamp,
-                branch,
-                keyspace,
-                chronoDBPropertyKey,
-                primaryKeys
-            )
-            for ((primaryKey, indexValues) in indexScanResult) {
-                resultMap.getOrPut(primaryKey, ::mutableSetOf).addAll(indexValues)
+        val chronoGraph = ChronoGraphTraversalUtil.getChronoGraph(traversal)
+        val tx = ChronoGraphTraversalUtil.getTransaction(traversal)
+        val indexManager = chronoGraph.getIndexManagerOnBranch(tx.branchName) as ChronoGraphIndexManagerInternal
+        return indexManager.withIndexReadLock(Callable {
+            val (indices, keyspace) = ChronoGraphStepUtil.getIndicesAndKeyspace(traversal, traversers, this.propertyKeys.toSet())
+                ?: return@Callable null
+            val primaryKeys = traversers.asSequence()
+                .map { it.get() }
+                // no need to query the secondary index for dirty elements
+                .filter { (it is ChronoElement) && it.status == PERSISTED }
+                .map { it.id() as String }
+                .toSet()
+            val propertyKeysAsSet = this.propertyKeys.toSet()
+            val chronoDBPropertyKeys = indices.asSequence()
+                .filter { it.indexedProperty in propertyKeysAsSet }
+                .map { (it as ChronoGraphIndexInternal).backendIndexKey }
+                .toSet()
+            val graph = this.traversal.graph.orElse(null) as ChronoGraphInternal
+            graph.tx().readWrite()
+            val branch = graph.backingDB.branchManager.getBranch(tx.branchName)
+            val resultMap = mutableMapOf<String, MutableSet<Comparable<*>>>()
+            for (chronoDBPropertyKey in chronoDBPropertyKeys) {
+                val indexScanResult = graph.backingDB.indexManager.getIndexedValuesByKey(
+                    tx.timestamp,
+                    branch,
+                    keyspace,
+                    chronoDBPropertyKey,
+                    primaryKeys
+                )
+                for ((primaryKey, indexValues) in indexScanResult) {
+                    resultMap.getOrPut(primaryKey, ::mutableSetOf).addAll(indexValues)
+                }
             }
-        }
-        return resultMap
+            return@Callable resultMap
+        })
     }
-
 
 }

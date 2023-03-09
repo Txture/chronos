@@ -2,7 +2,7 @@ package org.chronos.chronodb.exodus.secondaryindex.stores
 
 import com.google.common.annotations.VisibleForTesting
 import jetbrains.exodus.ByteIterable
-import jetbrains.exodus.bindings.DoubleBinding
+import jetbrains.exodus.bindings.SignedDoubleBinding
 import jetbrains.exodus.bindings.StringBinding
 import org.chronos.chronodb.api.Order
 import org.chronos.chronodb.api.key.QualifiedKey
@@ -282,7 +282,7 @@ object SecondaryDoubleIndexStore : SecondaryIndexStore<Double, DoubleSearchSpeci
     @VisibleForTesting
     fun createSecondaryIndexKey(indexValue: Double, userKey: String): ByteArray {
         // serialize the index value
-        val indexValueBytes = DoubleBinding.doubleToEntry(indexValue).toByteArray()
+        val indexValueBytes = SignedDoubleBinding.doubleToEntry(indexValue).toByteArray()
         // serialize the user key
         val userKeyBytes = StringBinding.stringToEntry(userKey).toByteArray()
         // the final array has the following format:

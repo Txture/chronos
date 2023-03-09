@@ -23,6 +23,7 @@ import org.chronos.chronograph.api.branch.GraphBranch;
 import org.chronos.chronograph.api.exceptions.ChronoGraphCommitConflictException;
 import org.chronos.chronograph.api.exceptions.ChronoGraphSchemaViolationException;
 import org.chronos.chronograph.api.exceptions.GraphInvariantViolationException;
+import org.chronos.chronograph.api.index.ChronoGraphIndex;
 import org.chronos.chronograph.api.schema.SchemaValidationResult;
 import org.chronos.chronograph.api.structure.ChronoEdge;
 import org.chronos.chronograph.api.structure.ChronoElement;
@@ -339,8 +340,16 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
             if (handler != null) {
                 handler.onAllVerticesIteration();
             }
-            log.warn("Query requires iterating over all vertices."
-                + " For better performance, use 'has(...)' clauses in your gremlin.");
+            Set<ChronoGraphIndex> dirtyIndices = this.getGraph().getIndexManagerOnBranch(this.getBranchName()).getDirtyIndicesAtTimestamp(this.getTimestamp());
+            if (dirtyIndices.isEmpty()) {
+                log.warn("Query requires iterating over all vertices."
+                    + " For better performance, use 'has(...)' clauses in your gremlin that can utilize indices.");
+            } else {
+                log.warn(
+                    "Query requires iterating over all vertices which results in reduced performance. " +
+                        "This may be due to the following indices being dirty: " + dirtyIndices
+                );
+            }
             return this.getAllVerticesIterator();
         }
         if (this.areAllOfType(String.class, vertexIds)) {
@@ -356,7 +365,7 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
             return this.getVerticesIterator(ids);
         }
         // in any other case, something wrong was passed as argument...
-        throw Graph.Exceptions.idArgsMustBeEitherIdOrElement();
+        throw new IllegalArgumentException("The given 'vertexIds' arguments must either be all of type String or all of type Vertex!");
     }
 
     @Override
@@ -382,8 +391,16 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
             if (handler != null) {
                 handler.onAllEdgesIteration();
             }
-            log.warn("Query requires iterating over all edges."
-                + " For better performance, use 'has(...)' clauses in your gremlin.");
+            Set<ChronoGraphIndex> dirtyIndices = this.getGraph().getIndexManagerOnBranch(this.getBranchName()).getDirtyIndicesAtTimestamp(this.getTimestamp());
+            if (dirtyIndices.isEmpty()) {
+                log.warn("Query requires iterating over all edges."
+                    + " For better performance, use 'has(...)' clauses in your gremlin that can utilize indices.");
+            } else {
+                log.warn(
+                    "Query requires iterating over all edges which results in reduced performance. " +
+                        "This may be due to the following indices being dirty: " + dirtyIndices
+                );
+            }
             return this.getAllEdgesIterator();
         }
         if (this.areAllOfType(String.class, edgeIds)) {
@@ -399,7 +416,7 @@ public class StandardChronoGraphTransaction implements ChronoGraphTransaction, C
             return this.getEdgesIterator(ids);
         }
         // in any other case, something wrong was passed as argument...
-        throw Graph.Exceptions.idArgsMustBeEitherIdOrElement();
+        throw new IllegalArgumentException("The given 'vertexIds' arguments must either be all of type String or all of type Edge!");
     }
 
     @Override

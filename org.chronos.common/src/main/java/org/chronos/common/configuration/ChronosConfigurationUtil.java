@@ -10,6 +10,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
+import jakarta.annotation.PostConstruct;
 import org.apache.commons.configuration2.Configuration;
 import org.chronos.common.configuration.annotation.Namespace;
 import org.chronos.common.configuration.annotation.Parameter;
@@ -20,8 +21,6 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import javax.annotation.PostConstruct;
 
 public class ChronosConfigurationUtil {
 

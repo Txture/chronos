@@ -5,11 +5,12 @@ import org.chronos.chronodb.api.Branch
 import org.chronos.chronodb.api.Order
 import org.chronos.chronodb.api.SecondaryIndex
 import org.chronos.chronodb.api.TextCompare
+import org.chronos.chronodb.api.exceptions.ChronoDBIndexingException
 import org.chronos.chronodb.api.key.ChronoIdentifier
 import org.chronos.chronodb.api.key.QualifiedKey
+import org.chronos.chronodb.api.kotlin.ReadWriteAutoLockableExtensions.withNonExclusiveLock
 import org.chronos.chronodb.exodus.ExodusChronoDB
 import org.chronos.chronodb.exodus.secondaryindex.*
-import org.chronos.chronodb.exodus.secondaryindex.stores.IndexEntryConsumer
 import org.chronos.chronodb.internal.api.query.searchspec.SearchSpecification
 import org.chronos.chronodb.internal.impl.index.AbstractIndexManager
 import org.chronos.chronodb.internal.impl.index.IndexerWorkloadSorter
@@ -18,12 +19,14 @@ import org.chronos.chronodb.internal.impl.index.cursor.DeltaResolvingScanCursor
 import org.chronos.chronodb.internal.impl.index.cursor.IndexScanCursor
 import org.chronos.chronodb.internal.impl.index.diff.IndexingUtils
 import java.util.*
+import kotlin.concurrent.withLock
 import kotlin.math.min
-import kotlin.reflect.KClass
 
 class ExodusIndexManager : AbstractIndexManager<ExodusChronoDB> {
 
     private val backend: ExodusIndexManagerBackend
+    @Volatile
+    private var isReindexing = false
 
     // =================================================================================================================
     // CONSTRUCTOR
@@ -39,37 +42,62 @@ class ExodusIndexManager : AbstractIndexManager<ExodusChronoDB> {
     // =================================================================================================================
 
     override fun reindexAll(force: Boolean) {
-        this.owningDB.lockExclusive().use {
-            if (this.getDirtyIndices().isEmpty() && !force) {
-                // no indices are dirty -> no need to re-index
-                return
+        this.withIndexManagementLock {
+            try {
+                this.isReindexing = true
+                if (force) {
+                    // mark all indices as dirty.
+                    // This operation internally acquires the index write lock.
+                    // We deliberately let go of that lock afterwards to allow for queries to be executed.
+                    this.markAllIndicesAsDirty()
+                }
+                // since all indices are now dirty, the index queries will no longer be
+                // executed until the indices are marked as clean again. We're now free
+                // to do with the index whatever we want.
+                this.backend.rebuildIndexOnAllChunks(force)
+                // the index files on disk are now ready to use. However, in order
+                // to make them available to queries, we need to mark the indices
+                // as clean. This operation requires an exclusive lock, as it might
+                // change query plans.
+                this.indexLock.writeLock().withLock {
+                    val allIndices = this.indexTree.getAllIndices().asSequence().filterIsInstance<SecondaryIndexImpl>().toSet()
+                    allIndices.forEach { it.dirty = false }
+                    this.backend.persistIndices(allIndices)
+                    this.clearQueryCache()
+                    this.owningDB.statisticsManager.clearBranchHeadStatistics()
+                }
+            } finally {
+                this.isReindexing = false
             }
-            this.backend.rebuildIndexOnAllChunks(force)
-            val allIndices = this.indexTree.getAllIndices().asSequence().filterIsInstance<SecondaryIndexImpl>().toSet()
-            allIndices.forEach { it.dirty = false }
-            this.backend.persistIndices(allIndices)
-            this.clearQueryCache()
-            this.owningDB.statisticsManager.clearBranchHeadStatistics()
         }
     }
 
 
     override fun index(identifierToOldAndNewValue: Map<ChronoIdentifier, Pair<Any?, Any?>>) {
-        if (identifierToOldAndNewValue.isEmpty()) {
-            // no workload to index
-            return
-        }
-        if (this.indexTree.isEmpty()) {
-            // no indices registered
-            return
-        }
-        this.owningDB.lockNonExclusive().use {
+        // it may seem odd here that we use the read lock, but we're only
+        // adding to the end of the index. We're totally fine with someone
+        // else reading it at earlier timestamps while we're adding to it.
+        this.withLocksForIndexRead {
+            if(this.isReindexing){
+                throw ChronoDBIndexingException(
+                    "Cannot update secondary index via commit - a reindexing is currently in progress!" +
+                        " Writes are not allowed until the reindexing is complete."
+                )
+            }
+            if (identifierToOldAndNewValue.isEmpty()) {
+                // no workload to index
+                return@withLocksForIndexRead
+            }
+            if (this.indexTree.isEmpty()) {
+                // no indices registered
+                return@withLocksForIndexRead
+            }
             IndexingProcess().index(identifierToOldAndNewValue)
         }
     }
 
     override fun performIndexQuery(timestamp: Long, branch: Branch, keyspace: String, searchSpec: SearchSpecification<*, *>): Set<String> {
-        this.owningDB.lockNonExclusive().use {
+        return this.withLocksForIndexRead {
             // check if we are dealing with a negated search specification that accepts empty values.
             if (searchSpec.condition.isNegated && searchSpec.condition.acceptsEmptyValue()) {
                 // the search spec is a negated condition that accepts the empty value.
@@ -84,21 +112,25 @@ class ExodusIndexManager : AbstractIndexManager<ExodusChronoDB> {
                 for (resultEntry in scanResult) {
                     keySet.remove(resultEntry)
                 }
-                return Collections.unmodifiableSet(keySet)
+                Collections.unmodifiableSet(keySet)
             } else {
                 val scanResult = this.backend.performSearch(timestamp, branch, keyspace, searchSpec)
-                return Collections.unmodifiableSet(scanResult)
+                Collections.unmodifiableSet(scanResult)
             }
         }
-
-    }
-
-    fun <T : Any> allEntries(branch: String, keyspace: String, propertyName: String, type: KClass<T>, consumer: IndexEntryConsumer<T>) {
-        this.backend.allEntries(branch, keyspace, propertyName, type, consumer)
     }
 
     fun reindexHeadRevision(branchName: String) {
-        this.backend.rebuildIndexOnHeadChunk(branchName)
+        this.withIndexManagementLock {
+            this.withIndexReadLock {
+                // it may seem odd here that we use the read lock, but we're only
+                // adding to the end of the index. We're totally fine with someone
+                // else reading it at earlier timestamps while we're adding to it.
+                this.indexLock.readLock().withLock {
+                    this.backend.rebuildIndexOnHeadChunk(branchName)
+                }
+            }
+        }
     }
 
     override fun createCursorInternal(
@@ -122,17 +154,17 @@ class ExodusIndexManager : AbstractIndexManager<ExodusChronoDB> {
             val parentBranch = branch.origin
             val parentTimestamp = min(timestamp, branch.branchingTimestamp)
 
-            val parentCursor = this.createCursor<Comparable<*>>(parentTimestamp, parentBranch, keyspace, indexName, sortOrder, textCompare, keys)
+            val parentCursor = this.createCursor<Comparable<Comparable<*>>>(parentTimestamp, parentBranch, keyspace, indexName, sortOrder, textCompare, keys)
 
             val tx = globalChunkManager.openReadOnlyTransactionOn(chunk.indexDirectory)
-            val rawCursor = ExodusChunkIndex.createRawIndexCursor<Comparable<*>>(tx, keyspace, index, sortOrder, textCompare)
+            val rawCursor = ExodusChunkIndex.createRawIndexCursor<Comparable<Comparable<*>>>(tx, keyspace, index, sortOrder, textCompare)
             val scanCursor = DeltaResolvingScanCursor(parentCursor, timestamp, rawCursor)
             scanCursor.onClose { tx.rollback() }
             scanCursor
         } else {
             // simple case: only scan one chunk.
             val tx = globalChunkManager.openReadOnlyTransactionOn(chunk.indexDirectory)
-            val scanCursor = ExodusChunkIndex.createIndexScanCursor<Comparable<*>>(tx, keyspace, timestamp, index, sortOrder, textCompare)
+            val scanCursor = ExodusChunkIndex.createIndexScanCursor<Comparable<Comparable<*>>>(tx, keyspace, timestamp, index, sortOrder, textCompare)
             scanCursor.onClose { tx.rollback() }
             scanCursor
         }

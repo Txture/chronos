@@ -119,6 +119,63 @@ import static org.apache.tinkerpop.gremlin.structure.Graph.*;
         " the data for comparison is no longer there (Properties in ChronoGraph are mutable)." +
         " Fixing this would require a major change that makes properties immutable."
 )
+@OptOut(
+    test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.AddVertexTest",
+    method = "g_V_hasLabelXpersonX_propertyXname_nullX",
+    reason = "This test requires management of property cardinalities in a schema, which ChronoGraph doesn't do." +
+        " Funnily enough, TinkerProp specifies that the cardinality extraction method is just a hint and need not" +
+        " be correct, but the test relies on that regardless."
+)
+@OptOut(
+    test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.MergeEdgeTest",
+    method = "g_mergeEXlabel_knows_out_marko_in_vadasX_optionXonCreate_created_YX_optionXonMatch_created_NX_exists_updated",
+    reason = "This test uses integers as Vertex IDs. We only support strings as custom Vertex IDs."
+)
+@OptOut(
+    test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.MergeEdgeTest",
+    method = "g_mergeEXlabel_knows_out_marko_in_vadasX_optionXonCreate_created_YX_optionXonMatch_created_NX",
+    reason = "This test uses integers as Vertex IDs. We only support strings as custom Vertex IDs."
+)
+@OptOut(
+    test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.MergeEdgeTest",
+    method = "g_mergeEXlabel_knows_out_marko_in_vadas_weight_05X_exists",
+    reason = "This test uses integers as Vertex IDs. We only support strings as custom Vertex IDs."
+)
+@OptOut(
+    test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.MergeEdgeTest",
+    method = "g_V_hasXperson_name_marko_X_mergeEXlabel_knowsX_optionXonCreate_created_YX_optionXonMatch_created_NX_exists_updated",
+    reason = "This test uses integers as Vertex IDs. We only support strings as custom Vertex IDs."
+)
+@OptOut(
+    test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.MergeEdgeTest",
+    method = "g_mergeEXlabel_knows_out_marko_in_vadasX",
+    reason = "This test uses integers as Vertex IDs. We only support strings as custom Vertex IDs."
+)
+@OptOut(
+    test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.MergeEdgeTest",
+    method = "g_mergeEXlabel_knows_out_marko_in_vadasX_optionXonCreate_created_YX_optionXonMatch_created_NX_exists",
+    reason = "This test uses integers as Vertex IDs. We only support strings as custom Vertex IDs."
+)
+@OptOut(
+    test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.MergeEdgeTest",
+    method = "g_injectXlabel_knows_out_marko_in_vadasX_mergeE",
+    reason = "This test uses integers as Vertex IDs. We only support strings as custom Vertex IDs."
+)
+@OptOut(
+    test = "org.apache.tinkerpop.gremlin.process.traversal.CoreTraversalTest",
+    method = "shouldAllowIdsOfMixedTypes",
+    reason = "We do not support traversal.V() with mixed types."
+)
+@OptOut(
+    test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.OrderTest",
+    method = "g_V_orXhasLabelXpersonX_hasXsoftware_name_lopXX_order_byXageX",
+    reason = "ChronoGraph has explicit sort positions for NULL/absent values. This test demands that NULL/absent values are discarded during sorting."
+)
+@OptOut(
+    test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.MergeEdgeTest",
+    method = "g_mergeE_with_outV_inV_options",
+    reason = "ChronoGraph does not support custom IDs of type integer."
+)
 @GraphFactoryClass(ChronoGraphFactoryImpl.class)
 public interface ChronoGraph extends Graph {
 

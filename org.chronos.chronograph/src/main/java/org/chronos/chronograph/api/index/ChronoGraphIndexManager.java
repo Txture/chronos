@@ -4,12 +4,12 @@ import com.google.common.collect.Sets;
 import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Element;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
-import org.chronos.chronograph.api.builder.index.ElementTypeChoiceIndexBuilder;
 import org.chronos.chronograph.api.builder.index.FinalizableVertexIndexBuilder;
 import org.chronos.chronograph.api.builder.index.IndexBuilderStarter;
 import org.chronos.chronograph.api.structure.ChronoGraph;
 
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.*;

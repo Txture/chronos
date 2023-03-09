@@ -111,7 +111,7 @@ public class MultiValueIndexingTest extends AllChronoDBBackendsTest {
         assertEquals(1, values.size());
     }
 
-    private static class TestBean {
+    public static class TestBean {
 
         private final Set<String> names = Sets.newHashSet();
 
@@ -130,7 +130,7 @@ public class MultiValueIndexingTest extends AllChronoDBBackendsTest {
 
     }
 
-    private static class TestBeanIndexer implements StringIndexer {
+    public static class TestBeanIndexer implements StringIndexer {
 
         @Override
         public int hashCode() {

@@ -19,8 +19,8 @@ jar {
 
 
 dependencies {
-    compile project(':org.chronos.common')
-    compile("junit:junit:${project.jUnitVersion}")
-    compile("org.hamcrest:hamcrest-all:${project.hamcrestVersion}")
+    implementation project(':org.chronos.common')
+    implementation("junit:junit:${project.jUnitVersion}")
+    implementation("org.hamcrest:hamcrest-library:${project.hamcrestVersion}")
 }
 

@@ -15,6 +15,7 @@ import org.apache.tinkerpop.gremlin.process.traversal.util.TraversalHelper
 import org.apache.tinkerpop.gremlin.structure.Element
 import org.chronos.chronodb.internal.impl.query.TextMatchMode
 import org.chronos.chronograph.api.builder.query.*
+import org.chronos.chronograph.api.exceptions.ChronoGraphException
 import org.chronos.chronograph.api.structure.ChronoGraph
 import org.chronos.chronograph.internal.impl.query.ChronoCompare
 import org.chronos.chronograph.internal.impl.query.ChronoStringCompare
@@ -61,7 +62,11 @@ object OrderFiltersStrategy : AbstractTraversalStrategy<TraversalStrategy.Provid
         graph.tx().readWrite()
         val tx = ChronoGraphTraversalUtil.getTransaction(traversal)
         val cleanIndices = graph.getIndexManagerOnBranch(tx.branchName).getCleanIndicesAtTimestamp(tx.timestamp)
-        optimize(traversal, cleanIndices.asSequence().map { it.indexedProperty }.toSet())
+        try{
+            optimize(traversal, cleanIndices.asSequence().map { it.indexedProperty }.toSet())
+        }catch(e: Exception){
+            throw ChronoGraphException("Failed to optimize ChronoGraph gremlin query [${traversal}]. Reason: ${e}", e)
+        }
     }
 
     @VisibleForTesting

@@ -4,11 +4,11 @@ import org.chronos.chronograph.api.transaction.AllEdgesIterationHandler;
 import org.chronos.chronograph.api.transaction.AllVerticesIterationHandler;
 import org.chronos.chronograph.internal.api.configuration.ChronoGraphConfiguration;
 import org.chronos.common.configuration.AbstractConfiguration;
-import org.chronos.common.configuration.annotation.EnumFactoryMethod;
 import org.chronos.common.configuration.annotation.Namespace;
 import org.chronos.common.configuration.annotation.Parameter;
 
-import javax.annotation.PostConstruct;
+import jakarta.annotation.PostConstruct;
+
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 
@@ -75,7 +75,7 @@ public class ChronoGraphConfigurationImpl extends AbstractConfiguration implemen
                 throw new IllegalArgumentException("Failed to instantiate AllVerticesIterationHandler class '" + this.allVerticesIterationHandlerClassName + "' - does it have a default constructor?", e);
             }
         }
-        if(this.allEdgesIterationHandlerClassName != null && this.allEdgesIterationHandlerClassName.trim().isEmpty() == false){
+        if (this.allEdgesIterationHandlerClassName != null && this.allEdgesIterationHandlerClassName.trim().isEmpty() == false) {
             Class<?> handlerClass;
             try {
                 handlerClass = Class.forName(this.allEdgesIterationHandlerClassName.trim());
@@ -125,7 +125,7 @@ public class ChronoGraphConfigurationImpl extends AbstractConfiguration implemen
     }
 
     @Override
-    public boolean isUseStaticGroovyCompilationCache(){
+    public boolean isUseStaticGroovyCompilationCache() {
         return this.useStaticGroovyCompilationCache;
     }
 

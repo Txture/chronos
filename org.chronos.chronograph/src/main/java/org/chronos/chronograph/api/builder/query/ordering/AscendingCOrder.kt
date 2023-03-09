@@ -47,4 +47,15 @@ class AscendingCOrder(
         )
     }
 
+    override fun toString(): String {
+        val textCmpStr = when(this.textComp){
+            TextCompare.STRICT -> ""
+            TextCompare.CASE_INSENSITIVE -> "case-insensitive, "
+        }
+        val nullStr = when(this.nulls){
+            NullSortPosition.NULLS_FIRST -> "nulls first"
+            NullSortPosition.NULLS_LAST -> "nulls last"
+        }
+        return "AscendingCOrder(${textCmpStr}${textCmpStr})"
+    }
 }

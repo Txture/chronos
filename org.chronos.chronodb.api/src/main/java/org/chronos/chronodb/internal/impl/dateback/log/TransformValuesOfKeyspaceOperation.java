@@ -10,6 +10,10 @@ public class TransformValuesOfKeyspaceOperation extends AbstractDatebackOperatio
     private String keyspace;
     private long minChangedTimestamp;
 
+    private TransformValuesOfKeyspaceOperation(){
+        // default constructor for deserialization
+    }
+
     public TransformValuesOfKeyspaceOperation(final String id, final String branch, final long wallClockTime, final String keyspace, final long minChangedTimestamp){
         super(id, branch, wallClockTime);
         checkNotNull(branch, "Precondition violation - argument 'branch' must not be NULL!");

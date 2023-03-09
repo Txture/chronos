@@ -24,7 +24,7 @@ import org.chronos.chronodb.internal.impl.query.DoubleSearchSpecificationImpl
 import org.chronos.common.test.utils.NamedPayload
 import org.junit.jupiter.api.Test
 
-class SecondaryDoubleIndexStoreTest : EnvironmentTest(){
+class SecondaryDoubleIndexStoreTest : EnvironmentTest() {
 
     @Test
     fun canInsertIntoStore() {
@@ -42,12 +42,12 @@ class SecondaryDoubleIndexStoreTest : EnvironmentTest(){
 
         // check that the contents are correct
         indexKeys shouldBe listOf(
-                ScanResultEntry(3.1415, "1111"),
-                ScanResultEntry(3.1415, "1112"),
-                ScanResultEntry(3.1415, "1113"),
-                ScanResultEntry(5.75, "2222"),
-                ScanResultEntry(6.25, "3333"),
-                ScanResultEntry(7.36, "4444")
+            ScanResultEntry(3.1415, "1111"),
+            ScanResultEntry(3.1415, "1112"),
+            ScanResultEntry(3.1415, "1113"),
+            ScanResultEntry(5.75, "2222"),
+            ScanResultEntry(6.25, "3333"),
+            ScanResultEntry(7.36, "4444")
         )
     }
 
@@ -64,9 +64,9 @@ class SecondaryDoubleIndexStoreTest : EnvironmentTest(){
         // read the contents of the store (manually)
         val indexEntries = this.readOnlyTx { tx -> readEntries(tx, SecondaryDoubleIndexStore.storeName("value", "default")) }
         indexEntries shouldBe listOf(
-                Triple(3.1415, "1111", listOf(1000L, Long.MAX_VALUE)),
-                Triple(3.1415, "1112", listOf(1000L, 2000L, 3000L, Long.MAX_VALUE)),
-                Triple(4.25, "2222", listOf(1000L, Long.MAX_VALUE))
+            Triple(3.1415, "1111", listOf(1000L, Long.MAX_VALUE)),
+            Triple(3.1415, "1112", listOf(1000L, 2000L, 3000L, Long.MAX_VALUE)),
+            Triple(4.25, "2222", listOf(1000L, Long.MAX_VALUE))
         )
     }
 
@@ -84,8 +84,8 @@ class SecondaryDoubleIndexStoreTest : EnvironmentTest(){
         }
         val indexEntries = this.readOnlyTx { tx -> readEntries(tx, SecondaryDoubleIndexStore.storeName("name", "default")) }
         indexEntries shouldBe listOf(
-                Triple(3.1415, "1111", listOf(1000L, Long.MAX_VALUE)),
-                Triple(6.54, "3333", listOf(1000L, Long.MAX_VALUE))
+            Triple(3.1415, "1111", listOf(1000L, Long.MAX_VALUE)),
+            Triple(6.54, "3333", listOf(1000L, Long.MAX_VALUE))
         )
     }
 
@@ -103,10 +103,10 @@ class SecondaryDoubleIndexStoreTest : EnvironmentTest(){
         }
         val indexEntries = this.readOnlyTx { tx -> readEntries(tx, SecondaryDoubleIndexStore.storeName("name", "default")) }
         indexEntries shouldBe listOf(
-                // regular entry
-                Triple(3.1415, "1111", listOf(1000L, Long.MAX_VALUE)),
-                // "simulated" termination
-                Triple(5.12, "2222", listOf(0L, 1000L))
+            // regular entry
+            Triple(3.1415, "1111", listOf(1000L, Long.MAX_VALUE)),
+            // "simulated" termination
+            Triple(5.12, "2222", listOf(0L, 1000L))
         )
     }
 
@@ -177,7 +177,7 @@ class SecondaryDoubleIndexStoreTest : EnvironmentTest(){
     }
 
     @Test
-    fun canQueryEmptyStore(){
+    fun canQueryEmptyStore() {
         val indexId = "dd1f3a91-12d5-47bd-a343-7b15a3475f09"
         val index = SecondaryIndexImpl(
             id = indexId,
@@ -237,7 +237,7 @@ class SecondaryDoubleIndexStoreTest : EnvironmentTest(){
     }
 
     @Test
-    fun canEvaluateEqualsWithTolerance(){
+    fun canEvaluateEqualsWithTolerance() {
         val indexId = "dd1f3a91-12d5-47bd-a343-7b15a3475f09"
         val index = SecondaryIndexImpl(
             id = indexId,
@@ -276,7 +276,7 @@ class SecondaryDoubleIndexStoreTest : EnvironmentTest(){
     }
 
     @Test
-    fun canEvaluateGreaterThan(){
+    fun canEvaluateGreaterThan() {
         val indexId = "dd1f3a91-12d5-47bd-a343-7b15a3475f09"
         val index = SecondaryIndexImpl(
             id = indexId,
@@ -313,7 +313,7 @@ class SecondaryDoubleIndexStoreTest : EnvironmentTest(){
     }
 
     @Test
-    fun canEvaluateGreaterOrEqual(){
+    fun canEvaluateGreaterOrEqual() {
         val indexId = "dd1f3a91-12d5-47bd-a343-7b15a3475f09"
         val index = SecondaryIndexImpl(
             id = indexId,
@@ -350,8 +350,47 @@ class SecondaryDoubleIndexStoreTest : EnvironmentTest(){
         }
     }
 
+
     @Test
-    fun canEvaluateLessThan(){
+    fun canEvaluateGreaterOrEqualWithNegativeValues() {
+        val indexId = "dd1f3a91-12d5-47bd-a343-7b15a3475f09"
+        val index = SecondaryIndexImpl(
+            id = indexId,
+            name = "value",
+            indexer = DummyIndexer(),
+            validPeriod = Period.eternal(),
+            branch = ChronoDBConstants.MASTER_BRANCH_IDENTIFIER,
+            parentIndexId = null,
+            dirty = false,
+            options = emptySet()
+        )
+        this.readWriteTx { tx ->
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", -1.0, "1111", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.1, "2222", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", -1.2, "3333", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.3, "4444", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", -1.4, "5555", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", 1.5, "6666", 1000)
+            SecondaryDoubleIndexStore.insert(tx, indexId, "default", -1.6, "7777", 1000)
+            tx.commit()
+        }
+
+        val searchSpec = DoubleSearchSpecificationImpl(index, NumberCondition.GREATER_EQUAL, -1.1, 0.001)
+        this.readOnlyTx { tx ->
+            SecondaryDoubleIndexStore.scan(tx, searchSpec, "default", 3000) shouldBe ScanResult(
+                listOf(
+                    ScanResultEntry(-1.0, "1111"),
+                    ScanResultEntry(1.1, "2222"),
+                    ScanResultEntry(1.3, "4444"),
+                    ScanResultEntry(1.5, "6666"),
+                ),
+                OrderedBy("value", Order.ASCENDING)
+            )
+        }
+    }
+
+    @Test
+    fun canEvaluateLessThan() {
         val indexId = "dd1f3a91-12d5-47bd-a343-7b15a3475f09"
         val index = SecondaryIndexImpl(
             id = indexId,
@@ -388,7 +427,7 @@ class SecondaryDoubleIndexStoreTest : EnvironmentTest(){
     }
 
     @Test
-    fun canEvaluateLessOrEqual(){
+    fun canEvaluateLessOrEqual() {
         val indexId = "dd1f3a91-12d5-47bd-a343-7b15a3475f09"
         val index = SecondaryIndexImpl(
             id = indexId,
@@ -424,7 +463,6 @@ class SecondaryDoubleIndexStoreTest : EnvironmentTest(){
             )
         }
     }
-
 
 
     @Test
@@ -473,7 +511,7 @@ class SecondaryDoubleIndexStoreTest : EnvironmentTest(){
     // INNER CLASSES
     // =================================================================================================================
 
-    private class DummyIndexer: DoubleIndexer {
+    private class DummyIndexer : DoubleIndexer {
 
         override fun canIndex(`object`: Any?): Boolean {
             return true

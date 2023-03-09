@@ -30,6 +30,7 @@ import org.chronos.chronograph.api.builder.query.ordering.COrder
 import org.chronos.chronograph.api.structure.ChronoElement
 import org.chronos.chronograph.internal.ChronoGraphConstants
 import org.chronos.chronograph.internal.api.index.ChronoGraphIndexInternal
+import org.chronos.chronograph.internal.api.index.ChronoGraphIndexManagerInternal
 import org.chronos.chronograph.internal.api.structure.ChronoGraphInternal
 import org.chronos.chronograph.internal.impl.optimizer.traversals.ElementValueOrNullTraversal
 import org.chronos.chronograph.internal.impl.optimizer.traversals.TableLookupTraversal
@@ -84,11 +85,17 @@ class ChronoGraphOrderGlobalStep<S, C : Comparable<*>>
     }
 
     override fun processAllStarts() {
+        val traversal = getTraversal<Any, Any>()
         val allTraversers = this.starts.asSequence().toList()
-        this.cacheTable = this.createCacheTable(allTraversers)
-        for (traverser in allTraversers) {
-            val projectedTraverser = createProjectedTraverser(traverser)
-            this.traverserSet.add(projectedTraverser)
+        val tx = ChronoGraphTraversalUtil.getTransaction(traversal )
+        val graph = ChronoGraphTraversalUtil.getChronoGraph(traversal)
+        val indexManager = graph.getIndexManagerOnBranch(tx.branchName) as ChronoGraphIndexManagerInternal
+        indexManager.withIndexReadLock {
+            this.cacheTable = this.createCacheTable(allTraversers)
+            for (traverser in allTraversers) {
+                val projectedTraverser = createProjectedTraverser(traverser)
+                this.traverserSet.add(projectedTraverser)
+            }
         }
     }
 

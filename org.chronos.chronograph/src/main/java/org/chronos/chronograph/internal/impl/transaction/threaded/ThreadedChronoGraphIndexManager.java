@@ -12,6 +12,7 @@ import org.chronos.chronograph.internal.impl.index.IndexType;
 
 import java.util.Iterator;
 import java.util.Set;
+import java.util.concurrent.Callable;
 
 import static com.google.common.base.Preconditions.*;
 
@@ -134,5 +135,27 @@ public class ThreadedChronoGraphIndexManager implements ChronoGraphIndexManager,
         return this.wrappedManager.isReindexingRequired();
     }
 
+    @Override
+    public void withIndexReadLock(final Runnable action) {
+        checkNotNull(action, "Precondition violation - argument 'action' must not be NULL!");
+        this.wrappedManager.withIndexReadLock(action);
+    }
 
+    @Override
+    public <T> T withIndexReadLock(final Callable<T> action) {
+        checkNotNull(action, "Precondition violation - argument 'action' must not be NULL!");
+        return this.wrappedManager.withIndexReadLock(action);
+    }
+
+    @Override
+    public void withIndexWriteLock(final Runnable action) {
+        checkNotNull(action, "Precondition violation - argument 'action' must not be NULL!");
+        this.wrappedManager.withIndexWriteLock(action);
+    }
+
+    @Override
+    public <T> T withIndexWriteLock(final Callable<T> action) {
+        checkNotNull(action, "Precondition violation - argument 'action' must not be NULL!");
+        return this.wrappedManager.withIndexWriteLock(action);
+    }
 }

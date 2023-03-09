@@ -43,6 +43,7 @@ import org.slf4j.LoggerFactory;
 
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -106,10 +107,16 @@ public class ChronoVertexImpl extends AbstractChronoElement implements Vertex, C
 
     @Override
     @SuppressWarnings("unchecked")
-    public <V> ChronoVertexProperty<V> property(final String key, final V value) {
+    public <V> VertexProperty<V> property(final String key, final V value) {
         checkNotNull(key, "Precondition violation - argument 'key' must not be NULL!");
         this.checkAccess();
         this.ensureVertexRecordIsLoaded();
+        if(value == null){
+            // Since Gremlin 3.5.2: setting a property to value NULL removes it.
+            this.removeProperty(key);
+            return VertexProperty.empty();
+        }
+
         this.logPropertyChange(key, value);
         if (this.properties == null) {
             this.properties = Maps.newHashMap();
@@ -339,6 +346,10 @@ public class ChronoVertexImpl extends AbstractChronoElement implements Vertex, C
     @SuppressWarnings({"unchecked", "rawtypes"})
     public <V> Iterator<VertexProperty<V>> properties(final String... propertyKeys) {
         this.checkAccess();
+        // Since Gremlin 3.5.2: querying properties(null) is now allowed and returns the empty iterator.
+        if(propertyKeys != null && propertyKeys.length > 0 && Arrays.stream(propertyKeys).allMatch(java.util.Objects::isNull)){
+            return Collections.emptyIterator();
+        }
         if (propertyKeys == null || propertyKeys.length <= 0) {
             if (this.recordReference == null) {
                 // we are eagerly loaded

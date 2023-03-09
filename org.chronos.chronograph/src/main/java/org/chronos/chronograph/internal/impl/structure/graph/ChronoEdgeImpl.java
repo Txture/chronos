@@ -34,10 +34,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.ref.WeakReference;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Set;
 
 import static com.google.common.base.Preconditions.*;
@@ -194,8 +197,13 @@ public class ChronoEdgeImpl extends AbstractChronoElement implements Edge, Chron
     }
 
     @Override
-    public <V> ChronoProperty<V> property(final String key, final V value) {
+    public <V> Property<V> property(final String key, final V value) {
         ElementHelper.validateProperty(key, value);
+        if(value == null){
+            // Since Gremlin 3.5.2: setting a property to value NULL removes it.
+            this.removeProperty(key);
+            return Property.empty();
+        }
         this.checkAccess();
         this.loadLazyPropertiesIfRequired();
         this.logPropertyChange(key, value);
@@ -215,6 +223,10 @@ public class ChronoEdgeImpl extends AbstractChronoElement implements Edge, Chron
     @SuppressWarnings("rawtypes")
     public <V> Iterator<Property<V>> properties(final String... propertyKeys) {
         this.checkAccess();
+        // Since Gremlin 3.5.2: querying properties(null) is now allowed and returns the empty iterator.
+        if(propertyKeys != null && propertyKeys.length > 0 && Arrays.stream(propertyKeys).allMatch(Objects::isNull)){
+            return Collections.emptyIterator();
+        }
         this.loadLazyPropertiesIfRequired();
         Set<Property> matchingProperties = Sets.newHashSet();
         if (propertyKeys == null || propertyKeys.length <= 0) {

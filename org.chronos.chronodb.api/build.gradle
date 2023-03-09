@@ -35,31 +35,21 @@ afterEvaluate { project ->
                 version project.mavenVersion
             }
         }
-
-        repositories {
-            maven {
-                url project.s3Url
-                credentials(AwsCredentials) {
-                    accessKey project.s3AccessKey
-                    secretKey project.s3SecretKey
-                }
-            }
-        }
     }
 }
 
 dependencies {
     // chronos project dependencies
-    compile project(':org.chronos.common');
+    api project(':org.chronos.common');
 
     // Utilities
-    compile("com.esotericsoftware:kryo:${project.kryoVersion}");
-    compile("com.thoughtworks.xstream:xstream:${project.xstreamVersion}");
+    implementation("com.esotericsoftware:kryo:${project.kryoVersion}");
+    implementation("com.thoughtworks.xstream:xstream:${project.xstreamVersion}");
 
-    testCompile project(':org.chronos.common.testing')
-    testCompile("io.strikt:strikt-core:${project.striktVersion}")
+    testImplementation project(':org.chronos.common.testing')
+    testImplementation("io.strikt:strikt-core:${project.striktVersion}")
 
     // we also add the backend-specific modules to the test dependencies so that
     // we can have all tests in the same module (i.e. AllBackendsTest)
-    testCompile project(':org.chronos.chronodb.exodus')
+    testImplementation project(':org.chronos.chronodb.exodus')
 }

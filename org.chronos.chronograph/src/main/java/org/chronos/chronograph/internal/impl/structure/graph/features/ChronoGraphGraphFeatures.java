@@ -1,6 +1,7 @@
 package org.chronos.chronograph.internal.impl.structure.graph.features;
 
 import org.apache.tinkerpop.gremlin.structure.Graph;
+import org.apache.tinkerpop.gremlin.structure.Graph.Features.GraphFeatures;
 import org.chronos.chronodb.api.ChronoDB;
 import org.chronos.chronodb.inmemory.InMemoryChronoDB;
 import org.chronos.chronograph.internal.api.structure.ChronoGraphInternal;
@@ -45,4 +46,8 @@ public class ChronoGraphGraphFeatures extends AbstractChronoGraphFeature impleme
 		return this.getGraph().getBackingDB().getFeatures().isRolloverSupported();
 	}
 
+	@Override
+	public boolean supportsOrderabilitySemantics() {
+		return false;
+	}
 }

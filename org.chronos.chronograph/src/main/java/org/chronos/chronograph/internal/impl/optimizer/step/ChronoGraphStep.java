@@ -1,15 +1,11 @@
 package org.chronos.chronograph.internal.impl.optimizer.step;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Streams;
-import org.apache.tinkerpop.gremlin.process.traversal.Compare;
-import org.apache.tinkerpop.gremlin.process.traversal.Contains;
-import org.apache.tinkerpop.gremlin.process.traversal.Text;
-import org.apache.tinkerpop.gremlin.process.traversal.Traversal.Admin;
-import org.apache.tinkerpop.gremlin.process.traversal.step.filter.*;
+import org.apache.tinkerpop.gremlin.process.traversal.step.filter.FilterStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.GraphStep;
-import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer;
 import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Element;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
@@ -18,9 +14,6 @@ import org.chronos.chronodb.api.ChronoDBTransaction;
 import org.chronos.chronodb.api.builder.query.FinalizableQueryBuilder;
 import org.chronos.chronodb.api.builder.query.QueryBuilder;
 import org.chronos.chronodb.api.key.QualifiedKey;
-import org.chronos.chronograph.api.builder.query.DoubleWithoutCP;
-import org.chronos.chronograph.api.builder.query.LongWithoutCP;
-import org.chronos.chronograph.api.builder.query.StringWithoutCP;
 import org.chronos.chronograph.api.index.ChronoGraphIndex;
 import org.chronos.chronograph.api.structure.ChronoEdge;
 import org.chronos.chronograph.api.structure.ChronoGraph;
@@ -28,37 +21,20 @@ import org.chronos.chronograph.api.structure.ChronoVertex;
 import org.chronos.chronograph.api.transaction.ChronoGraphTransaction;
 import org.chronos.chronograph.internal.ChronoGraphConstants;
 import org.chronos.chronograph.internal.api.transaction.GraphTransactionContextInternal;
-import org.chronos.chronograph.internal.impl.query.ChronoCompare;
-import org.chronos.chronograph.internal.impl.query.ChronoStringCompare;
 import org.chronos.chronograph.internal.impl.transaction.ElementLoadMode;
+import org.chronos.chronograph.internal.impl.util.ChronoGraphStepUtil;
 import org.chronos.chronograph.internal.impl.util.ChronoGraphTraversalUtil;
+import org.jetbrains.annotations.NotNull;
 
-import java.util.*;
-import java.util.function.BiPredicate;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class ChronoGraphStep<S, E extends Element> extends GraphStep<S, E> {
-
-    private static final Set<BiPredicate> NEGATED_PREDICATES = Collections.unmodifiableSet(Sets.newHashSet(
-        Compare.neq,
-        Contains.without,
-        Text.notStartingWith,
-        Text.notEndingWith,
-        Text.notContaining,
-        ChronoCompare.NEQ,
-        ChronoCompare.WITHOUT,
-        ChronoStringCompare.STRING_NOT_STARTS_WITH,
-        ChronoStringCompare.STRING_NOT_STARTS_WITH_IGNORE_CASE,
-        ChronoStringCompare.STRING_NOT_ENDS_WITH,
-        ChronoStringCompare.STRING_NOT_ENDS_WITH_IGNORE_CASE,
-        ChronoStringCompare.STRING_NOT_CONTAINS,
-        ChronoStringCompare.STRING_NOT_CONTAINS_IGNORE_CASE,
-        ChronoStringCompare.STRING_NOT_EQUALS_IGNORE_CASE,
-        ChronoStringCompare.STRING_NOT_MATCHES_REGEX,
-        ChronoStringCompare.STRING_NOT_MATCHES_REGEX_IGNORE_CASE
-    ));
-
 
     private final List<FilterStep<E>> indexableSubsteps = Lists.newArrayList();
 
@@ -75,8 +51,11 @@ public class ChronoGraphStep<S, E extends Element> extends GraphStep<S, E> {
         this.indexableSubsteps.addAll(indexableSteps);
         // ... and copy their labels
         indexableSteps.forEach(subStep -> subStep.getLabels().forEach(this::addLabel));
-        // set the result iterator supplier function (i.e. the function that calculates the result of this step)
-        this.setIteratorSupplier(this::getResultIterator);
+        // set the result iterator supplier function (i.e. the function that calculates the result of this step).
+        // We have to do this computation eagerly here because the step strategy holds the read lock on the index
+        // while this object is created.
+        List<E> results = this.getResultList();
+        this.setIteratorSupplier(results::iterator);
     }
 
     // =====================================================================================================================
@@ -101,16 +80,16 @@ public class ChronoGraphStep<S, E extends Element> extends GraphStep<S, E> {
     // =====================================================================================================================
 
     @SuppressWarnings("unchecked")
-    private Iterator<E> getResultIterator() {
+    private List<E> getResultList() {
         if (Vertex.class.isAssignableFrom(this.returnClass)) {
-            return (Iterator<E>) this.getResultVertices();
+            return (List<E>) this.getResultVertices();
         } else {
-            return (Iterator<E>) this.getResultEdges();
+            return (List<E>) this.getResultEdges();
         }
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private Iterator<Vertex> getResultVertices() {
+    private List<Vertex> getResultVertices() {
         ChronoGraph graph = ChronoGraphTraversalUtil.getChronoGraph(this.getTraversal());
         // ensure that we have an open transaction...
         graph.tx().readWrite();
@@ -118,40 +97,17 @@ public class ChronoGraphStep<S, E extends Element> extends GraphStep<S, E> {
         ChronoGraphTransaction tx = ChronoGraphTraversalUtil.getTransaction(this.getTraversal());
 
         Set<ChronoGraphIndex> cleanIndices = graph.getIndexManagerOnBranch(tx.getBranchName()).getCleanIndicesAtTimestamp(tx.getTimestamp());
-        // start the query builder...
+        // start the query builder
         ChronoDBTransaction dbTx = tx.getBackingDBTransaction();
         QueryBuilder queryBuilder = dbTx.find().inKeyspace(ChronoGraphConstants.KEYSPACE_VERTEX);
-        // ... and translate our filter steps into a ChronoDB query
-        FinalizableQueryBuilder finalizableQueryBuilder = ChronoGraphTraversalUtil.toChronoDBQuery(
-            cleanIndices,
-            this.indexableSubsteps,
-            queryBuilder,
-            ChronoGraphTraversalUtil::createIndexKeyForVertexProperty
-        );
-        Iterator<QualifiedKey> keys = finalizableQueryBuilder.getKeys();
-        Set<Vertex> verticesFromIndexQuery = Streams.stream(keys)
-            .map(QualifiedKey::getKey)
-            .map(id -> tx.getVertexOrNull(id, ElementLoadMode.LAZY))
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
 
-        // check if any of our predicates is negated.
-        // The reason why we have to do this is a slight difference in query semantics
-        // between ChronoDB and Gremlin when it comes to NEGATED predicates:
-        // - In ChronoDB, a key is returned if its value matches the negated predicate. Note that "null" matches many negated predicates.
-        // - In Gremlin, a graph element is returned if it HAS a value AND that value matches the negated predicate.
-        // We therefore need to apply a post-processing here, checking that the vertices indeed have the requested property keys.
-
-        if(this.isAnyPredicateNegated(this.indexableSubsteps)){
-            Predicate<Vertex> predicate = (Predicate<Vertex>) ChronoGraphTraversalUtil.filterStepsToPredicate(this.indexableSubsteps);
-            verticesFromIndexQuery = verticesFromIndexQuery.stream().filter(predicate).collect(Collectors.toSet());
-        }
+        Set<Vertex> verticesFromIndexQuery = getVerticesFromChronoDB(tx, cleanIndices, queryBuilder);
 
         // consider the transaction context
         GraphTransactionContextInternal context = (GraphTransactionContextInternal) tx.getContext();
         if (!context.isDirty()) {
             // return the index query result directly
-            return verticesFromIndexQuery.iterator();
+            return Lists.newArrayList(verticesFromIndexQuery);
         }
 
         // the context is dirty; we have to run the predicate over all modified vertices as well
@@ -165,11 +121,80 @@ public class ChronoGraphStep<S, E extends Element> extends GraphStep<S, E> {
             // eliminate all vertices which have been removed in this transaction
             .filter(v -> ((ChronoVertex) v).isRemoved() == false)
             .filter(predicate)
-            .iterator();
+            .collect(Collectors.toList());
     }
 
+    @NotNull
+    @SuppressWarnings("unchecked")
+    private Set<Vertex> getVerticesFromChronoDB(final ChronoGraphTransaction tx, final Set<ChronoGraphIndex> cleanIndices, final QueryBuilder queryBuilder) {
+        List<FilterStep<E>> chronoDbFilters = this.indexableSubsteps;
+        chronoDbFilters = ChronoGraphStepUtil.optimizeFilters(chronoDbFilters);
+        // for efficiency, it's better NOT to pass any negated filters down to ChronoDB. The reason is
+        // that ChronoDB needs to perform an intersection with the primary index, as all indices are
+        // sparse. The better option is to let ChronoDB evaluate the non-negated filters, and we apply
+        // the rest of the filters in-memory.
+
+        List<FilterStep<E>> negatedFilters = chronoDbFilters.stream().filter(ChronoGraphStepUtil::isNegated).collect(Collectors.toList());
+        List<FilterStep<E>> nonNegatedFilters = chronoDbFilters.stream().filter(step -> !ChronoGraphStepUtil.isNegated(step)).collect(Collectors.toList());
+
+        Set<Vertex> verticesFromIndexQuery;
+        if (nonNegatedFilters.isEmpty()) {
+            // all filters are negated, this query will be slow
+            // there's no reason to run ALL negated queries against the index, it will only
+            // result in needless checks against the primary index, which will slow things down. Only
+            // run ONE of the negated queries on the index, and the rest in-memory.
+            FilterStep<E> firstFilter = Iterables.getFirst(negatedFilters, null);
+            List<FilterStep<E>> indexQueries = Lists.newArrayList();
+            indexQueries.add(firstFilter);
+
+            FinalizableQueryBuilder finalizableQueryBuilder = ChronoGraphTraversalUtil.toChronoDBQuery(
+                cleanIndices,
+                indexQueries,
+                queryBuilder,
+                ChronoGraphTraversalUtil::createIndexKeyForVertexProperty
+            );
+
+            Iterator<QualifiedKey> keys = finalizableQueryBuilder.getKeys();
+            verticesFromIndexQuery = Streams.stream(keys)
+                .map(QualifiedKey::getKey)
+                .map(id -> tx.getVertexOrNull(id, ElementLoadMode.LAZY))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+            // there is a slight difference in query semantics between ChronoDB and Gremlin when it comes to NEGATED predicates:
+            // - In ChronoDB, a key is returned if its value matches the negated predicate. Note that "null" matches many negated predicates.
+            // - In Gremlin, a graph element is returned if it HAS a value AND that value matches the negated predicate.
+            // We therefore need to apply a post-processing here, checking that the vertices indeed have the requested property keys.
+            Predicate<Vertex> predicate = (Predicate<Vertex>) ChronoGraphTraversalUtil.filterStepsToPredicate(negatedFilters);
+            verticesFromIndexQuery = verticesFromIndexQuery.stream().filter(predicate).collect(Collectors.toSet());
+
+        } else {
+            // run the non-negated filters on ChronoDB, apply the rest in-memory
+            FinalizableQueryBuilder finalizableQueryBuilder = ChronoGraphTraversalUtil.toChronoDBQuery(
+                cleanIndices,
+                nonNegatedFilters,
+                queryBuilder,
+                ChronoGraphTraversalUtil::createIndexKeyForVertexProperty
+            );
+            Iterator<QualifiedKey> keys = finalizableQueryBuilder.getKeys();
+            verticesFromIndexQuery = Streams.stream(keys)
+                .map(QualifiedKey::getKey)
+                .map(id -> tx.getVertexOrNull(id, ElementLoadMode.LAZY))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+            // check if we have negated filters
+            if (!negatedFilters.isEmpty()) {
+                Predicate<Vertex> predicate = (Predicate<Vertex>) ChronoGraphTraversalUtil.filterStepsToPredicate(negatedFilters);
+                verticesFromIndexQuery = verticesFromIndexQuery.stream().filter(predicate).collect(Collectors.toSet());
+            }
+        }
+        return verticesFromIndexQuery;
+    }
+
+
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private Iterator<Edge> getResultEdges() {
+    private List<Edge> getResultEdges() {
         ChronoGraph graph = ChronoGraphTraversalUtil.getChronoGraph(this.getTraversal());
         // ensure that we have an open transaction...
         graph.tx().readWrite();
@@ -177,39 +202,17 @@ public class ChronoGraphStep<S, E extends Element> extends GraphStep<S, E> {
         ChronoGraphTransaction tx = ChronoGraphTraversalUtil.getTransaction(this.getTraversal());
 
         Set<ChronoGraphIndex> cleanIndices = graph.getIndexManagerOnBranch(tx.getBranchName()).getCleanIndicesAtTimestamp(tx.getTimestamp());
-        // start the query builder...
+        // start the query builder
         ChronoDBTransaction dbTx = tx.getBackingDBTransaction();
         QueryBuilder queryBuilder = dbTx.find().inKeyspace(ChronoGraphConstants.KEYSPACE_EDGE);
-        // ... and translate our filter steps into a ChronoDB query
-        FinalizableQueryBuilder finalizableQueryBuilder = ChronoGraphTraversalUtil.toChronoDBQuery(
-            cleanIndices,
-            this.indexableSubsteps,
-            queryBuilder,
-            ChronoGraphTraversalUtil::createIndexKeyForEdgeProperty
-        );
-        Set<Edge> edgesFromIndexQuery = Streams.stream(finalizableQueryBuilder.getKeys())
-            .map(QualifiedKey::getKey)
-            .map(id -> tx.getEdgeOrNull(id, ElementLoadMode.LAZY))
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
 
-        // check if any of our predicates is negated.
-        // The reason why we have to do this is a slight difference in query semantics
-        // between ChronoDB and Gremlin when it comes to NEGATED predicates:
-        // - In ChronoDB, a key is returned if its value matches the negated predicate. Note that "null" matches many negated predicates.
-        // - In Gremlin, a graph element is returned if it HAS a value AND that value matches the negated predicate.
-        // We therefore need to apply a post-processing here, checking that the vertices indeed have the requested property keys.
-
-        if(this.isAnyPredicateNegated(this.indexableSubsteps)){
-            Predicate<Edge> predicate = (Predicate<Edge>) ChronoGraphTraversalUtil.filterStepsToPredicate(this.indexableSubsteps);
-            edgesFromIndexQuery = edgesFromIndexQuery.stream().filter(predicate).collect(Collectors.toSet());
-        }
+        Set<Edge> edgesFromIndexQuery = getEdgesFromChronoDB(tx, cleanIndices, queryBuilder);
 
         // consider the transaction context
         GraphTransactionContextInternal context = (GraphTransactionContextInternal) tx.getContext();
         if (!context.isDirty()) {
             // return the index query result directly
-            return edgesFromIndexQuery.iterator();
+            return Lists.newArrayList(edgesFromIndexQuery);
         }
 
         // the context is dirty; we have to run the predicate over all modified vertices as well
@@ -223,49 +226,75 @@ public class ChronoGraphStep<S, E extends Element> extends GraphStep<S, E> {
             // eliminate all vertices which have been removed in this transaction
             .filter(v -> ((ChronoEdge) v).isRemoved() == false)
             .filter(predicate)
-            .iterator();
+            .collect(Collectors.toList());
     }
 
-    private boolean isAnyPredicateNegated(final List<FilterStep<E>> indexableSubsteps) {
-        for(FilterStep<E> filterStep : indexableSubsteps){
-            if(this.isNegated(filterStep)){
-                return true;
-            }
-        }
-        return false;
-    }
-
+    @NotNull
     @SuppressWarnings("unchecked")
-    private boolean isNegated(FilterStep<E> filterStep){
-        if(filterStep instanceof NotStep){
-            // note: we COULD check for double-negations here...
-            return true;
-        } else if(filterStep instanceof ConnectiveStep){
-            ConnectiveStep<E> connectiveStep = (ConnectiveStep<E>)filterStep;
-            List<Admin<E, ?>> children = connectiveStep.getLocalChildren();
-            for(Admin<E, ?> child : children){
-                if(child instanceof FilterStep){
-                    if(isNegated((FilterStep<E>)child)){
-                        return true;
-                    }
-                }
-            }
-        } else if(filterStep instanceof HasStep){
-            HasStep<E> hasStep = (HasStep<E>)filterStep;
-            for(HasContainer container : hasStep.getHasContainers()){
-                BiPredicate<?, ?> biPredicate = container.getBiPredicate();
-                if(NEGATED_PREDICATES.contains(biPredicate)){
-                    return true;
-                }else if(biPredicate instanceof DoubleWithoutCP){
-                    return true;
-                }else if(biPredicate instanceof LongWithoutCP){
-                    return true;
-                }else if(biPredicate instanceof StringWithoutCP){
-                    return true;
-                }
+    private Set<Edge> getEdgesFromChronoDB(final ChronoGraphTransaction tx, final Set<ChronoGraphIndex> cleanIndices, final QueryBuilder queryBuilder) {
+        List<FilterStep<E>> chronoDbFilters = this.indexableSubsteps;
+        chronoDbFilters = ChronoGraphStepUtil.optimizeFilters(chronoDbFilters);
+        // for efficiency, it's better NOT to pass any negated filters down to ChronoDB. The reason is
+        // that ChronoDB needs to perform an intersection with the primary index, as all indices are
+        // sparse. The better option is to let ChronoDB evaluate the non-negated filters, and we apply
+        // the rest of the filters in-memory.
+
+        List<FilterStep<E>> negatedFilters = chronoDbFilters.stream().filter(ChronoGraphStepUtil::isNegated).collect(Collectors.toList());
+        List<FilterStep<E>> nonNegatedFilters = chronoDbFilters.stream().filter(step -> !ChronoGraphStepUtil.isNegated(step)).collect(Collectors.toList());
+
+        Set<Edge> edgesFromIndexQuery;
+        if (nonNegatedFilters.isEmpty()) {
+            // all filters are negated, this query will be slow
+            // there's no reason to run ALL negated queries against the index, it will only
+            // result in needless checks against the primary index, which will slow things down. Only
+            // run ONE of the negated queries on the index, and the rest in-memory.
+            FilterStep<E> firstFilter = Iterables.getFirst(negatedFilters, null);
+            List<FilterStep<E>> indexQueries = Lists.newArrayList();
+            indexQueries.add(firstFilter);
+
+            FinalizableQueryBuilder finalizableQueryBuilder = ChronoGraphTraversalUtil.toChronoDBQuery(
+                cleanIndices,
+                indexQueries,
+                queryBuilder,
+                ChronoGraphTraversalUtil::createIndexKeyForEdgeProperty
+            );
+
+            Iterator<QualifiedKey> keys = finalizableQueryBuilder.getKeys();
+            edgesFromIndexQuery = Streams.stream(keys)
+                .map(QualifiedKey::getKey)
+                .map(id -> tx.getEdgeOrNull(id, ElementLoadMode.LAZY))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+            // there is a slight difference in query semantics between ChronoDB and Gremlin when it comes to NEGATED predicates:
+            // - In ChronoDB, a key is returned if its value matches the negated predicate. Note that "null" matches many negated predicates.
+            // - In Gremlin, a graph element is returned if it HAS a value AND that value matches the negated predicate.
+            // We therefore need to apply a post-processing here, checking that the vertices indeed have the requested property keys.
+            Predicate<Edge> predicate = (Predicate<Edge>) ChronoGraphTraversalUtil.filterStepsToPredicate(negatedFilters);
+            edgesFromIndexQuery = edgesFromIndexQuery.stream().filter(predicate).collect(Collectors.toSet());
+
+        } else {
+            // run the non-negated filters on ChronoDB, apply the rest in-memory
+            FinalizableQueryBuilder finalizableQueryBuilder = ChronoGraphTraversalUtil.toChronoDBQuery(
+                cleanIndices,
+                nonNegatedFilters,
+                queryBuilder,
+                ChronoGraphTraversalUtil::createIndexKeyForEdgeProperty
+            );
+            Iterator<QualifiedKey> keys = finalizableQueryBuilder.getKeys();
+            edgesFromIndexQuery = Streams.stream(keys)
+                .map(QualifiedKey::getKey)
+                .map(id -> tx.getEdgeOrNull(id, ElementLoadMode.LAZY))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+            // check if we have negated filters
+            if (!negatedFilters.isEmpty()) {
+                Predicate<Edge> predicate = (Predicate<Edge>) ChronoGraphTraversalUtil.filterStepsToPredicate(negatedFilters);
+                edgesFromIndexQuery = edgesFromIndexQuery.stream().filter(predicate).collect(Collectors.toSet());
             }
         }
-        return false;
+        return edgesFromIndexQuery;
     }
 
 }

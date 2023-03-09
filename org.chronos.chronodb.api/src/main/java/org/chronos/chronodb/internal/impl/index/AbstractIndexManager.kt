@@ -3,15 +3,13 @@ package org.chronos.chronodb.internal.impl.index
 import com.google.common.base.Preconditions
 import com.google.common.collect.Sets
 import org.chronos.chronodb.api.*
-import org.chronos.chronodb.api.exceptions.ChronoDBIndexingException
-import org.chronos.chronodb.api.exceptions.ChronoDBQuerySyntaxException
-import org.chronos.chronodb.api.exceptions.InvalidIndexAccessException
-import org.chronos.chronodb.api.exceptions.UnknownIndexException
+import org.chronos.chronodb.api.exceptions.*
 import org.chronos.chronodb.api.indexing.DoubleIndexer
 import org.chronos.chronodb.api.indexing.Indexer
 import org.chronos.chronodb.api.indexing.LongIndexer
 import org.chronos.chronodb.api.indexing.StringIndexer
 import org.chronos.chronodb.api.key.QualifiedKey
+import org.chronos.chronodb.api.kotlin.ReadWriteAutoLockableExtensions.withNonExclusiveLock
 import org.chronos.chronodb.internal.api.BranchEventListener
 import org.chronos.chronodb.internal.api.ChronoDBConfiguration
 import org.chronos.chronodb.internal.api.ChronoDBInternal
@@ -33,6 +31,10 @@ import org.chronos.chronodb.internal.impl.query.parser.ast.BinaryQueryOperator
 import org.chronos.chronodb.internal.impl.query.parser.ast.QueryElement
 import org.chronos.chronodb.internal.impl.query.parser.ast.WhereElement
 import java.util.*
+import java.util.concurrent.Callable
+import java.util.concurrent.locks.ReadWriteLock
+import java.util.concurrent.locks.ReentrantReadWriteLock
+import kotlin.concurrent.withLock
 
 abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal {
 
@@ -42,6 +44,17 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
 
     protected val queryCache: ChronoIndexQueryCache
     protected val owningDB: C
+
+    // the index lock is a read-write lock, which should be used as follows:
+    // - READ: for querying the index data, as well as meta-information (list all indices etc.)
+    // - WRITE: for updating the dirty status, for adding/removing an index. NOT to be held for the entire duration of a reindexing operation (this would block all reads!)
+    protected val indexLock: ReadWriteLock
+
+    // the index management lock works in addition to the index lock and has to be held for ALL index management
+    // operations, for the ENTIRE duration of the operations (e.g. add index, remove index, terminate index, reindex, ...).
+    // We use an Object and "synchronized" here instead of a standard ReentrantLock, because the latter has
+    // caused issues in the past on certain JVM implementations where the lock was acquired but never released.
+    protected val indexManagementOperationLock: Any = Object()
     protected lateinit var indexTree: IndexTree
 
     // =================================================================================================================
@@ -50,6 +63,7 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
 
     constructor(owningDB: C) {
         this.owningDB = owningDB
+        this.indexLock = ReentrantReadWriteLock(true)
         // check configuration to see if we want to have query caching
         val chronoDbConfig: ChronoDBConfiguration = this.owningDB.configuration
         queryCache = if (chronoDbConfig.isIndexQueryCachingEnabled) {
@@ -91,7 +105,7 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
         timestamp: Long,
         branch: Branch,
         keyspace: String,
-        searchSpec: SearchSpecification<*, *>
+        searchSpec: SearchSpecification<*, *>,
     ): Set<String> {
         val indices = this.getIndices(branch, timestamp)
         this.assertIndexAccessIsOk(branch, timestamp, searchSpec, indices)
@@ -103,14 +117,15 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
     override fun evaluate(timestamp: Long, branch: Branch, query: ChronoDBQuery): Iterator<QualifiedKey> {
         Preconditions.checkArgument(timestamp >= 0, "Precondition violation - argument 'timestamp' must be >= 0!")
         Preconditions.checkNotNull(query, "Precondition violation - argument 'query' must not be NULL!")
-        this.owningDB.lockNonExclusive().use {
+        return this.withLocksForIndexRead {
             // walk the AST of the query in a bottom-up fashion, applying the following strategy:
             // - WHERE node: run the query and remember the result set
             // - AND node: perform set intersection of left and right child result sets
             // - OR node: perform set union of left and right child result sets
             val keyspace = query.keyspace
             val rootElement = query.rootElement
-            return this.evaluateRecursive(rootElement, timestamp, branch, keyspace).asSequence()
+            val resultSet = this.evaluateRecursive(rootElement, timestamp, branch, keyspace)
+            resultSet.asSequence()
                 .map { QualifiedKey.create(keyspace, it) }
                 .iterator()
         }
@@ -118,43 +133,43 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
 
     override fun evaluateCount(timestamp: Long, branch: Branch, query: ChronoDBQuery): Long {
         require(timestamp >= 0) { "Precondition violation - argument 'timestamp' (value: $timestamp) must be >= 0!" }
-        this.owningDB.lockNonExclusive().use {
+        return this.withLocksForIndexRead {
             // TODO PERFORMANCE: evaluating everything and then counting is not very efficient...
             val keyspace = query.keyspace
             val rootElement = query.rootElement
             val resultSet: Set<String> = this.evaluateRecursive(rootElement, timestamp, branch, keyspace)
-            return resultSet.size.toLong()
+            resultSet.size.toLong()
         }
     }
 
     override fun getIndices(): Set<SecondaryIndex> {
-        this.owningDB.lockNonExclusive().use {
-            return this.indexTree.getAllIndices()
+        return this.withLocksForIndexRead {
+            this.indexTree.getAllIndices()
         }
     }
 
     override fun getIndexById(id: String): SecondaryIndex? {
-        this.owningDB.lockNonExclusive().use {
-            return this.indexTree.getIndexById(id)
+        return this.withLocksForIndexRead {
+            this.indexTree.getIndexById(id)
         }
     }
 
     override fun getIndices(branch: Branch): Set<SecondaryIndex> {
-        this.owningDB.lockNonExclusive().use {
-            return this.indexTree.getIndices(branch)
+        return this.withLocksForIndexRead {
+            this.indexTree.getIndices(branch)
         }
     }
 
     override fun getIndices(branch: Branch, timestamp: Long): Set<SecondaryIndex> {
-        this.owningDB.lockNonExclusive().use {
+        return this.withLocksForIndexRead {
             val actualBranch = this.owningDB.branchManager.getActualBranchForQuerying(branch, timestamp)
-            return this.indexTree.getIndices(actualBranch, timestamp)
+            this.indexTree.getIndices(actualBranch, timestamp)
         }
     }
 
     override fun getParentIndexOnBranch(index: SecondaryIndex, branch: Branch): SecondaryIndex {
-        this.owningDB.lockNonExclusive().use {
-            return this.indexTree.getParentIndexOnBranch(index, branch)
+        return this.withLocksForIndexRead {
+            this.indexTree.getParentIndexOnBranch(index, branch)
         }
     }
 
@@ -177,20 +192,20 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
      * @return The list of parent indices, as outlined above.
      */
     override fun getParentIndicesRecursive(index: SecondaryIndex, includeSelf: Boolean): List<SecondaryIndex> {
-        this.owningDB.lockNonExclusive().use {
-            return this.indexTree.getParentIndicesRecursive(index, includeSelf)
+        return this.withLocksForIndexRead {
+            this.indexTree.getParentIndicesRecursive(index, includeSelf)
         }
     }
 
     override fun getDirtyIndices(): Set<SecondaryIndex> {
-        this.owningDB.lockNonExclusive().use {
-            return this.indexTree.getAllIndices().asSequence().filter { it.dirty }.toSet()
+        return this.withLocksForIndexRead {
+            this.indexTree.getAllIndices().asSequence().filter { it.dirty }.toSet()
         }
     }
 
     override fun isReindexingRequired(): Boolean {
-        this.owningDB.lockNonExclusive().use {
-            return this.indexTree.getAllIndices().any { it.dirty }
+        return this.withLocksForIndexRead {
+            this.indexTree.getAllIndices().any { it.dirty }
         }
     }
 
@@ -200,69 +215,75 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
 
     override fun deleteIndices(indices: Set<SecondaryIndex>): Boolean {
         this.owningDB.configuration.assertNotReadOnly()
-        this.owningDB.lockExclusive().use {
-            var changed = false
-            for (index in indices) {
-                if (this.indexTree.getIndexById(index.id) == null) {
-                    // this index doesn't exist
-                    continue
+        return this.withIndexManagementLock {
+            this.withLocksForIndexModification {
+                var changed = false
+                for (index in indices) {
+                    if (this.indexTree.getIndexById(index.id) == null) {
+                        // this index doesn't exist
+                        continue
+                    }
+                    val indexTreeChanges = this.indexTree.removeIndex(index)
+                    this.applyIndexChangesToBackend(indexTreeChanges)
+                    changed = true
                 }
-                val indexTreeChanges = this.indexTree.removeIndex(index)
-                this.applyIndexChangesToBackend(indexTreeChanges)
-                changed = true
+                if (changed) {
+                    this.clearQueryCache()
+                }
+                changed
             }
-            if (changed) {
-                this.clearQueryCache()
-            }
-            return changed
         }
     }
 
     override fun clearAllIndices(): Boolean {
         this.owningDB.configuration.assertNotReadOnly()
-        this.owningDB.lockExclusive().use {
-            if (this.indexTree.getAllIndices().isEmpty()) {
-                return false
+        return this.withIndexManagementLock {
+            this.withLocksForIndexModification {
+                if (this.indexTree.getAllIndices().isEmpty()) {
+                    return@withLocksForIndexModification false
+                }
+                this.deleteAllIndicesInternal()
+                this.indexTree.clear()
+                clearQueryCache()
+                return@withLocksForIndexModification true
             }
-            this.deleteAllIndicesInternal()
-            this.indexTree.clear()
-            clearQueryCache()
         }
-        return true
     }
 
     override fun setIndexEndDate(index: SecondaryIndex, endTimestamp: Long): SecondaryIndex {
         this.owningDB.configuration.assertNotReadOnly()
-        this.owningDB.lockExclusive().use {
-            val indexToModify = this.indexTree.getIndexById(index.id) as SecondaryIndexImpl?
-            requireNotNull(indexToModify) {
-                "The given index ($index) does not exist! Maybe it was removed?"
-            }
-            require(endTimestamp > indexToModify.validPeriod.lowerBound) {
-                "The given end timestamp ($endTimestamp) for index $indexToModify is " +
-                    "less than or equal to the start timestamp (${indexToModify.validPeriod.lowerBound}"
-            }
-            val indexWasDirty = indexToModify.dirty
-            val oldUpperBound = indexToModify.validPeriod.upperBound
-
-            val indexTreeChanges = this.indexTree.changeValidityPeriodUpperBound(indexToModify, endTimestamp)
-            applyIndexChangesToBackend(indexTreeChanges)
-
-            if (!indexWasDirty) {
-                // optimization: handle the case of modifying a clean index without reindexing everything
-                if (oldUpperBound > endTimestamp) {
-                    // index shrink
-                    val now = this.owningDB.tx(indexToModify.branch).timestamp
-                    if (now > endTimestamp) {
-                        this.rollback(indexToModify, endTimestamp)
-                    }
-                    // the index is now clean
-                    indexToModify.dirty = false
-                    this.saveIndexInternal(indexToModify)
+        return this.withIndexManagementLock {
+            this.withLocksForIndexModification {
+                val indexToModify = this.indexTree.getIndexById(index.id) as SecondaryIndexImpl?
+                requireNotNull(indexToModify) {
+                    "The given index ($index) does not exist! Maybe it was removed?"
                 }
-                // if the index validity was extended we always reindex
+                require(endTimestamp > indexToModify.validPeriod.lowerBound) {
+                    "The given end timestamp ($endTimestamp) for index $indexToModify is " +
+                        "less than or equal to the start timestamp (${indexToModify.validPeriod.lowerBound}"
+                }
+                val indexWasDirty = indexToModify.dirty
+                val oldUpperBound = indexToModify.validPeriod.upperBound
+
+                val indexTreeChanges = this.indexTree.changeValidityPeriodUpperBound(indexToModify, endTimestamp)
+                applyIndexChangesToBackend(indexTreeChanges)
+
+                if (!indexWasDirty) {
+                    // optimization: handle the case of modifying a clean index without reindexing everything
+                    if (oldUpperBound > endTimestamp) {
+                        // index shrink
+                        val now = this.owningDB.tx(indexToModify.branch).timestamp
+                        if (now > endTimestamp) {
+                            this.rollback(indexToModify, endTimestamp)
+                        }
+                        // the index is now clean
+                        indexToModify.dirty = false
+                        this.saveIndexInternal(indexToModify)
+                    }
+                    // if the index validity was extended we always reindex
+                }
+                indexToModify
             }
-            return indexToModify
         }
     }
 
@@ -272,7 +293,7 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
         startTimestamp: Long,
         endTimestamp: Long,
         indexer: Indexer<*>,
-        options: Collection<IndexingOption>
+        options: Collection<IndexingOption>,
     ): SecondaryIndex {
         val actualBranch = this.owningDB.branchManager.getBranch(branch)
             ?: throw IllegalArgumentException("There is no branch named '${branch}'!")
@@ -286,115 +307,143 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
         )
     }
 
-    @Suppress("UNCHECKED_CAST")
     override fun addIndex(
         indexName: String,
         branch: Branch,
         startTimestamp: Long,
         endTimestamp: Long,
         indexer: Indexer<*>,
-        options: Collection<IndexingOption>
+        options: Collection<IndexingOption>,
     ): SecondaryIndex {
         this.owningDB.configuration.assertNotReadOnly()
         IndexingUtils.assertIsValidIndexName(indexName)
-        this.owningDB.lockExclusive().use {
-            // check the other indexers on this index and make sure that indexer types cannot be mixed
-            // on the same index name.
-            val now = this.owningDB.tx(branch.name).timestamp
-            require(System.currentTimeMillis() >= startTimestamp) {
-                "Can not create indices in the future! " +
-                    "Argument 'validFrom' is $startTimestamp, now on branch ${branch.name} is $now"
+        return this.withIndexManagementLock {
+            this.withLocksForIndexModification {
+                // check the other indexers on this index and make sure that indexer types cannot be mixed
+                // on the same index name.
+
+                val now = this.owningDB.tx(branch.name).timestamp
+                require(System.currentTimeMillis() >= startTimestamp) {
+                    "Can not create indices in the future! " +
+                        "Argument 'validFrom' is $startTimestamp, now on branch ${branch.name} is $now"
+                }
+                val indexStartsDirty = when {
+                    options.contains(StandardIndexingOption.ASSUME_NO_PRIOR_VALUES) -> false
+                    else -> true
+                }
+                val index = SecondaryIndexImpl(
+                    name = indexName,
+                    id = UUID.randomUUID().toString(),
+                    indexer = indexer,
+                    validPeriod = Period.createRange(startTimestamp, endTimestamp),
+                    branch = branch.name,
+                    parentIndexId = null,
+                    dirty = indexStartsDirty,
+                    options = options.toSet()
+                )
+                this.assertHashCodeAndEqualsAreImplemented(indexName, indexer)
+                val indexTreeChanges = this.indexTree.addIndex(index)
+                this.applyIndexChangesToBackend(indexTreeChanges)
+                clearQueryCache()
+                index
             }
-            val indexStartsDirty = when {
-                options.contains(StandardIndexingOption.ASSUME_NO_PRIOR_VALUES) -> false
-                else -> true
-            }
-            val index = SecondaryIndexImpl(
-                name = indexName,
-                id = UUID.randomUUID().toString(),
-                indexer = indexer,
-                validPeriod = Period.createRange(startTimestamp, endTimestamp),
-                branch = branch.name,
-                parentIndexId = null,
-                dirty = indexStartsDirty,
-                options = options.toSet()
-            )
-            this.assertHashCodeAndEqualsAreImplemented(indexName, indexer)
-            val indexTreeChanges = this.indexTree.addIndex(index)
-            this.applyIndexChangesToBackend(indexTreeChanges)
-            clearQueryCache()
-            return index
         }
     }
 
     override fun addIndices(indices: Set<SecondaryIndex>) {
         // don't trust those indices, they are coming from a dump
         this.owningDB.configuration.assertNotReadOnly()
-        this.owningDB.lockExclusive().use {
-            val intersection = Sets.intersection(this.indexTree.getAllIndices(), indices)
-            if (intersection.isNotEmpty()) {
-                val id = intersection.first().id
-                throw IllegalArgumentException("A SecondaryIndex with id '$id' already exists!")
-            }
-            val indexIds = mutableSetOf<String>()
-            indexIds.addAll(this.indexTree.getAllIndices().asSequence().map { it.id })
-            indexIds.addAll(indices.asSequence().map { it.id })
-
-            val parentIds = mutableSetOf<String>()
-            parentIds.addAll(this.indexTree.getAllIndices().asSequence().mapNotNull { it.parentIndexId })
-            parentIds.addAll(indices.asSequence().mapNotNull { it.parentIndexId })
-
-            for (parentId in parentIds) {
-                if (parentId !in indexIds) {
-                    throw IllegalArgumentException("The index parent id '$parentId' does not refer to any known index!")
+        this.withIndexManagementLock {
+            this.withLocksForIndexModification {
+                val intersection = Sets.intersection(this.indexTree.getAllIndices(), indices)
+                if (intersection.isNotEmpty()) {
+                    val id = intersection.first().id
+                    throw IllegalArgumentException("A SecondaryIndex with id '$id' already exists!")
                 }
-            }
+                val indexIds = mutableSetOf<String>()
+                indexIds.addAll(this.indexTree.getAllIndices().asSequence().map { it.id })
+                indexIds.addAll(indices.asSequence().map { it.id })
 
-            for (index in indices) {
-                this.assertNoOverlaps(index)
-                if (this.owningDB.branchManager.getBranch(index.branch) == null) {
-                    throw IllegalArgumentException(
-                        "The index $index belongs to branch ${index.branch}, " +
-                            "but there is no branch with this name!"
-                    )
+                val parentIds = mutableSetOf<String>()
+                parentIds.addAll(this.indexTree.getAllIndices().asSequence().mapNotNull { it.parentIndexId })
+                parentIds.addAll(indices.asSequence().mapNotNull { it.parentIndexId })
+
+                for (parentId in parentIds) {
+                    if (parentId !in indexIds) {
+                        throw IllegalArgumentException("The index parent id '$parentId' does not refer to any known index!")
+                    }
                 }
-                this.assertHashCodeAndEqualsAreImplemented(index.name, index.indexer)
-            }
 
-            var indexTreeChanges = IndexChanges.EMPTY
-            for (index in indices) {
-                indexTreeChanges = indexTreeChanges.addAll(indexTree.addIndex(index))
+                for (index in indices) {
+                    this.assertNoOverlaps(index)
+                    if (this.owningDB.branchManager.getBranch(index.branch) == null) {
+                        throw IllegalArgumentException(
+                            "The index $index belongs to branch ${index.branch}, " +
+                                "but there is no branch with this name!"
+                        )
+                    }
+                    this.assertHashCodeAndEqualsAreImplemented(index.name, index.indexer)
+                }
+
+                var indexTreeChanges = IndexChanges.EMPTY
+                for (index in indices) {
+                    indexTreeChanges = indexTreeChanges.addAll(indexTree.addIndex(index))
+                }
+                this.applyIndexChangesToBackend(indexTreeChanges)
+                clearQueryCache()
             }
-            this.applyIndexChangesToBackend(indexTreeChanges)
-            clearQueryCache()
         }
     }
 
     @Suppress("UNCHECKED_CAST")
     override fun markAllIndicesAsDirty(): Boolean {
-        this.owningDB.lockExclusive().use {
-            val cleanIndices = this.indexTree.getAllIndices().asSequence().filterNot { it.dirty }.toSet()
-            if (cleanIndices.isEmpty()) {
-                return false
+        return this.withIndexManagementLock {
+            this.withLocksForIndexModification {
+                val cleanIndices = this.indexTree.getAllIndices().asSequence().filterNot { it.dirty }.toSet()
+                if (cleanIndices.isEmpty()) {
+                    return@withLocksForIndexModification false
+                }
+                for (index in cleanIndices) {
+                    (index as SecondaryIndexImpl).dirty = true
+                }
+                this.saveIndicesInternal(cleanIndices as Set<SecondaryIndexImpl>)
+                return@withLocksForIndexModification true
             }
-            for (index in cleanIndices) {
-                (index as SecondaryIndexImpl).dirty = true
+        }
+    }
+
+    override fun markIndicesAsDirty(indices: Collection<SecondaryIndex>): Boolean {
+        return this.withIndexManagementLock {
+            this.withLocksForIndexModification {
+                val internalIndices = indices.asSequence()
+                    .mapNotNull { this.indexTree.getIndexById(it.id) }
+                    .filterIsInstance<SecondaryIndexImpl>()
+                    .toSet()
+                val modified = mutableSetOf<SecondaryIndexImpl>()
+                for (index in internalIndices) {
+                    if (index.dirty) {
+                        index.dirty = true
+                        modified += index
+                    }
+                }
+                if (modified.isEmpty()) {
+                    return@withLocksForIndexModification false
+                }
+                this.saveIndicesInternal(modified)
+                true
             }
-            this.saveIndicesInternal(cleanIndices as Set<SecondaryIndexImpl>)
-            return true
         }
     }
 
 
-    @Suppress("UPPER_BOUND_VIOLATED_WARNING")
     override fun getIndexedValues(
         timestamp: Long,
         branch: Branch,
         keyspace: String,
         indexName: String,
     ): Map<Comparable<*>, Set<String>> {
-        this.owningDB.lockNonExclusive().use {
-            this.createCursor<Comparable<*>>(
+        return this.withLocksForIndexRead {
+            this.createCursor<Comparable<Comparable<*>>>(
                 timestamp = timestamp,
                 branch = branch,
                 keyspace = keyspace,
@@ -407,24 +456,23 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
                 while (cursor.next()) {
                     resultMap.getOrPut(cursor.indexValue, ::mutableSetOf).add(cursor.primaryKey)
                 }
-                return resultMap
+                return@use resultMap
             }
         }
     }
 
-    @Suppress("UPPER_BOUND_VIOLATED_WARNING")
     override fun getIndexedValues(
         timestamp: Long,
         branch: Branch,
         keyspace: String,
         indexName: String,
-        keys: Set<String>
+        keys: Set<String>,
     ): Map<Comparable<*>, Set<String>> {
         if (keys.isEmpty()) {
             return emptyMap()
         }
-        this.owningDB.lockNonExclusive().use {
-            this.createCursor<Comparable<*>>(
+        return this.withLocksForIndexRead {
+            this.createCursor<Comparable<Comparable<*>>>(
                 timestamp = timestamp,
                 branch = branch,
                 keyspace = keyspace,
@@ -437,24 +485,24 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
                 while (cursor.next()) {
                     resultMap.getOrPut(cursor.indexValue, ::mutableSetOf).add(cursor.primaryKey)
                 }
-                return resultMap
+                return@withLocksForIndexRead resultMap
             }
         }
     }
 
-    @Suppress("UPPER_BOUND_VIOLATED_WARNING")
     override fun getIndexedValuesByKey(
         timestamp: Long,
         branch: Branch,
         keyspace: String,
         indexName: String,
-        keys: Set<String>
+        keys: Set<String>,
     ): Map<String, Set<Comparable<*>>> {
         if (keys.isEmpty()) {
             return emptyMap()
         }
-        this.owningDB.lockNonExclusive().use {
-            this.createCursor<Comparable<*>>(timestamp = timestamp,
+        return this.withLocksForIndexRead {
+            this.createCursor<Comparable<Comparable<*>>>(
+                timestamp = timestamp,
                 branch = branch,
                 keyspace = keyspace,
                 indexName = indexName,
@@ -466,20 +514,20 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
                 while (cursor.next()) {
                     resultMap.getOrPut(cursor.primaryKey, ::mutableSetOf).add(cursor.indexValue)
                 }
-                return resultMap
+                return@withLocksForIndexRead resultMap
             }
         }
     }
 
-    @Suppress("UPPER_BOUND_VIOLATED_WARNING")
     override fun getIndexedValuesByKey(
         timestamp: Long,
         branch: Branch,
         keyspace: String,
         indexName: String,
     ): Map<String, Set<Comparable<*>>> {
-        this.owningDB.lockNonExclusive().use {
-            this.createCursor<Comparable<*>>(timestamp = timestamp,
+        return this.withLocksForIndexRead {
+            this.createCursor<Comparable<Comparable<*>>>(
+                timestamp = timestamp,
                 branch = branch,
                 keyspace = keyspace,
                 indexName = indexName,
@@ -491,7 +539,7 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
                 while (cursor.next()) {
                     resultMap.getOrPut(cursor.primaryKey, ::mutableSetOf).add(cursor.indexValue)
                 }
-                return resultMap
+                return@withLocksForIndexRead resultMap
             }
         }
     }
@@ -544,7 +592,7 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
         indexName: String,
         sortOrder: Order,
         textCompare: TextCompare,
-        keys: Set<String>?
+        keys: Set<String>?,
     ): IndexScanCursor<*>
 
     override fun sortKeysWithIndex(
@@ -552,7 +600,7 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
         branch: Branch,
         keyspace: String,
         keys: Set<String>,
-        sort: Sort
+        sort: Sort,
     ): List<String> {
         if (keys.isEmpty()) {
             return emptyList()
@@ -560,24 +608,25 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
         if (keys.size == 1) {
             return keys.toList()
         }
-        val actualBranch = this.owningDB.branchManager.getActualBranchForQuerying(branch, timestamp)
-        val indicesByName = this.getIndices(actualBranch, timestamp).associateBy { it.name }
-        val indicesInOrder = sort.getIndexNamesInOrder().asSequence().map {
-            indicesByName[it]
-                ?: throw IllegalArgumentException("The index '${it}' is unknown!")
-        }.toList()
+        return this.withLocksForIndexModification {
+            val actualBranch = this.owningDB.branchManager.getActualBranchForQuerying(branch, timestamp)
+            val indicesByName = this.getIndices(actualBranch, timestamp).associateBy { it.name }
+            val indicesInOrder = sort.getIndexNamesInOrder().asSequence().map {
+                indicesByName[it]
+                    ?: throw IllegalArgumentException("The index '${it}' is unknown!")
+            }.toList()
 
-        if (indicesInOrder.size == 1) {
-            // if we have only one index to sort by, we can utilize the sort order of the index itself.
-            val index = indicesInOrder.single()
-            val sortOrder = sort.getSortOrderForIndex(index.name)
-            val textCompare = sort.getTextCompareForIndex(index.name)
-            val nullSortPosition = sort.getNullSortPositionForIndex(index.name)
-            return sortKeysWithSingleSecondaryIndex(timestamp, actualBranch, keyspace, index, sortOrder, textCompare, nullSortPosition, keys)
+            if (indicesInOrder.size == 1) {
+                // if we have only one index to sort by, we can utilize the sort order of the index itself.
+                val index = indicesInOrder.single()
+                val sortOrder = sort.getSortOrderForIndex(index.name)
+                val textCompare = sort.getTextCompareForIndex(index.name)
+                val nullSortPosition = sort.getNullSortPositionForIndex(index.name)
+                return@withLocksForIndexModification sortKeysWithSingleSecondaryIndex(timestamp, actualBranch, keyspace, index, sortOrder, textCompare, nullSortPosition, keys)
+            }
+
+            return@withLocksForIndexModification sortKeysByMultipleSecondaryIndices(keys, indicesInOrder, sort, timestamp, actualBranch, keyspace)
         }
-
-        return sortKeysByMultipleSecondaryIndices(keys, indicesInOrder, sort, timestamp, actualBranch, keyspace)
-
     }
 
     /**
@@ -587,7 +636,6 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
      * (common) special case that only a single sort criterion is given, and ties are
      * broken via primary keys.
      */
-    @Suppress("UPPER_BOUND_VIOLATED_WARNING")
     private fun sortKeysWithSingleSecondaryIndex(
         timestamp: Long,
         branch: Branch,
@@ -598,7 +646,7 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
         nullSortPosition: NullSortPosition,
         keys: Set<String>,
     ): List<String> {
-        this.createCursor<Comparable<*>>(timestamp, branch, keyspace, index.name, sortOrder, textCompare, keys).use { cursor ->
+        this.createCursor<Comparable<Comparable<*>>>(timestamp, branch, keyspace, index.name, sortOrder, textCompare, keys).use { cursor ->
             val resultList = mutableListOf<String>()
             val unsortedKeys = keys.toMutableSet()
             while (cursor.next()) {
@@ -628,7 +676,7 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
         sort: Sort,
         timestamp: Long,
         branch: Branch,
-        keyspace: String
+        keyspace: String,
     ): List<String> {
         // start with ALL keys provided by the caller.
         var keysToCheck = keys
@@ -688,7 +736,7 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
     override fun rollback(timestamp: Long) {
         require(timestamp >= 0) { "Precondition violation - argument 'timestamp' (value: $timestamp) must not be negative!" }
         this.owningDB.configuration.assertNotReadOnly()
-        this.owningDB.lockExclusive().use {
+        this.withLocksForIndexModification {
             val indices = this.indexTree.getAllIndices().asSequence()
                 .filterNot { it.validPeriod.isBefore(timestamp) }
                 .filterIsInstance<SecondaryIndexImpl>()
@@ -701,7 +749,7 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
     override fun rollback(branch: Branch, timestamp: Long) {
         require(timestamp >= 0) { "Precondition violation - argument 'timestamp' (value: $timestamp) must not be negative!" }
         this.owningDB.configuration.assertNotReadOnly()
-        this.owningDB.lockExclusive().use {
+        this.withLocksForIndexModification {
             val indices = this.indexTree.getIndices(branch).asSequence()
                 .filterNot { it.validPeriod.isBefore(timestamp) }
                 .filterIsInstance<SecondaryIndexImpl>()
@@ -714,7 +762,7 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
     override fun rollback(branch: Branch, timestamp: Long, keys: Set<QualifiedKey>) {
         require(timestamp >= 0) { "Precondition violation - argument 'timestamp' (value: $timestamp) must not be negative!" }
         this.owningDB.configuration.assertNotReadOnly()
-        this.owningDB.lockExclusive().use {
+        this.withLocksForIndexModification {
             val indices = this.indexTree.getIndices(branch).asSequence()
                 .filterNot { it.validPeriod.isBefore(timestamp) }
                 .filterIsInstance<SecondaryIndexImpl>()
@@ -727,23 +775,23 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
     // ABSTRACT METHOD DECLARATIONS
     // =================================================================================================================
 
-    abstract fun performIndexQuery(timestamp: Long, branch: Branch, keyspace: String, searchSpec: SearchSpecification<*, *>): Set<String>
+    protected abstract fun performIndexQuery(timestamp: Long, branch: Branch, keyspace: String, searchSpec: SearchSpecification<*, *>): Set<String>
 
-    abstract fun loadIndicesFromPersistence(): Set<SecondaryIndexImpl>
+    protected abstract fun loadIndicesFromPersistence(): Set<SecondaryIndexImpl>
 
-    abstract fun deleteIndexInternal(index: SecondaryIndexImpl)
+    protected abstract fun deleteIndexInternal(index: SecondaryIndexImpl)
 
-    abstract fun deleteAllIndicesInternal()
+    protected abstract fun deleteAllIndicesInternal()
 
-    abstract fun saveIndexInternal(index: SecondaryIndexImpl)
+    protected abstract fun saveIndexInternal(index: SecondaryIndexImpl)
 
-    abstract fun rollback(index: SecondaryIndexImpl, timestamp: Long)
+    protected abstract fun rollback(index: SecondaryIndexImpl, timestamp: Long)
 
-    abstract fun rollback(indices: Set<SecondaryIndexImpl>, timestamp: Long)
+    protected abstract fun rollback(indices: Set<SecondaryIndexImpl>, timestamp: Long)
 
-    abstract fun rollback(indices: Set<SecondaryIndexImpl>, timestamp: Long, keys: Set<QualifiedKey>)
+    protected abstract fun rollback(indices: Set<SecondaryIndexImpl>, timestamp: Long, keys: Set<QualifiedKey>)
 
-    abstract fun saveIndicesInternal(indices: Set<SecondaryIndexImpl>)
+    protected abstract fun saveIndicesInternal(indices: Set<SecondaryIndexImpl>)
 
     // =================================================================================================================
     // HELPER METHODS
@@ -823,7 +871,7 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
         }
         // do a VERY basic check on the functionality of the equals(...) method:
         // assert that the object is equal to itself.
-        if (indexerToAdd != indexerToAdd) {
+        if (!Objects.equals(indexerToAdd, indexerToAdd)) {
             val indexerType = this.getIndexerType(indexerToAdd)
             throw ChronoDBIndexingException(
                 "Cannot add ${indexerType.simpleName} '${indexerToAdd.javaClass.name}' to index '$indexName', " +
@@ -846,7 +894,7 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
         element: QueryElement,
         timestamp: Long,
         branch: Branch,
-        keyspace: String
+        keyspace: String,
     ): Set<String> {
         return when (element) {
             is BinaryOperatorElement -> {
@@ -866,6 +914,7 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
                 //  note: set views are always unmodifiable
                 resultSet
             }
+
             is WhereElement<*, *> -> {
                 // disassemble and execute the atomic query
                 val actualBranch = this.owningDB.branchManager.getActualBranchForQuerying(branch, timestamp)
@@ -874,6 +923,7 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
                 val keys = queryIndex(timestamp, actualBranch, keyspace, searchSpec)
                 Collections.unmodifiableSet(keys)
             }
+
             else -> {
                 // all other elements should be eliminated by optimizations...
                 throw ChronoDBQuerySyntaxException(
@@ -902,7 +952,8 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
             throw IllegalStateException(
                 "The index '${indexName}' on branch '${branch.name}' at timestamp ${timestamp}" +
                     " is dirty and cannot be used! Call 'db.getIndexManager().reindexAll()'" +
-                    " to perform re-indexing.")
+                    " to perform re-indexing."
+            )
         }
         return index
     }
@@ -911,7 +962,7 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
         branch: Branch,
         timestamp: Long,
         searchSpec: SearchSpecification<*, *>,
-        indices: Set<SecondaryIndex>
+        indices: Set<SecondaryIndex>,
     ) {
         val index = indices.singleOrNull { it.id == searchSpec.index.id }
             ?: throw UnknownIndexException(
@@ -936,9 +987,11 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
                 isStringIndex && searchSpec !is ContainmentStringSearchSpecification -> {
                     throw InvalidIndexAccessException("Cannot access String index '" + index + "' with " + searchSpec.getDescriptiveSearchType() + " search [" + searchSpec + "]!")
                 }
+
                 isLongIndex && searchSpec !is ContainmentLongSearchSpecification -> {
                     throw InvalidIndexAccessException("Cannot access Long index '" + index + "' with " + searchSpec.getDescriptiveSearchType() + " search [" + searchSpec + "]!")
                 }
+
                 isDoubleIndex && searchSpec !is ContainmentDoubleSearchSpecification -> {
                     throw InvalidIndexAccessException("Cannot access Double index '" + index + "' with " + searchSpec.getDescriptiveSearchType() + " search [" + searchSpec + "]!")
                 }
@@ -948,9 +1001,11 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
                 isStringIndex && searchSpec !is StringSearchSpecification -> {
                     throw InvalidIndexAccessException("Cannot access String index '" + index + "' with " + searchSpec.descriptiveSearchType + " search [" + searchSpec + "]!")
                 }
+
                 isLongIndex && searchSpec !is LongSearchSpecification -> {
                     throw InvalidIndexAccessException("Cannot access Long index '" + index + "' with " + searchSpec.descriptiveSearchType + " search [" + searchSpec + "]!")
                 }
+
                 isDoubleIndex && searchSpec !is DoubleSearchSpecification -> {
                     throw InvalidIndexAccessException("Cannot access Double index '" + index + "' with " + searchSpec.descriptiveSearchType + " search [" + searchSpec + "]!")
                 }
@@ -959,4 +1014,87 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
         }
     }
 
+    override fun <T> withIndexWriteLock(action: () -> T): T {
+        return this.withLocksForIndexModification {
+            try {
+                action()
+            } catch (e: Exception) {
+                throw ChronoDBException("An exception occurred while modifying an index: ${e}", e)
+            }
+        }
+    }
+
+    override fun <T> withIndexReadLock(action: () -> T): T {
+        return this.withLocksForIndexRead {
+            try {
+                action()
+            } catch (e: Exception) {
+                throw ChronoDBException("An exception occurred while reading an index: ${e}", e)
+            }
+        }
+    }
+
+    override fun <T> withIndexReadLock(action: Callable<T>): T {
+        return this.withLocksForIndexRead {
+            try {
+                action.call()
+            } catch (e: Exception) {
+                throw ChronoDBException("An exception occurred while reading an index: ${e}", e)
+            }
+        }
+    }
+
+    override fun withIndexReadLock(action: Runnable) {
+        return this.withLocksForIndexRead {
+            try {
+                action.run()
+            } catch (e: Exception) {
+                throw ChronoDBException("An exception occurred while reading an index: ${e}", e)
+            }
+        }
+    }
+
+    override fun <T> withIndexWriteLock(action: Callable<T>): T {
+        return this.withLocksForIndexModification {
+            try {
+                action.call()
+            } catch (e: Exception) {
+                throw ChronoDBException("An exception occurred while modifying an index: ${e}", e)
+            }
+        }
+    }
+
+    override fun withIndexWriteLock(action: Runnable) {
+        return this.withLocksForIndexModification {
+            try {
+                action.run()
+            } catch (e: Exception) {
+                throw ChronoDBException("An exception occurred while modifying an index: ${e}", e)
+            }
+        }
+    }
+
+    protected inline fun <T> withLocksForIndexModification(crossinline action: () -> T): T {
+        // we generally want to permit reads while we delete indices (read lock)...
+        return this.owningDB.withNonExclusiveLock {
+            // ... but we have to be careful to make sure that those reads do not
+            // use any index we're currently working on (write lock).
+            this.indexLock.writeLock().withLock(action)
+        }
+    }
+
+    protected inline fun <T> withLocksForIndexRead(crossinline action: () -> T): T {
+        // we generally want to permit reads while we delete indices (read lock)...
+        return this.owningDB.withNonExclusiveLock {
+            // ... but we have to be careful to make sure that those
+            // reads do not use this particular index (write lock).
+            this.indexLock.readLock().withLock(action)
+        }
+    }
+
+    protected inline fun <T> withIndexManagementLock(crossinline action: () -> T): T {
+        synchronized(this.indexManagementOperationLock) {
+            return action()
+        }
+    }
 }

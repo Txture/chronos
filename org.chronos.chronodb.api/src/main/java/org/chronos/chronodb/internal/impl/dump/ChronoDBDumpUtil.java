@@ -400,6 +400,15 @@ public class ChronoDBDumpUtil {
                 op.getWallClockTime(),
                 op.getCommitTimestamp()
             );
+        } else if(datebackOperation instanceof TransformValuesOfKeyspaceOperation){
+            TransformValuesOfKeyspaceOperation op = (TransformValuesOfKeyspaceOperation)datebackOperation;
+            return new TransformValuesOfKeyspaceOperationLog(
+                op.getId(),
+                op.getBranch(),
+                op.getWallClockTime(),
+                op.getKeyspace(),
+                op.getEarliestAffectedTimestamp()
+            );
         } else {
             throw new ChronoDBException("Failed to write dump for dateback operation of type '" + datebackOperation.getClass().getName() + "'!");
         }
@@ -741,6 +750,15 @@ public class ChronoDBDumpUtil {
                 op.getBranch(),
                 op.getWallClockTime(),
                 op.getCommitTimestamp()
+            );
+        } else if(operation instanceof TransformValuesOfKeyspaceOperationLog){
+            TransformValuesOfKeyspaceOperationLog op = (TransformValuesOfKeyspaceOperationLog) operation;
+            return new TransformValuesOfKeyspaceOperation(
+                op.getId(),
+                op.getBranch(),
+                op.getWallClockTime(),
+                op.getKeyspace(),
+                op.getEarliestAffectedCommit()
             );
         } else {
             throw new ChronoDBException("Failed to import dateback log operation of type '" + operation + "'!");

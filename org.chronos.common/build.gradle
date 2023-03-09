@@ -8,8 +8,9 @@ jar {
 
 dependencies {
     // Utilities
-    compile("com.esotericsoftware:kryo:${project.kryoVersion}")
-    testCompile project(':org.chronos.common.testing')
+    implementation("com.esotericsoftware:kryo:${project.kryoVersion}")
+    implementation("jakarta.annotation:jakarta.annotation-api:${project.jakartaAnnotations}")
+    testImplementation project(':org.chronos.common.testing')
 }
 
 task sourceJar(type: Jar) {
@@ -40,16 +41,6 @@ publishing {
             groupId project.group
             artifactId jar.baseName
             version project.mavenVersion
-        }
-    }
-
-    repositories {
-        maven {
-            url project.s3Url
-            credentials(AwsCredentials) {
-                accessKey project.s3AccessKey
-                secretKey project.s3SecretKey
-            }
         }
     }
 }

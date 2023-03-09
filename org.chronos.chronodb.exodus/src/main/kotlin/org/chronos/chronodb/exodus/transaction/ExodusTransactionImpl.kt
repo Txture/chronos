@@ -5,8 +5,20 @@ import jetbrains.exodus.env.Cursor
 import jetbrains.exodus.env.Environment
 import jetbrains.exodus.env.StoreConfig
 import jetbrains.exodus.env.Transaction
+import jetbrains.exodus.log.TooBigLoggableException
+import jetbrains.exodus.util.HexUtil
+import org.chronos.chronodb.exodus.kotlin.ext.parseAsUnqualifiedTemporalKey
+import org.chronos.chronodb.exodus.kotlin.ext.toByteArray
 
 class ExodusTransactionImpl : ExodusTransaction {
+
+    companion object {
+
+        // maximum entry size in Exodus is 8MB, but not everything is usable due to overhead.
+        private const val MAX_EXODUS_ENTRY_SIZE_IN_BYTES = 8 * 1024 * 1024 - 7 /* overhead */
+
+    }
+
 
     private val environment: Environment
     private val transaction: Transaction
@@ -44,6 +56,18 @@ class ExodusTransactionImpl : ExodusTransaction {
     }
 
     override fun put(store: String, key: ByteIterable, value: ByteIterable): Boolean {
+        if ((key.length + value.length) > MAX_EXODUS_ENTRY_SIZE_IN_BYTES) {
+            val keyString = try {
+                key.parseAsUnqualifiedTemporalKey()
+            } catch (e: Exception) {
+                try {
+                    String(key.toByteArray())
+                } catch (e: Exception) {
+                    HexUtil.byteArrayToString(key.toByteArray())
+                }
+            }
+            throw TooBigLoggableException("The given key-value pair is too large to be stored (maximum size is 8MB = ${MAX_EXODUS_ENTRY_SIZE_IN_BYTES} bytes, given entry has ${key.length + value.length} bytes). Key: ${keyString}, Store: ${store}")
+        }
         val storeObject = this.environment.openStore(store, StoreConfig.WITHOUT_DUPLICATES, this.transaction)
         return storeObject.put(this.transaction, key, value)
     }

@@ -4,6 +4,7 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.Maps;
 import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Property;
+import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
 import org.chronos.chronograph.api.structure.ChronoEdge;
 import org.chronos.chronograph.api.structure.ChronoGraph;
@@ -164,10 +165,17 @@ public abstract class AbstractChronoElement implements ChronoElementInternal {
         return this.skipModificationCheck <= 0;
     }
 
-    @SuppressWarnings("deprecation")
     protected void assertNotRemoved() {
         if (this.isRemoved() && this.skipRemovedCheck <= 0) {
-            throw new IllegalStateException("The Vertex '" + this.id + "' has already been removed!");
+            String elementType;
+            if (this instanceof Vertex) {
+                elementType = "Vertex";
+            } else if (this instanceof Edge) {
+                elementType = "Edge";
+            } else {
+                elementType = "Element";
+            }
+            throw new IllegalStateException("The " + elementType + " '" + this.id + "' has already been removed!");
         }
     }
 

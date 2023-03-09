@@ -87,7 +87,7 @@ class ExodusIndexManagerBackend {
 
     fun deleteIndex(index: SecondaryIndex) {
         // first, delete the indexers
-        this.owningDB.lockExclusive().use {
+        this.owningDB.lockNonExclusive().use {
             this.owningDB.globalChunkManager.openReadWriteTransactionOnGlobalEnvironment().use { tx ->
                 tx.delete(ChronoDBStoreLayout.STORE_NAME__INDEXERS, index.id)
                 tx.commit()
@@ -98,7 +98,7 @@ class ExodusIndexManagerBackend {
 
     fun deleteAllIndices() {
         // first, delete the indexers
-        this.owningDB.lockExclusive().use {
+        this.owningDB.lockNonExclusive().use {
             this.owningDB.globalChunkManager.openReadWriteTransactionOnGlobalEnvironment().use { tx ->
                 tx.truncateStore(ChronoDBStoreLayout.STORE_NAME__INDEXERS)
                 tx.commit()
@@ -168,6 +168,9 @@ class ExodusIndexManagerBackend {
             allIndices
         } else {
             val dirtyIndices = this.owningDB.indexManager.getDirtyIndices()
+            if(dirtyIndices.isEmpty()){
+                return
+            }
             // delete all index data we have for those indices
             this.owningDB.globalChunkManager.dropSecondaryIndexFiles(dirtyIndices)
             dirtyIndices
@@ -671,7 +674,6 @@ class ExodusIndexManagerBackend {
 
     private fun persistIndexSet(tx: ExodusTransaction, indices: Set<SecondaryIndex>) {
         this.saveIndexers(tx, indices.asSequence().map { it.id to it.toByteArray() }.toMap())
-
     }
 
     private fun getIndexersSerialForm(tx: ExodusTransaction): List<ByteArray> {

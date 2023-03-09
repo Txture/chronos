@@ -38,16 +38,6 @@ afterEvaluate { project ->
                 version project.mavenVersion
             }
         }
-
-        repositories {
-            maven {
-                url project.s3Url
-                credentials(AwsCredentials) {
-                    accessKey project.s3AccessKey
-                    secretKey project.s3SecretKey
-                }
-            }
-        }
     }
 }
 
@@ -59,18 +49,18 @@ test{
 
 dependencies {
     // chronos project dependencies
-    compile project(':org.chronos.common')
-    compile project(':org.chronos.chronodb.api')
+    api project(':org.chronos.common')
+    api project(':org.chronos.chronodb.api')
 
     // exodus
-    compile("org.jetbrains.xodus:xodus-openAPI:${project.exodusVersion}")
-    compile("org.jetbrains.xodus:xodus-environment:${project.exodusVersion}")
+    implementation("org.jetbrains.xodus:xodus-openAPI:${project.exodusVersion}")
+    implementation("org.jetbrains.xodus:xodus-environment:${project.exodusVersion}")
 
     // Utilities
-    compile("com.esotericsoftware:kryo:${project.kryoVersion}");
-    compile("com.thoughtworks.xstream:xstream:${project.xstreamVersion}");
+    implementation("com.esotericsoftware:kryo:${project.kryoVersion}")
+    implementation("com.thoughtworks.xstream:xstream:${project.xstreamVersion}")
 
-    compile group: 'io.github.microutils', name: 'kotlin-logging', version: '${project.kotlinLoggingVersion}', ext: 'pom'
+    implementation("io.github.microutils:kotlin-logging-jvm:${project.kotlinLoggingVersion}")
 
-    testCompile project(':org.chronos.common.testing')
+    testImplementation project(':org.chronos.common.testing')
 }

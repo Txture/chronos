@@ -13,6 +13,7 @@ import org.chronos.chronograph.internal.impl.index.IndexType;
 
 import java.util.Iterator;
 import java.util.Set;
+import java.util.concurrent.Callable;
 
 /**
  * The internal representation of the {@link ChronoGraphIndexManager} with additional methods for internal use.
@@ -61,5 +62,17 @@ public interface ChronoGraphIndexManagerInternal extends ChronoGraphIndexManager
      */
     public Iterator<String> findEdgeIdsByIndexedProperties(final ChronoGraphTransaction tx, final Set<SearchSpecification<?, ?>> searchSpecifications);
 
+    // =================================================================================================================
+    // LOCKING
+    // =================================================================================================================
+
+
+    public <T> T withIndexReadLock(Callable<T> action);
+
+    public void withIndexReadLock(Runnable action);
+
+    public <T> T withIndexWriteLock(Callable<T> action);
+
+    public void withIndexWriteLock(Runnable action);
 
 }

@@ -9,7 +9,6 @@ import mu.KotlinLogging
 import org.chronos.chronodb.exodus.kotlin.ext.mapSingle
 import java.io.Closeable
 import java.io.File
-import java.lang.IllegalStateException
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.ReadWriteLock
@@ -182,6 +181,12 @@ class EnvironmentManager : Closeable{
             }
         }
 
+        override fun executeBeforeGc(action: Runnable?) {
+            return this.inReadLock { env ->
+                env.executeBeforeGc(action)
+            }
+        }
+
         override fun beginTransaction(): Transaction {
             return this.inReadLock { env ->
                 this.openTxCount.incrementAndGet()
@@ -240,6 +245,12 @@ class EnvironmentManager : Closeable{
         override fun getLocation(): String {
             return this.inReadLock { env ->
                 env.location
+            }
+        }
+
+        override fun openBitmap(name: String, config: StoreConfig, transaction: Transaction): Bitmap {
+            return this.inReadLock { env ->
+                env.openBitmap(name, config, transaction)
             }
         }
 
@@ -344,10 +355,43 @@ class EnvironmentManager : Closeable{
                 val myEnv = this.environment
                 val isOpen = myEnv?.isOpen ?: false
                 if(myEnv != null && isOpen){
+                    // there's a bit of a conundrum here:
+                    // - Exodus can "hijack" any ongoing transaction commit to save its utilization into to disk.
+                    // - However, if there haven't been any commits, the utilization info cannot be written.
+                    // - Usually, this would also happen in an individual transaction when the environment is being closed...
+                    // - ... but only if "envCloseForcedly" is set to FALSE.
+                    // - We have to set "envCloseForcedly" to TRUE because we cannot allow ourselves the luxury to wait for
+                    //   all ongoing transactions (which would happen if we set it to FALSE).
+                    // - So we have to step in ourselves and flush the utilization profile to disk manually if it's dirty.
+                    this.flushUtilizationProfileIfNecessary(myEnv)
                     // we want open transactions to be canceled
                     myEnv.environmentConfig.envCloseForcedly = true
                     myEnv.close()
                 }
+            }
+        }
+
+        private fun flushUtilizationProfileIfNecessary(environment: Environment){
+            if(environment.environmentConfig.envIsReadonly){
+                // we can't perform the flush for read-only environments.
+                return
+            }
+            if(!environment.environmentConfig.isGcEnabled){
+                // Garbage Collector is disabled, there's nothing to flush
+                return
+            }
+            if(environment !is EnvironmentImpl){
+                // we need access to the private API to do this
+                return
+            }
+            if(!environment.gc.utilizationProfile.isDirty){
+                // everything is up-to-date, there's nothing to flush.
+                return
+            }
+            // we need to flush the utilization profile to disk, otherwise we get a recovery step on the next startup!
+            environment.executeInTransaction { tx ->
+                environment.gc.utilizationProfile.forceSave(tx)
+                tx.commit()
             }
         }
 

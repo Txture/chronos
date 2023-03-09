@@ -659,7 +659,7 @@ public class IncrementalCommitTest extends AllChronoDBBackendsTest {
         assertFalse(db.tx().exists("a"));
     }
 
-    private static class Person {
+    public static class Person {
 
         private String firstName;
         private String lastName;
@@ -689,7 +689,7 @@ public class IncrementalCommitTest extends AllChronoDBBackendsTest {
         }
     }
 
-    private static class FirstNameIndexer implements StringIndexer {
+    public static class FirstNameIndexer implements StringIndexer {
 
         @Override
         public int hashCode() {
@@ -714,7 +714,7 @@ public class IncrementalCommitTest extends AllChronoDBBackendsTest {
 
     }
 
-    private static class LastNameIndexer implements StringIndexer {
+    public static class LastNameIndexer implements StringIndexer {
 
         @Override
         public int hashCode() {

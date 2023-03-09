@@ -741,7 +741,7 @@ public class DBDumpTest extends AllChronoDBBackendsTest {
     // INNER CLASSES
     // =====================================================================================================================
 
-    private static class Person {
+    public static class Person {
 
         private String firstName;
         private String lastName;
@@ -832,7 +832,7 @@ public class DBDumpTest extends AllChronoDBBackendsTest {
     }
 
     @ChronosExternalizable(converterClass = PersonExternalizer.class)
-    private static class ExternalizablePerson extends Person {
+    public static class ExternalizablePerson extends Person {
 
         public ExternalizablePerson() {
             super();
@@ -871,7 +871,7 @@ public class DBDumpTest extends AllChronoDBBackendsTest {
     }
 
     // needs to be public; otherwise we can't instantiate it!
-    private static class PersonDefaultConverter implements ChronoConverter<Person, PersonDump> {
+    public static class PersonDefaultConverter implements ChronoConverter<Person, PersonDump> {
 
         public PersonDefaultConverter() {
         }
@@ -897,7 +897,7 @@ public class DBDumpTest extends AllChronoDBBackendsTest {
     }
 
     @SuppressWarnings("unused")
-    private static class PersonDump {
+    public static class PersonDump {
 
         private String firstName;
         private String lastName;
@@ -941,7 +941,7 @@ public class DBDumpTest extends AllChronoDBBackendsTest {
 
     }
 
-    private static abstract class PersonIndexer implements StringIndexer {
+    public static abstract class PersonIndexer implements StringIndexer {
 
         @Override
         public boolean canIndex(final Object object) {
@@ -958,7 +958,7 @@ public class DBDumpTest extends AllChronoDBBackendsTest {
 
     }
 
-    private static class FirstNameIndexer extends PersonIndexer {
+    public static class FirstNameIndexer extends PersonIndexer {
 
         @Override
         public int hashCode() {
@@ -977,7 +977,7 @@ public class DBDumpTest extends AllChronoDBBackendsTest {
 
     }
 
-    private static class LastNameIndexer extends PersonIndexer {
+    public static class LastNameIndexer extends PersonIndexer {
 
         @Override
         public int hashCode() {
@@ -996,7 +996,7 @@ public class DBDumpTest extends AllChronoDBBackendsTest {
 
     }
 
-    private static class NicknameIndexer extends PersonIndexer {
+    public static class NicknameIndexer extends PersonIndexer {
 
         @Override
         public int hashCode() {

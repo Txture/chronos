@@ -2,10 +2,7 @@ package org.chronos.chronodb.exodus.kotlin.ext
 
 import jetbrains.exodus.ArrayByteIterable
 import jetbrains.exodus.ByteIterable
-import jetbrains.exodus.bindings.BooleanBinding
-import jetbrains.exodus.bindings.DoubleBinding
-import jetbrains.exodus.bindings.LongBinding
-import jetbrains.exodus.bindings.StringBinding
+import jetbrains.exodus.bindings.*
 import jetbrains.exodus.env.*
 import jetbrains.exodus.util.ByteIterableUtil
 import org.chronos.chronodb.internal.impl.temporal.InverseUnqualifiedTemporalKey
@@ -280,11 +277,11 @@ fun ByteIterable.parseAsString(): String {
 }
 
 fun ByteIterable.parseAsDouble(): Double {
-    return DoubleBinding.entryToDouble(this)
+    return SignedDoubleBinding.entryToDouble(this)
 }
 
 fun Double.toByteIterable(): ByteIterable {
-    return DoubleBinding.doubleToEntry(this)
+    return SignedDoubleBinding.doubleToEntry(this)
 }
 
 fun ByteIterable.parseAsUUID(): UUID {

@@ -19,10 +19,12 @@ import org.apache.tinkerpop.gremlin.structure.*
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory
 import org.chronos.chronograph.api.structure.ChronoElement
 import org.chronos.chronograph.internal.api.index.ChronoGraphIndexInternal
+import org.chronos.chronograph.internal.api.index.ChronoGraphIndexManagerInternal
 import org.chronos.chronograph.internal.api.structure.ChronoGraphInternal
 import org.chronos.chronograph.internal.impl.util.ChronoGraphStepUtil
 import org.chronos.chronograph.internal.impl.util.ChronoGraphTraversalUtil
 import java.util.*
+import java.util.concurrent.Callable
 
 class ChronoGraphPropertyMapStep<K, E> : ScalarMapStep<Element, MutableMap<K, E>>, TraversalParent, ByModulating, Configuring {
 
@@ -93,41 +95,45 @@ class ChronoGraphPropertyMapStep<K, E> : ScalarMapStep<Element, MutableMap<K, E>
 
     @Suppress("UNCHECKED_CAST")
     private fun getValuesByIndexScan(traversers: List<Traverser.Admin<Element>>): Table<String, String, Set<Comparable<*>>>? {
-        val (indices, keyspace) = ChronoGraphStepUtil.getIndicesAndKeyspace(traversal, traversers, this.propertyKeys.toSet())
-            ?: return null // unsupported setting
+        val chronoGraph = ChronoGraphTraversalUtil.getChronoGraph(traversal)
+        val tx = ChronoGraphTraversalUtil.getTransaction(traversal)
+        val indexManager = chronoGraph.getIndexManagerOnBranch(tx.branchName) as ChronoGraphIndexManagerInternal
+        return indexManager.withIndexReadLock(Callable {
+            val (indices, keyspace) = ChronoGraphStepUtil.getIndicesAndKeyspace(traversal, traversers, this.propertyKeys.toSet())
+                ?: return@Callable null // unsupported setting
 
-        val primaryKeys = traversers.asSequence()
-            .map { it.get() }
-            .map { it.id() as String }
-            .toSet()
-        val propertyKeysAsSet = this.propertyKeys.toSet()
-        val graph = this.traversal.graph.orElse(null) as ChronoGraphInternal
-        graph.tx().readWrite()
-        val tx = ChronoGraphTraversalUtil.getTransaction(getTraversal<Any, Any>())
-        val branch = graph.backingDB.branchManager.getBranch(tx.branchName)
+            val primaryKeys = traversers.asSequence()
+                .map { it.get() }
+                .map { it.id() as String }
+                .toSet()
+            val propertyKeysAsSet = this.propertyKeys.toSet()
+            val graph = this.traversal.graph.orElse(null) as ChronoGraphInternal
+            graph.tx().readWrite()
+            val branch = graph.backingDB.branchManager.getBranch(tx.branchName)
 
-        val resultTable = HashBasedTable.create<String, String, MutableSet<Comparable<*>>>()
-        for (index in indices) {
-            if (index.indexedProperty !in propertyKeysAsSet) {
-                continue
+            val resultTable = HashBasedTable.create<String, String, MutableSet<Comparable<*>>>()
+            for (index in indices) {
+                if (index.indexedProperty !in propertyKeysAsSet) {
+                    continue
+                }
+                val propertyName = index.indexedProperty
+                val chronoDBPropertyName = (index as ChronoGraphIndexInternal).backendIndexKey
+                val indexScanResult = graph.backingDB.indexManager.getIndexedValuesByKey(
+                    tx.timestamp,
+                    branch,
+                    keyspace,
+                    chronoDBPropertyName,
+                    primaryKeys
+                )
+                for ((primaryKey, indexValues) in indexScanResult) {
+                    val row = resultTable.row(primaryKey)
+                    val cellContent = row.getOrPut(propertyName, ::mutableSetOf)
+                    cellContent.addAll(indexValues)
+                }
             }
-            val propertyName = index.indexedProperty
-            val chronoDBPropertyName = (index as ChronoGraphIndexInternal).backendIndexKey
-            val indexScanResult = graph.backingDB.indexManager.getIndexedValuesByKey(
-                tx.timestamp,
-                branch,
-                keyspace,
-                chronoDBPropertyName,
-                primaryKeys
-            )
-            for ((primaryKey, indexValues) in indexScanResult) {
-                val row = resultTable.row(primaryKey)
-                val cellContent = row.getOrPut(propertyName, ::mutableSetOf)
-                cellContent.addAll(indexValues)
-            }
-        }
 
-        return resultTable as Table<String, String, Set<Comparable<*>>>
+            return@Callable resultTable as Table<String, String, Set<Comparable<*>>>
+        })
     }
 
     @Suppress("UNCHECKED_CAST")
