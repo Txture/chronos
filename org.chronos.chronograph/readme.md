@@ -6,6 +6,26 @@ ChronoGraph is a [TinkerPop](http://tinkerpop.apache.org/) Graph Database with s
 
 ## Including ChronoGraph in your project
 
+```xml
+<dependency>
+    <groupId>io.txture</groupId>
+    <artifactId>org.chronos.chronograph</artifactId>
+    <version>1.3.7</version>
+</dependency>
+```
+
+If you want file-based persistence provided by [JetBrains Exodus](https://github.com/JetBrains/xodus), you'll also need:
+
+```xml
+<dependency>
+    <groupId>io.txture</groupId>
+    <artifactId>org.chronos.chronodb.exodus</artifactId>
+    <version>1.3.7</version>
+</dependency>
+```
+
+Please make sure to always use the latest version.
+
 ## Creating a new ChronoGraph instance
 
 There are several options for creating a new ChronoGraph instance. The easiest one is using the builder syntax:
