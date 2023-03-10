@@ -2,9 +2,9 @@
 
 Welcome to the Chronos Project. This project is dedicated to providing **efficient** and **easy-to-use** versioned database persistence solutions for the Java Virtual Machine. It is written in Java and Kotlin, and some parts also make use of Groovy. There are three main components to Chronos:
 
-- **[ChronoDB](org.chronos.chronodb.api/readme.md)**: Versioned Key-Value Store
-- **[ChronoGraph](org.chronos.chronograph/readme.md)**: Versioned [TinkerPop](http://tinkerpop.apache.org/) Graph Database
-- **[ChronoSphere](org.chronos.chronosphere/readme.md)**: Versioned [EMF](https://www.eclipse.org/modeling/emf/) Model Repository
+- **[ChronoDB](https://github.com/Txture/chronos/tree/master/org.chronos.chronodb.api)**: Versioned Key-Value Store
+- **[ChronoGraph](https://github.com/Txture/chronos/tree/master/org.chronos.chronograph)**: Versioned [TinkerPop](http://tinkerpop.apache.org/) Graph Database
+- **[ChronoSphere](https://github.com/Txture/chronos/tree/master/org.chronos.chronosphere)**: Versioned [EMF](https://www.eclipse.org/modeling/emf/) Model Repository
 
 These components build on top of each other, but each component can also be used individually:
 
