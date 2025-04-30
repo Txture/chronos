@@ -151,7 +151,7 @@ object SecondaryStringIndexStore : SecondaryIndexStore<String, StringSearchSpeci
     private fun scanAscendingFromSearchValue(tx: ExodusTransaction, searchSpec: StringSearchSpecification, keyspace: String, timestamp: Long, scanTimeMode: ScanTimeMode): ScanResult<String> {
         val scanStart = when (searchSpec.matchMode) {
             STRICT -> searchSpec.searchValue.toByteIterable()
-            CASE_INSENSITIVE -> searchSpec.searchValue.toLowerCase(Locale.ENGLISH).toByteIterable()
+            CASE_INSENSITIVE -> searchSpec.searchValue.lowercase(Locale.ENGLISH).toByteIterable()
             null -> throw IllegalArgumentException("Text match mode must not be NULL!")
         }
         return scanAscendingInternal(tx, searchSpec, keyspace, timestamp, scanStart, STOP_AT_FIRST_MISMATCH, scanTimeMode)
@@ -334,7 +334,7 @@ object SecondaryStringIndexStore : SecondaryIndexStore<String, StringSearchSpeci
 
     @VisibleForTesting
     fun createSecondaryIndexKeyCI(indexValue: String, userKey: String): ByteArray {
-        val indexValueBytesLower = indexValue.toLowerCase(Locale.ENGLISH).toByteIterable().toByteArray()
+        val indexValueBytesLower = indexValue.lowercase(Locale.ENGLISH).toByteIterable().toByteArray()
         val indexValueBytesOriginal = indexValue.toByteIterable().toByteArray()
         val userKeyBytes = userKey.toByteIterable().toByteArray()
         // the final array has the following format:

@@ -7,17 +7,20 @@ import org.apache.tinkerpop.gremlin.process.traversal.Traverser
 import org.apache.tinkerpop.gremlin.process.traversal.step.ByModulating
 import org.apache.tinkerpop.gremlin.process.traversal.step.Configuring
 import org.apache.tinkerpop.gremlin.process.traversal.step.TraversalParent
-import org.apache.tinkerpop.gremlin.process.traversal.step.map.MapStep
+import org.apache.tinkerpop.gremlin.process.traversal.step.map.PropertyMapStep
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.ScalarMapStep
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.Parameters
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.WithOptions
 import org.apache.tinkerpop.gremlin.process.traversal.traverser.TraverserRequirement
-import org.apache.tinkerpop.gremlin.process.traversal.util.FastNoSuchElementException
 import org.apache.tinkerpop.gremlin.process.traversal.util.TraversalRing
 import org.apache.tinkerpop.gremlin.process.traversal.util.TraversalUtil
 import org.apache.tinkerpop.gremlin.structure.*
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory
+import org.chronos.chronograph.api.structure.ChronoEdge
 import org.chronos.chronograph.api.structure.ChronoElement
+import org.chronos.chronograph.api.structure.ChronoVertex
+import org.chronos.chronograph.api.transaction.ChronoGraphTransaction
+import org.chronos.chronograph.internal.ChronoGraphConstants
 import org.chronos.chronograph.internal.api.index.ChronoGraphIndexInternal
 import org.chronos.chronograph.internal.api.index.ChronoGraphIndexManagerInternal
 import org.chronos.chronograph.internal.api.structure.ChronoGraphInternal
@@ -26,7 +29,13 @@ import org.chronos.chronograph.internal.impl.util.ChronoGraphTraversalUtil
 import java.util.*
 import java.util.concurrent.Callable
 
-class ChronoGraphPropertyMapStep<K, E> : ScalarMapStep<Element, MutableMap<K, E>>, TraversalParent, ByModulating, Configuring {
+/**
+ * A specialized version of [PropertyMapStep].
+ *
+ * The main difference is that this class may receive elements for prefetching via [registerFutureElementForPrefetching]. This can be
+ * called from other steps and/or graph traversal strategies and will increase performance if the [propertyKeys] are indexed.
+ */
+class ChronoGraphPropertyMapStep<K, E> : ScalarMapStep<Element, MutableMap<K, E>>, TraversalParent, ByModulating, Configuring, Prefetching {
 
     val propertyKeys: Array<out String>
     val propertyType: PropertyType
@@ -37,103 +46,31 @@ class ChronoGraphPropertyMapStep<K, E> : ScalarMapStep<Element, MutableMap<K, E>
     private val parameters = Parameters()
     private var traversalRing: TraversalRing<K, E>
 
-    private var initialized = false
-
-    /**
-     * The cached query result.
-     *
-     * The parameters are:
-     * - row key (string): the primary key of the vertex/edge
-     * - column key (string): The name of the property
-     * - cell value (set<comparable>): the indexed values.
-     */
-    private var indexQueryResult: Table<String, String, Set<Comparable<*>>>? = null
+    private val prefetcher: Prefetcher
 
 
-    constructor(traversal: Traversal.Admin<*, *>?, propertyType: PropertyType, includedTokens: Int, propertyKeys: Array<out String>, labels: Set<String>) : super(traversal) {
+    constructor(
+        traversal: Traversal.Admin<*, *>?,
+        propertyType: PropertyType,
+        includedTokens: Int,
+        propertyKeys: Array<out String>,
+        labels: Set<String>,
+    ) : super(traversal) {
         this.propertyKeys = propertyKeys
         this.propertyType = propertyType
         this.tokens = includedTokens
         this.labels.addAll(labels)
-        propTraversal = null
-        traversalRing = TraversalRing()
+        this.propTraversal = null
+        this.traversalRing = TraversalRing()
+        this.prefetcher = Prefetcher(this.traversal, propertyKeys)
+        this.prefetcher.addCustomPrefetchingCondition {
+            // some options are not supported in indexed mode.
+            !this.includesAnyTokenOf(WithOptions.labels, WithOptions.keys, WithOptions.list)
+        }
     }
 
-    override fun processNextStart(): Traverser.Admin<MutableMap<K, E>> {
-        this.initialize()
-        return super.processNextStart()
-    }
-
-    private fun initialize() {
-        if (this.initialized) {
-            return
-        }
-        this.initialized = true
-        if (this.includesAnyTokenOf(WithOptions.labels, WithOptions.keys, WithOptions.list)) {
-            // option not supported in indexed mode, fall back to standard algorithm.
-            return
-        }
-        if (this.propertyKeys.isEmpty()) {
-            // no optimization possible if user requests ALL properties. Fall back to standard algorithm.
-            return
-        }
-        if(this.propertyKeys.size > 5){
-            // with too many required keys (i.e. the projection is "too wide"), it is likely faster to just load
-            // the graph elements and query them directly.
-            return
-        }
-        if (!starts.hasNext()) throw FastNoSuchElementException.instance()
-        val elements = mutableListOf<Traverser.Admin<Element>>()
-        // this will consume the elements -> the flatMap later won't work...
-        starts.forEachRemaining(elements::add)
-        // ... so we feed the elements back into the start
-        starts.add(elements.iterator())
-
-        // attempt to run the index query
-        this.indexQueryResult = this.getValuesByIndexScan(elements)
-    }
-
-    @Suppress("UNCHECKED_CAST")
-    private fun getValuesByIndexScan(traversers: List<Traverser.Admin<Element>>): Table<String, String, Set<Comparable<*>>>? {
-        val chronoGraph = ChronoGraphTraversalUtil.getChronoGraph(traversal)
-        val tx = ChronoGraphTraversalUtil.getTransaction(traversal)
-        val indexManager = chronoGraph.getIndexManagerOnBranch(tx.branchName) as ChronoGraphIndexManagerInternal
-        return indexManager.withIndexReadLock(Callable {
-            val (indices, keyspace) = ChronoGraphStepUtil.getIndicesAndKeyspace(traversal, traversers, this.propertyKeys.toSet())
-                ?: return@Callable null // unsupported setting
-
-            val primaryKeys = traversers.asSequence()
-                .map { it.get() }
-                .map { it.id() as String }
-                .toSet()
-            val propertyKeysAsSet = this.propertyKeys.toSet()
-            val graph = this.traversal.graph.orElse(null) as ChronoGraphInternal
-            graph.tx().readWrite()
-            val branch = graph.backingDB.branchManager.getBranch(tx.branchName)
-
-            val resultTable = HashBasedTable.create<String, String, MutableSet<Comparable<*>>>()
-            for (index in indices) {
-                if (index.indexedProperty !in propertyKeysAsSet) {
-                    continue
-                }
-                val propertyName = index.indexedProperty
-                val chronoDBPropertyName = (index as ChronoGraphIndexInternal).backendIndexKey
-                val indexScanResult = graph.backingDB.indexManager.getIndexedValuesByKey(
-                    tx.timestamp,
-                    branch,
-                    keyspace,
-                    chronoDBPropertyName,
-                    primaryKeys
-                )
-                for ((primaryKey, indexValues) in indexScanResult) {
-                    val row = resultTable.row(primaryKey)
-                    val cellContent = row.getOrPut(propertyName, ::mutableSetOf)
-                    cellContent.addAll(indexValues)
-                }
-            }
-
-            return@Callable resultTable as Table<String, String, Set<Comparable<*>>>
-        })
+    override fun registerFutureElementForPrefetching(element: Element) {
+        this.prefetcher.registerFutureElementForPrefetching(element)
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -145,14 +82,18 @@ class ChronoGraphPropertyMapStep<K, E> : ScalarMapStep<Element, MutableMap<K, E>
             return this.mapWithStandardAlgorithm(traverser)
         }
 
-        val cachedQueryResult = this.indexQueryResult
-            ?: return this.mapWithStandardAlgorithm(traverser) // the query couldn't be processed by the secondary index
+        val cacheResultRow = this.prefetcher.getPrefetchResult(element)
+            ?: return this.mapWithStandardAlgorithm(traverser) // we have no prefetch cache
 
         val primaryKey = traverser.get().id() as String
-        val cacheResultRow = cachedQueryResult.row(primaryKey)
-        val map = if (cacheResultRow.isNullOrEmpty()) {
-            mutableMapOf()
+        val map = if (cacheResultRow.isEmpty()) {
+            // cache miss. This can happen if we received no call
+            // to "registerFutureElementForPrefetching" for this element. It's not
+            // critical per se, because we have a fallback, but doing this too often
+            // may result in suboptimal performance.
+            return this.mapWithStandardAlgorithm(traverser)
         } else {
+            // cache hit, all good.
             this.convertTableRowToResultMap(cacheResultRow)
         }
         if (this.includesToken(WithOptions.ids)) {
@@ -204,6 +145,7 @@ class ChronoGraphPropertyMapStep<K, E> : ScalarMapStep<Element, MutableMap<K, E>
                         null -> {
                             /* ignore */
                         }
+
                         is Collection<*> -> values.addAll(value as Collection<Any>)
                         else -> values.add(value)
                     }
@@ -357,5 +299,15 @@ class ChronoGraphPropertyMapStep<K, E> : ScalarMapStep<Element, MutableMap<K, E>
 
     override fun remove() {
         throw UnsupportedOperationException("remove() is not supported here!")
+    }
+
+    private data class TypedID(
+        val type: ElementType,
+        val id: String,
+    )
+
+    private enum class ElementType {
+        VERTEX,
+        EDGE
     }
 }

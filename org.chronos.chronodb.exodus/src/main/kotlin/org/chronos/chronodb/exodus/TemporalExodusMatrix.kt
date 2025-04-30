@@ -208,7 +208,7 @@ class TemporalExodusMatrix : AbstractTemporalDataMatrix {
         val chunkToEntries = HashMultimap.create<ChronoChunk, UnqualifiedTemporalEntry>()
         // group the entries by chunk
         for (entry in entries) {
-            val chunk = bcm.getChunkForTimestamp(entry.key.timestamp)
+            val chunk = bcm.getChunkForTimestamp(entry.key.timestamp)!!
             chunkToEntries.put(chunk, entry)
         }
         for (chunk in chunkToEntries.keySet()) {

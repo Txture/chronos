@@ -1,7 +1,7 @@
 package org.chronos.chronodb.exodus.manager
 
 import com.google.common.collect.Maps
-import mu.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.chronos.chronodb.api.Branch
 import org.chronos.chronodb.api.ChronoDBConstants
 import org.chronos.chronodb.exodus.ExodusChronoDB

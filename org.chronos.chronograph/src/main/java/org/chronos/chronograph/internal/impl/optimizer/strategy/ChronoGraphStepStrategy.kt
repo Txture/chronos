@@ -6,15 +6,19 @@ import org.apache.tinkerpop.gremlin.process.traversal.Traversal
 import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategy.ProviderOptimizationStrategy
 import org.apache.tinkerpop.gremlin.process.traversal.step.filter.FilterStep
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.GraphStep
+import org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.StartStep
+import org.apache.tinkerpop.gremlin.process.traversal.step.util.EmptyStep
 import org.apache.tinkerpop.gremlin.process.traversal.util.TraversalHelper
+import org.apache.tinkerpop.gremlin.structure.Edge
 import org.apache.tinkerpop.gremlin.structure.Element
-import org.chronos.chronodb.internal.api.index.IndexManagerInternal
+import org.apache.tinkerpop.gremlin.structure.Vertex
+import org.chronos.chronograph.api.index.ChronoGraphIndex
 import org.chronos.chronograph.api.structure.ChronoGraph
 import org.chronos.chronograph.internal.api.index.ChronoGraphIndexManagerInternal
 import org.chronos.chronograph.internal.impl.optimizer.step.ChronoGraphStep
 import org.chronos.chronograph.internal.impl.util.ChronoGraphTraversalUtil
 
-object ChronoGraphStepStrategy: ChronoGraphStrategy()  {
+object ChronoGraphStepStrategy : ChronoGraphStrategy() {
 
     override fun applyPrior(): Set<Class<out ProviderOptimizationStrategy>> {
         val resultSet: MutableSet<Class<out ProviderOptimizationStrategy>> = Sets.newHashSet()
@@ -46,6 +50,17 @@ object ChronoGraphStepStrategy: ChronoGraphStrategy()  {
             val cleanIndices = indexManager.getCleanIndicesAtTimestamp(tx.timestamp)
             for (originalGraphStep in TraversalHelper.getStepsOfClass(GraphStep::class.java, traversal)) {
                 originalGraphStep as GraphStep<Any, Element>
+
+                val previousStep = originalGraphStep.previousStep
+                val isStartStep = previousStep == null || previousStep is EmptyStep<*,*> || previousStep is StartStep<*>
+                if(!isStartStep){
+                    // intermediate ...step().V().step()... are NOT supported!
+                    // if this should ever change, please update the "isStartStep" boolean in the super() constructor of ChronoGraphStep!
+                    continue
+                }
+
+                val availableIndices = filterIndicesForGraphStep(originalGraphStep, cleanIndices)
+
                 // we do not perform any optimization if the original graph step has source IDs
                 // (because we do not need the secondary indices in this case).
                 val ids = originalGraphStep.ids
@@ -67,7 +82,7 @@ object ChronoGraphStepStrategy: ChronoGraphStrategy()  {
                 // Also note that the indexable check STOPS at the first step which is non-indexable,
                 // therefore in the example above, has("alpha", 4) will never be reached because we stop
                 // our search at ".out()".
-                var currentStep: Step<*,*> = originalGraphStep.nextStep
+                var currentStep: Step<*, *> = originalGraphStep.nextStep
                 while (ChronoGraphTraversalUtil.isChronoGraphIndexable(currentStep, false)) {
                     if (indexableSteps.isNotEmpty() && indexableSteps[indexableSteps.size - 1].labels.isNotEmpty()) {
                         // the previous step had a label -> stop collecting!
@@ -83,7 +98,7 @@ object ChronoGraphStepStrategy: ChronoGraphStrategy()  {
                 }
 
                 // from the list of indexable steps, determine which ones are actually indexed, and remove those from the traversal
-                val indexedSteps = indexableSteps.filter { ChronoGraphTraversalUtil.isCoveredByIndices(it, cleanIndices) }
+                val indexedSteps = indexableSteps.filter { ChronoGraphTraversalUtil.isCoveredByIndices(it, availableIndices) }
                 if (indexedSteps.isEmpty()) {
                     // we have steps which would theoretically indexable, but we lack
                     // the necessary (clean) indices, so there's nothing we can do about this.
@@ -97,6 +112,23 @@ object ChronoGraphStepStrategy: ChronoGraphStrategy()  {
                 val chronoGraphStep = ChronoGraphStep(originalGraphStep, indexedSteps)
                 TraversalHelper.replaceStep(originalGraphStep, chronoGraphStep, traversal)
             }
+        }
+    }
+
+    private fun filterIndicesForGraphStep(
+        originalGraphStep: GraphStep<*, *>,
+        cleanIndices: MutableSet<ChronoGraphIndex>,
+    ): Set<ChronoGraphIndex> {
+        return when {
+            // the graph step is a "V()" -> only use vertex indices
+            originalGraphStep.returnsVertex() -> cleanIndices.asSequence()
+                .filter { Vertex::class.java.isAssignableFrom(it.indexedElementClass) }
+                .toSet()
+            // the graph step is a "E()" -> only use edge indices
+            originalGraphStep.returnsEdge() -> cleanIndices.asSequence()
+                .filter { Edge::class.java.isAssignableFrom(it.indexedElementClass) }
+                .toSet()
+            else -> emptySet()
         }
     }
 }

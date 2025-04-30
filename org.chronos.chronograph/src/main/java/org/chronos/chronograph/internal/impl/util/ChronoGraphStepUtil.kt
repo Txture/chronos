@@ -15,14 +15,10 @@ import org.chronos.chronograph.api.builder.query.DoubleWithoutCP
 import org.chronos.chronograph.api.builder.query.LongWithoutCP
 import org.chronos.chronograph.api.builder.query.StringWithoutCP
 import org.chronos.chronograph.api.index.ChronoGraphIndex
-import org.chronos.chronograph.api.structure.ChronoGraph
-import org.chronos.chronograph.internal.ChronoGraphConstants
-import org.chronos.chronograph.internal.api.structure.ChronoGraphInternal
-import org.chronos.chronograph.internal.impl.optimizer.step.ChronoGraphStep
+import org.chronos.chronograph.api.transaction.ChronoGraphTransaction
 import org.chronos.chronograph.internal.impl.query.ChronoCompare
 import org.chronos.chronograph.internal.impl.query.ChronoStringCompare
 import java.util.*
-import java.util.function.BiPredicate
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.`__` as AnonymousTraversal
 
 object ChronoGraphStepUtil {
@@ -48,60 +44,9 @@ object ChronoGraphStepUtil {
         )
     )
 
-    @JvmStatic
-    fun getIndicesAndKeyspace(
-        traversal: Traversal.Admin<*, *>,
-        traversers: List<Traverser.Admin<Element>>,
-        propertyKeys: Set<String>,
-    ): Pair<Set<ChronoGraphIndex>, String>? {
-        val types = mutableSetOf<Class<out Any>>()
-        val primaryKeys = HashSet<String>(traversers.size)
-        for (traverser in traversers) {
-            val element = traverser.get()
-            types += when (element) {
-                is Vertex -> Vertex::class.java
-                is Edge -> Edge::class.java
-                else -> return null // unknown type, not indexable.
-            }
-            if (types.size > 1) {
-                // can't use index scan for mixed inputs
-                return null
-            }
-            primaryKeys += element.id() as String
-        }
-        val graph = traversal.graph.orElse(null) as ChronoGraphInternal
+    fun areAllPropertiesIndexed(tx: ChronoGraphTransaction, type: Class<out Element>, propertyKeys: Set<String>): Boolean {
+        val graph = tx.graph
         graph.tx().readWrite()
-        val tx = ChronoGraphTraversalUtil.getTransaction(traversal)
-        return if (Vertex::class.java in types) {
-            // all elements are vertices. Are the properties indexed?
-            if (this.areAllPropertiesIndexed(traversal, Vertex::class.java, propertyKeys)) {
-                val vertexPropertyIndices = graph.getIndexManagerOnBranch(tx.branchName).getIndexedVertexPropertiesAtTimestamp(tx.timestamp)
-                Pair(vertexPropertyIndices, ChronoGraphConstants.KEYSPACE_VERTEX)
-            } else {
-                // not all properties are indexed -> can't use index scan
-                return null
-            }
-        } else if (Edge::class.java in types) {
-            // all elements are edges. Are the properties indexed?
-            if (this.areAllPropertiesIndexed(traversal, Edge::class.java, propertyKeys)) {
-                val edgePropertyIndices = graph.getIndexManagerOnBranch(tx.branchName).getIndexedEdgePropertiesAtTimestamp(tx.timestamp)
-                Pair(edgePropertyIndices, ChronoGraphConstants.KEYSPACE_EDGE)
-            } else {
-                // not all properties are indexed -> can't use index scan
-                return null
-            }
-        } else {
-            // we're dealing with some unknown input type -> can't use index scan
-            return null
-        }
-    }
-
-    private fun areAllPropertiesIndexed(traversal: Traversal.Admin<*, *>, type: Class<out Element>, propertyKeys: Set<String>): Boolean {
-        val graph = traversal.graph.orElse(null) as? ChronoGraph?
-            ?: return false
-
-        graph.tx().readWrite()
-        val tx = ChronoGraphTraversalUtil.getTransaction(traversal)
 
         val indexManager = graph.getIndexManagerOnBranch(tx.branchName)
         val indices = when (type) {

@@ -3,7 +3,7 @@ package org.chronos.chronodb.exodus.manager
 import com.google.common.collect.Sets
 import jetbrains.exodus.ByteIterable
 import jetbrains.exodus.bindings.BooleanBinding
-import mu.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.chronos.chronodb.api.ChronoDBConstants
 import org.chronos.chronodb.exodus.ExodusChronoDB
 import org.chronos.chronodb.exodus.ExodusDataMatrixUtil
@@ -323,10 +323,7 @@ class ExodusTkvs : AbstractTemporalKeyValueStore {
         val rolloverTimestamp = rolloverProcessInfo.rolloverTimestamp
         val branchName = this.owningBranch.name
         val chunkManager = this.owningDB.globalChunkManager
-        val keyspaceMetadata = this.owningDB.globalChunkManager.openReadOnlyTransactionOnGlobalEnvironment().use { rootDbTx ->
-            return@use NavigationIndex.getKeyspaceMetadata(rootDbTx, branchName)
-        }
-        val keyspaceNameToMapName = keyspaceMetadata.associate { it.keyspaceName to it.matrixTableName }
+        val keyspaceNameToMapName = getKeyspaceNameToMapName(branchName, rolloverProcessInfo)
         val tx = this.owningDB.tx(branchName)
         val entries = Sets.newHashSet<UnqualifiedTemporalEntry>()
         val maxBatchSize = this.owningDB.configuration.rolloverBatchSize
@@ -358,6 +355,41 @@ class ExodusTkvs : AbstractTemporalKeyValueStore {
         }
     }
 
+    private fun getKeyspaceNameToMapName(branchName: String, rolloverProcessInfo: RolloverProcessInfo): Map<String, String> {
+        val keyspaceMetadata = this.owningDB.globalChunkManager.openReadOnlyTransactionOnGlobalEnvironment().use { rootDbTx ->
+            return@use NavigationIndex.getKeyspaceMetadata(rootDbTx, branchName)
+        }
+        val keyspaceNameToMapName = keyspaceMetadata.associate { it.keyspaceName to it.matrixTableName }.toMutableMap()
+        val tx = this.owningDB.tx(branchName)
+        if (!rolloverProcessInfo.oldHeadChunk.isDeltaChunk){
+            return keyspaceNameToMapName
+        }
+        // if we are a delta chunk, we may need to create additional keyspaces which haven't been used in the branch yet. See if there are any.
+        val keyspacesWithoutMetadata = tx.keyspaces().asSequence()
+            .filter { it !in keyspaceNameToMapName }
+            .toSet()
+
+        if (keyspacesWithoutMetadata.isEmpty()){
+            // every keyspace has some metadata, nothing to do.
+            return keyspaceNameToMapName
+        }
+        // there are some keyspaces which have not been used in the delta chunk, create the metadata for them.
+        this.owningDB.globalChunkManager.openReadWriteTransactionOnGlobalEnvironment().use { rootDbTx ->
+            for (keyspaceWithoutMetadata in keyspacesWithoutMetadata) {
+                val newMetadata = NavigationIndex.insert(
+                    tx = rootDbTx,
+                    branchName = branchName,
+                    keyspaceName = keyspaceWithoutMetadata,
+                    matrixName = MatrixUtils.generateRandomName(),
+                    timestamp = this.owningBranch.branchingTimestamp
+                )
+
+                keyspaceNameToMapName[keyspaceWithoutMetadata] = newMetadata.matrixTableName
+            }
+        }
+        return keyspaceNameToMapName
+    }
+
     // =================================================================================================================
     // INTERNAL HELPER METHODS
     // =================================================================================================================
@@ -385,8 +417,10 @@ class ExodusTkvs : AbstractTemporalKeyValueStore {
                 val keyspace = keyspaceMetadata.keyspaceName
                 val matrixTableName = keyspaceMetadata.matrixTableName
                 val timestamp = keyspaceMetadata.creationTimestamp
-                val matrix = TemporalExodusMatrix(owningDB.globalChunkManager,
-                    branchName, matrixTableName, keyspace, timestamp)
+                val matrix = TemporalExodusMatrix(
+                    owningDB.globalChunkManager,
+                    branchName, matrixTableName, keyspace, timestamp
+                )
                 this.keyspaceToMatrix[keyspace] = matrix
                 log.trace { "Registering keyspace '$keyspace' matrix in branch '$branchName': $matrixTableName" }
             }

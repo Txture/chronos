@@ -258,6 +258,7 @@ class FetchValuesFromSecondaryIndexTest : AllChronoGraphBackendsTest() {
     @FailOnAllVerticesQuery
     @FailOnAllEdgesQuery
     @InstantiateChronosWith(property = ChronoGraphConfiguration.USE_SECONDARY_INDEX_FOR_VALUE_MAP_STEP, value = "true")
+    @InstantiateChronosWith(property = ChronoGraphConfiguration.PREFETCH_INDEX_QUERY_MIN_ELEMENTS, value = "0") // always prefetch
     fun orderByWithIndexWorks() {
         val g = this.graph
 

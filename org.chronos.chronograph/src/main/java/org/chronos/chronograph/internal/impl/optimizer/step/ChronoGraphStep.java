@@ -43,8 +43,14 @@ public class ChronoGraphStep<S, E extends Element> extends GraphStep<S, E> {
     // =====================================================================================================================
 
     public ChronoGraphStep(final GraphStep<S, E> originalStep, final List<FilterStep<E>> indexableSteps) {
-        super(originalStep.getTraversal(), originalStep.getReturnClass(), originalStep.isStartStep(),
-            originalStep.getIds());
+        super(
+            originalStep.getTraversal(),
+            originalStep.getReturnClass(),
+            // IMPORTANT: the ChronoGraphStep is ALWAYS a "start" step, i.e. it is iterable only ONCE!
+            // if this should ever change, please update the "isStartStep" condition in the ChronoGraphStepStrategy!
+            true,
+            originalStep.getIds()
+        );
         // copy the labels of the original step
         originalStep.getLabels().forEach(this::addLabel);
         // add the sub-steps...

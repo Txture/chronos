@@ -1,14 +1,13 @@
 package org.chronos.chronodb.exodus.secondaryindex.stores
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import jetbrains.exodus.ByteIterable
 import jetbrains.exodus.env.Cursor
-import mu.KotlinLogging
 import org.chronos.chronodb.exodus.kotlin.ext.ceilEntry
 import org.chronos.chronodb.exodus.kotlin.ext.floorEntry
 import org.chronos.chronodb.exodus.kotlin.ext.requireNonNegative
 import org.chronos.chronodb.exodus.secondaryindex.stores.IndexScanConfiguration.ScanDirection.ASCENDING
 import org.chronos.chronodb.exodus.secondaryindex.stores.IndexScanConfiguration.ScanDirection.DESCENDING
-import org.chronos.chronodb.exodus.secondaryindex.stores.IndexScanConfiguration.ScanStrategy
 import org.chronos.chronodb.exodus.transaction.ExodusTransaction
 import org.chronos.chronodb.internal.api.query.searchspec.SearchSpecification
 

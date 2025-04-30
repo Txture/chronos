@@ -2,7 +2,7 @@ package org.chronos.chronodb.exodus.manager
 
 import com.google.common.collect.Maps
 import com.google.common.collect.Sets
-import mu.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.chronos.chronodb.api.exceptions.ChronoDBBranchingException
 import org.chronos.chronodb.exodus.kotlin.ext.parseAsString
 import org.chronos.chronodb.exodus.kotlin.ext.requireNonNegative
@@ -32,7 +32,7 @@ object NavigationIndex {
      * @param matrixName   The name of the matrix to insert. Must not be `null`.
      * @param timestamp    The timestamp at which to create the matrix. Must not be negative.
      */
-    fun insert(tx: ExodusTransaction, branchName: String, keyspaceName: String, matrixName: String, timestamp: Long) {
+    fun insert(tx: ExodusTransaction, branchName: String, keyspaceName: String, matrixName: String, timestamp: Long): KeyspaceMetadata {
         requireNonNegative(timestamp, "timestamp")
         val keyspaceToMatrixBinary = tx.get(STORE_NAME, branchName)
         val keyspaceToMetadata: MutableMap<String, KeyspaceMetadata>
@@ -48,6 +48,7 @@ object NavigationIndex {
         log.trace {
             "Inserting into NavigationMap. Branch = '$branchName', keypsace = '$keyspaceName', matrix = '$matrixName'"
         }
+        return metadata
     }
 
     /**

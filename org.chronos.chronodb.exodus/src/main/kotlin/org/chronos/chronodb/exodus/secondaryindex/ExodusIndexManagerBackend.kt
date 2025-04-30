@@ -3,7 +3,7 @@ package org.chronos.chronodb.exodus.secondaryindex
 import com.google.common.collect.*
 import jetbrains.exodus.ByteIterable
 import jetbrains.exodus.env.Cursor
-import mu.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.chronos.chronodb.api.Branch
 import org.chronos.chronodb.api.SecondaryIndex
 import org.chronos.chronodb.api.indexing.DoubleIndexer

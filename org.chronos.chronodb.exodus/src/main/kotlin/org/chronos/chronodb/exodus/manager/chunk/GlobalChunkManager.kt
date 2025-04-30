@@ -1,6 +1,6 @@
 package org.chronos.chronodb.exodus.manager.chunk
 
-import mu.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.apache.commons.io.FileUtils
 import org.chronos.chronodb.api.Branch
 import org.chronos.chronodb.api.ChronoDBConstants

@@ -5,9 +5,13 @@ import org.apache.tinkerpop.gremlin.process.traversal.Traverser
 import org.apache.tinkerpop.gremlin.process.traversal.step.Configuring
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.PropertiesStep
 import org.apache.tinkerpop.gremlin.process.traversal.util.FastNoSuchElementException
+import org.apache.tinkerpop.gremlin.structure.Edge
 import org.apache.tinkerpop.gremlin.structure.Element
 import org.apache.tinkerpop.gremlin.structure.PropertyType
+import org.apache.tinkerpop.gremlin.structure.Vertex
+import org.chronos.chronograph.api.structure.ChronoEdge
 import org.chronos.chronograph.api.structure.ChronoElement
+import org.chronos.chronograph.api.structure.ChronoVertex
 import org.chronos.chronograph.api.structure.ElementLifecycleStatus
 import org.chronos.chronograph.api.structure.ElementLifecycleStatus.PERSISTED
 import org.chronos.chronograph.internal.api.index.ChronoGraphIndexInternal
@@ -18,45 +22,22 @@ import org.chronos.chronograph.internal.impl.util.ChronoGraphTraversalUtil
 import java.util.concurrent.Callable
 
 
-class ChronoGraphPropertiesStep<E> : PropertiesStep<E>, Configuring {
+class ChronoGraphPropertiesStep<E> : PropertiesStep<E>, Configuring, Prefetching {
 
-    private var initialized = false
-    private var indexQueryResult: Map<String, Set<Comparable<*>>>? = null
+    private val prefetcher: Prefetcher
 
     constructor(traversal: Traversal.Admin<*, *>, propertyType: PropertyType, propertyKeys: Array<out String>, labels: Set<String>)
         : super(traversal, propertyType, *propertyKeys) {
         this.labels.addAll(labels)
+        this.prefetcher = Prefetcher(traversal, propertyKeys)
+    }
+
+    override fun registerFutureElementForPrefetching(element: Element) {
+        this.prefetcher.registerFutureElementForPrefetching(element)
     }
 
     override fun remove() {
         throw UnsupportedOperationException("remove() is not supported!")
-    }
-
-    override fun processNextStart(): Traverser.Admin<E> {
-        this.initialize()
-        return super.processNextStart()
-    }
-
-    private fun initialize() {
-        if (initialized) {
-            return
-        }
-        initialized = true
-        // collect all the elements in the current traversal,
-        // execute the query, and cache its result.
-        if (this.returnType != PropertyType.VALUE) {
-            // we can only return values from the index query -> not applicable.
-            return
-        }
-        if (!starts.hasNext()) throw FastNoSuchElementException.instance()
-        val elements = mutableListOf<Traverser.Admin<Element>>()
-        // this will consume the elements -> the flatMap later won't work...
-        starts.forEachRemaining(elements::add)
-        // ... so we feed the elements back into the start
-        starts.add(elements.iterator())
-
-        // attempt to run the index query
-        this.indexQueryResult = this.getValuesByIndexScan(elements)
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -68,70 +49,37 @@ class ChronoGraphPropertiesStep<E> : PropertiesStep<E>, Configuring {
             return this.flatMapWithStandardAlgorithm(traverser)
         }
 
-        val cachedQueryResult = this.indexQueryResult
+        val cachedQueryResult = this.prefetcher.getPrefetchResult(element)
             ?: return this.flatMapWithStandardAlgorithm(traverser) // the query couldn't be processed by the secondary index
 
-        val primaryKey = traverser.get().id() as String
-        val cachedResult = cachedQueryResult[primaryKey]
-        return if (cachedResult.isNullOrEmpty()) {
-            emptySet<E>().iterator()
-        } else {
-            cachedResult.iterator() as Iterator<E>
-        }
+        return this.propertyKeys.asSequence().flatMap { cachedQueryResult[it] ?: emptySet() }.iterator() as Iterator<E>
     }
 
     @Suppress("UNCHECKED_CAST")
     private fun flatMapWithStandardAlgorithm(traverser: Traverser.Admin<Element>): Iterator<E> {
-        return if (returnType == PropertyType.VALUE) {
-            val element = traverser.get()
-            propertyKeys.asSequence().flatMap {
-                when (val value = element.property<Any>(it).orElse(null)) {
-                    null -> sequenceOf()
-                    is Collection<*> -> value.asSequence().distinct()
-                    else -> sequenceOf(value)
-                }
-            }.iterator() as Iterator<E>
-        } else {
-            traverser.get().properties<E>(*propertyKeys) as Iterator<E>
-        }
-    }
-
-    private fun getValuesByIndexScan(traversers: List<Traverser.Admin<Element>>): Map<String, Set<Comparable<*>>>? {
-        val chronoGraph = ChronoGraphTraversalUtil.getChronoGraph(traversal)
-        val tx = ChronoGraphTraversalUtil.getTransaction(traversal)
-        val indexManager = chronoGraph.getIndexManagerOnBranch(tx.branchName) as ChronoGraphIndexManagerInternal
-        return indexManager.withIndexReadLock(Callable {
-            val (indices, keyspace) = ChronoGraphStepUtil.getIndicesAndKeyspace(traversal, traversers, this.propertyKeys.toSet())
-                ?: return@Callable null
-            val primaryKeys = traversers.asSequence()
-                .map { it.get() }
-                // no need to query the secondary index for dirty elements
-                .filter { (it is ChronoElement) && it.status == PERSISTED }
-                .map { it.id() as String }
-                .toSet()
-            val propertyKeysAsSet = this.propertyKeys.toSet()
-            val chronoDBPropertyKeys = indices.asSequence()
-                .filter { it.indexedProperty in propertyKeysAsSet }
-                .map { (it as ChronoGraphIndexInternal).backendIndexKey }
-                .toSet()
-            val graph = this.traversal.graph.orElse(null) as ChronoGraphInternal
-            graph.tx().readWrite()
-            val branch = graph.backingDB.branchManager.getBranch(tx.branchName)
-            val resultMap = mutableMapOf<String, MutableSet<Comparable<*>>>()
-            for (chronoDBPropertyKey in chronoDBPropertyKeys) {
-                val indexScanResult = graph.backingDB.indexManager.getIndexedValuesByKey(
-                    tx.timestamp,
-                    branch,
-                    keyspace,
-                    chronoDBPropertyKey,
-                    primaryKeys
-                )
-                for ((primaryKey, indexValues) in indexScanResult) {
-                    resultMap.getOrPut(primaryKey, ::mutableSetOf).addAll(indexValues)
-                }
+        return when (this.returnType) {
+            PropertyType.VALUE -> {
+                val element = traverser.get()
+                propertyKeys.asSequence().flatMap {
+                    when (val value = element.property<Any>(it).orElse(null)) {
+                        null -> sequenceOf()
+                        is Collection<*> -> value.asSequence().distinct()
+                        else -> sequenceOf(value)
+                    }
+                }.iterator() as Iterator<E>
             }
-            return@Callable resultMap
-        })
+
+            PropertyType.PROPERTY -> {
+                traverser.get().properties<E>(*propertyKeys) as Iterator<E>
+            }
+
+            null -> {
+                // this actually can't happen because we're declaring the 'propertyType' constructor
+                // variable as non-nullable. It's only nullable in theory because the base class is
+                // a Java class.
+                throw IllegalArgumentException("PropertiesStep.returnType is NULL!")
+            }
+        }
     }
 
 }

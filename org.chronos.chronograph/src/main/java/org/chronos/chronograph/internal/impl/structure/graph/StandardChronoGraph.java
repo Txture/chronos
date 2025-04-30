@@ -6,6 +6,7 @@ import org.apache.commons.configuration2.Configuration;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer;
 import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategies;
+import org.apache.tinkerpop.gremlin.process.traversal.strategy.optimization.EarlyLimitStrategy;
 import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
@@ -37,11 +38,7 @@ import org.chronos.chronograph.internal.impl.history.ChronoGraphHistoryManagerIm
 import org.chronos.chronograph.internal.impl.index.ChronoGraphIndexManagerImpl;
 import org.chronos.chronograph.internal.impl.maintenance.ChronoGraphMaintenanceManagerImpl;
 import org.chronos.chronograph.internal.impl.migration.ChronoGraphMigrationChain;
-import org.chronos.chronograph.internal.impl.optimizer.strategy.ChronoGraphStepStrategy;
-import org.chronos.chronograph.internal.impl.optimizer.strategy.FetchValuesFromSecondaryIndexStrategy;
-import org.chronos.chronograph.internal.impl.optimizer.strategy.OrderFiltersStrategy;
-import org.chronos.chronograph.internal.impl.optimizer.strategy.PredicateNormalizationStrategy;
-import org.chronos.chronograph.internal.impl.optimizer.strategy.ReplaceGremlinPredicateWithChronosPredicateStrategy;
+import org.chronos.chronograph.internal.impl.optimizer.strategy.*;
 import org.chronos.chronograph.internal.impl.schema.ChronoGraphSchemaManagerImpl;
 import org.chronos.chronograph.internal.impl.statistics.ChronoGraphStatisticsManagerImpl;
 import org.chronos.chronograph.internal.impl.structure.graph.features.ChronoGraphFeatures;
@@ -75,14 +72,19 @@ public class StandardChronoGraph implements ChronoGraphInternal {
 
     static {
         TraversalStrategies graphStrategies = TraversalStrategies.GlobalCache.getStrategies(Graph.class).clone();
-        graphStrategies.addStrategies(ChronoGraphStepStrategy.INSTANCE);
-        graphStrategies.addStrategies(PredicateNormalizationStrategy.INSTANCE);
-        graphStrategies.addStrategies(ReplaceGremlinPredicateWithChronosPredicateStrategy.INSTANCE);
-        graphStrategies.addStrategies(FetchValuesFromSecondaryIndexStrategy.INSTANCE);
-        graphStrategies.addStrategies(OrderFiltersStrategy.INSTANCE);
 
-        // TODO PERFORMANCE GRAPH: Titan has a couple more optimizations. See next line.
-        // Take a look at: AdjacentVertexFilterOptimizerStrategy, TitanLocalQueryOptimizerStrategy
+        // do not use the EarlyLimitStrategy, because it has a bug when a query contains multiple ".limit(0)" steps
+        // (see: https://issues.apache.org/jira/browse/TINKERPOP-2932)
+        graphStrategies.removeStrategies(EarlyLimitStrategy.class);
+
+        graphStrategies.addStrategies(
+            ChronoGraphStepStrategy.INSTANCE,
+            PredicateNormalizationStrategy.INSTANCE,
+            ReplaceGremlinPredicateWithChronosPredicateStrategy.INSTANCE,
+            FetchValuesFromSecondaryIndexStrategy.INSTANCE,
+            UseSecondaryIndexForHasStepsStrategy.INSTANCE,
+            OrderFiltersStrategy.INSTANCE
+        );
 
         // Register with cache
         TraversalStrategies.GlobalCache.registerStrategies(StandardChronoGraph.class, graphStrategies);
@@ -235,7 +237,7 @@ public class StandardChronoGraph implements ChronoGraphInternal {
     public ChronoGraphIndexManager getIndexManagerOnBranch(final String branchName) {
         checkNotNull(branchName, "Precondition violation - argument 'branchName' must not be NULL!");
         this.assertIsOpen();
-        synchronized (this.branchLock){
+        synchronized (this.branchLock) {
             if (this.getBackingDB().getBranchManager().existsBranch(branchName) == false) {
                 throw new IllegalArgumentException("There is no branch named '" + branchName + "'!");
             }
@@ -791,8 +793,8 @@ public class StandardChronoGraph implements ChronoGraphInternal {
     // HELPER METHODS
     // =================================================================================================================
 
-    private void assertIsOpen(){
-        if(this.isClosed()){
+    private void assertIsOpen() {
+        if (this.isClosed()) {
             throw new IllegalStateException("This ChronoGraph instance has already been closed.");
         }
     }

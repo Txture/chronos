@@ -2,7 +2,7 @@ package org.chronos.chronograph.test.manual
 
 import com.google.common.base.Preconditions
 import com.google.common.collect.Lists
-import mu.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.apache.tinkerpop.shaded.jackson.databind.JsonNode
 import org.apache.tinkerpop.shaded.jackson.databind.ObjectMapper
 import org.apache.tinkerpop.shaded.jackson.databind.node.JsonNodeFactory

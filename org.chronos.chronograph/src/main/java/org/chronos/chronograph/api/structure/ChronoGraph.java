@@ -176,6 +176,11 @@ import static org.apache.tinkerpop.gremlin.structure.Graph.*;
     method = "g_mergeE_with_outV_inV_options",
     reason = "ChronoGraph does not support custom IDs of type integer."
 )
+@OptOut(
+    test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.CountTest",
+    method = "g_VX1X_valuesXageX_countXlocalX",
+    reason = "ChronoGraph does not support custom IDs of type integer."
+)
 @GraphFactoryClass(ChronoGraphFactoryImpl.class)
 public interface ChronoGraph extends Graph {
 

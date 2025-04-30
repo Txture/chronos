@@ -18,6 +18,7 @@ import org.chronos.chronodb.test.base.InstantiateChronosWith;
 import org.chronos.chronodb.test.cases.util.model.person.PersonIndexer;
 import org.chronos.common.test.junit.categories.IntegrationTest;
 import org.chronos.common.test.utils.model.person.Person;
+import org.hamcrest.core.IsEqual;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -483,6 +484,40 @@ public class RolloverTest extends AllChronoDBBackendsTest {
         // query history with bounds
         assertThat(Lists.newArrayList(db.tx("b3").history("a", commit1, commit2, Order.DESCENDING)), contains(commit2, commit1));
         assertThat(Lists.newArrayList(db.tx("b3").history("a", commit1, commit2, Order.ASCENDING)), contains(commit1, commit2));
+    }
+
+    @Test
+    public void canPerformRolloverOnBranchWithoutChangesToKeyspace(){
+        var db = this.getChronoDB();
+        this.assumeRolloverIsSupported(db);
+
+        var tx1 = db.tx();
+        tx1.put("letters", "a", 1);
+        tx1.put("letters", "b", 1);
+        tx1.put("math", "pi", 3.1415);
+        tx1.put("math", "euler", 2.718);
+        var commit1 = tx1.commit();
+
+        db.getBranchManager().createBranch("branch");
+
+        var tx2 = db.tx("branch");
+        tx2.put("letters", "a", 2);
+        tx2.put("letters", "x", 42);
+        var commit2 = tx2.commit();
+
+        // rollover on all branches, this includes our delta chunk
+        db.getMaintenanceManager().performRolloverOnAllBranches();
+
+        assertThat(db.tx("branch").keyspaces(), containsInAnyOrder("letters", "math", "default"));
+        assertThat(db.tx("master").keyspaces(), containsInAnyOrder("letters", "math", "default"));
+        assertThat(db.tx("branch").keySet("letters"), containsInAnyOrder("a", "b", "x"));
+        assertThat(db.tx("branch").keySet("math"), containsInAnyOrder("pi", "euler"));
+        assertThat(db.tx("branch").get("letters", "a"), equalTo(2));
+        assertThat(db.tx("branch").get("letters", "b"), equalTo(1));
+        assertThat(db.tx("branch").get("letters", "x"), equalTo(42));
+        assertThat(db.tx("branch").keySet("math"), containsInAnyOrder("pi", "euler"));
+        assertThat(db.tx("branch").get("math", "pi"), equalTo(3.1415));
+        assertThat(db.tx("branch").get("math", "euler"), equalTo(2.718));
     }
 
     private void runPerformingARolloverPerservesEntrySetTest(final ChronoDB db) {

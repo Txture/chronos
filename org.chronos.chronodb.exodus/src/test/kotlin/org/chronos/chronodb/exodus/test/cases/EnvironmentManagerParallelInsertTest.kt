@@ -2,7 +2,7 @@ package org.chronos.chronodb.exodus.test.cases
 
 import jetbrains.exodus.bindings.IntegerBinding
 import jetbrains.exodus.env.StoreConfig
-import mu.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.chronos.chronodb.exodus.test.base.EnvironmentTest
 import org.chronos.common.test.utils.TestUtils
 import org.junit.jupiter.api.Tag

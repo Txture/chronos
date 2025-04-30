@@ -62,9 +62,9 @@ object OrderFiltersStrategy : AbstractTraversalStrategy<TraversalStrategy.Provid
         graph.tx().readWrite()
         val tx = ChronoGraphTraversalUtil.getTransaction(traversal)
         val cleanIndices = graph.getIndexManagerOnBranch(tx.branchName).getCleanIndicesAtTimestamp(tx.timestamp)
-        try{
+        try {
             optimize(traversal, cleanIndices.asSequence().map { it.indexedProperty }.toSet())
-        }catch(e: Exception){
+        } catch (e: Exception) {
             throw ChronoGraphException("Failed to optimize ChronoGraph gremlin query [${traversal}]. Reason: ${e}", e)
         }
     }
@@ -89,10 +89,10 @@ object OrderFiltersStrategy : AbstractTraversalStrategy<TraversalStrategy.Provid
 
             // technically, a single HasStep can contain multiple HasContainers (i.e. conditions). Split them
             // up such that each HasStep only contains a single HasContainer.
-            this.splitHasStepsThatContainMultipleConditions(traversal, reorderableSteps)
+            this.splitHasStepsThatContainMultipleConditions(traversal, graphStep)
 
             // move '.has' to the front, everything else to the back
-            val hasSteps = this.sortHasStepsToTheFront(traversal, reorderableSteps, indexPropertyKeys, graphStep)
+            val hasSteps = this.sortHasStepsToTheFront(traversal, indexPropertyKeys, graphStep)
 
             // eliminate duplicate keys in '.has' (duplicates always occur in direct succession after sorting)
             this.eliminateDuplicateHasSteps(traversal, hasSteps)
@@ -111,7 +111,7 @@ object OrderFiltersStrategy : AbstractTraversalStrategy<TraversalStrategy.Provid
     }
 
     private fun canReorder(step: Step<*, *>): Boolean {
-        if(step.labels.isNotEmpty()){
+        if (step.labels.isNotEmpty()) {
             // no reordering is allowed for steps that have labels.
             return false
         }
@@ -199,20 +199,15 @@ object OrderFiltersStrategy : AbstractTraversalStrategy<TraversalStrategy.Provid
     @Suppress("UNCHECKED_CAST")
     private fun splitHasStepsThatContainMultipleConditions(
         traversal: Traversal.Admin<*, *>,
-        reorderableSteps: MutableList<FilterStep<*>>
+        graphStep: GraphStep<*, *>,
     ) {
+        val reorderableSteps = this.findReorderableSteps(graphStep)
         for (step in reorderableSteps.toList()) {
             if (step is HasStep<*> && step.hasContainers.size > 1) {
-                val index = reorderableSteps.indexOf(step)
-                // delete the index from our list right now. Gremlin performs
-                // some weird stuff in the "equals(...)" function of its steps,
-                // so it's safer to do this now.
-                reorderableSteps.removeAt(index)
                 // create one step per HasContainer.
                 for (hasContainer in step.hasContainers) {
                     val newStep = HasStep<Element>(traversal, hasContainer)
                     TraversalHelper.insertBeforeStep(newStep as Step<Any, Any>, step as Step<Any, *>, traversal)
-                    reorderableSteps.add(index, newStep)
                 }
                 // delete the original step in the traversal
                 traversal.removeStep<Any, Any>(step)
@@ -223,11 +218,14 @@ object OrderFiltersStrategy : AbstractTraversalStrategy<TraversalStrategy.Provid
     @Suppress("UNCHECKED_CAST")
     private fun sortHasStepsToTheFront(
         traversal: Traversal.Admin<*, *>,
-        reorderableSteps: MutableList<FilterStep<*>>,
         indexedPropertyKeys: Set<String>,
-        graphStep: GraphStep<*, *>
+        graphStep: GraphStep<*, *>,
     ): List<HasStep<*>> {
-        val hasSteps = reorderableSteps.asSequence().filterIsInstance<HasStep<*>>().sortedWith(HasStepComparator(indexedPropertyKeys)).toList()
+        val reorderableSteps = this.findReorderableSteps(graphStep)
+        val hasSteps = reorderableSteps.asSequence()
+            .filterIsInstance<HasStep<*>>()
+            .sortedWith(HasStepComparator(indexedPropertyKeys))
+            .toList()
 
         // we reverse the list here because the last entry that is being processed
         // will end up as the first operation after .V() / .E().
@@ -292,7 +290,7 @@ object OrderFiltersStrategy : AbstractTraversalStrategy<TraversalStrategy.Provid
 
     @VisibleForTesting
     class HasStepComparator(
-        private val indexedKeys: Set<String>
+        private val indexedKeys: Set<String>,
     ) : Comparator<HasStep<*>> {
 
         override fun compare(left: HasStep<*>, right: HasStep<*>): Int {
@@ -331,10 +329,12 @@ object OrderFiltersStrategy : AbstractTraversalStrategy<TraversalStrategy.Provid
                         // compare the individual components. Prefer "simple" ones (fewer predicates)
                         compareConnectiveP(left, right)
                     }
+
                     left is OrP && right is OrP -> {
                         // compare individual components
                         compareConnectiveP(left, right)
                     }
+
                     else -> {
                         // we're comparing AND with OR, sort ANDs to the front
                         if (left is AndP) {

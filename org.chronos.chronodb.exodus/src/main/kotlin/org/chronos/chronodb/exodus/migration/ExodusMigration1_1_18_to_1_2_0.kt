@@ -3,7 +3,7 @@ package org.chronos.chronodb.exodus.migration
 import com.google.common.collect.HashMultimap
 import com.google.common.collect.SetMultimap
 import com.google.common.collect.Sets
-import mu.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.chronos.chronodb.api.ChronoDBConstants
 import org.chronos.chronodb.api.SecondaryIndex
 import org.chronos.chronodb.api.indexing.DoubleIndexer

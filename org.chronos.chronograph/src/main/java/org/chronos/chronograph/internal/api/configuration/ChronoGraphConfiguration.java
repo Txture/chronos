@@ -90,6 +90,25 @@ public interface ChronoGraphConfiguration extends ChronosConfiguration {
      */
     public static final String USE_SECONDARY_INDEX_FOR_VALUES_STEP = NS_DOT + "gremlin.useSecondaryIndexForValuesStep";
 
+
+    /**
+     * The minimum required number of elements to make an index query.
+     *
+     * If fewer elements are provided, an iterative approach (without index access) will be used instead.
+     *
+     * This setting affects all gremlin steps which perform prefetching.
+     *
+     * The setting can be declared globally in the graph configuration (default: <code>100</code>), or overwritten on a per-traversal basis by calling:
+     *
+     * <pre>
+     * graph.traversal()
+     *      .with(ChronoGraphConfiguration.PREFETCH_INDEX_QUERY_MIN_ELEMENTS, 0) // always prefetch from the index
+     *      .V()
+     *      ...
+     * </pre>
+     */
+    public static final String PREFETCH_INDEX_QUERY_MIN_ELEMENTS = NS_DOT + "gremlin.prefetchIndexQuery.minElements";
+
     // =================================================================================================================
     // GENERAL CONFIGURATION
     // =================================================================================================================
@@ -170,5 +189,7 @@ public interface ChronoGraphConfiguration extends ChronosConfiguration {
      * @return <code>true</code> if secondary indices should be used for the <code>values</code> step, otherwise <code>false</code>.
      */
     public boolean isUseSecondaryIndexForGremlinValuesStep();
+
+    public int getMinimumNumberOfElementsForPrefetchIndexQuery();
 
 }

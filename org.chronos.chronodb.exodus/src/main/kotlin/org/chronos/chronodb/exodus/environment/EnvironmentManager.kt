@@ -5,7 +5,7 @@ import jetbrains.exodus.backup.BackupStrategy
 import jetbrains.exodus.crypto.StreamCipherProvider
 import jetbrains.exodus.env.*
 import jetbrains.exodus.management.Statistics
-import mu.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.chronos.chronodb.exodus.kotlin.ext.mapSingle
 import java.io.Closeable
 import java.io.File

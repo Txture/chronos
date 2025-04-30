@@ -2,7 +2,7 @@ package org.chronos.chronodb.exodus
 
 import jetbrains.exodus.env.Environment
 import jetbrains.exodus.env.StoreConfig
-import mu.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.apache.commons.io.FileUtils
 import org.chronos.chronodb.api.*
 import org.chronos.chronodb.api.exceptions.ChronosBuildVersionConflictException

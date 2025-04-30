@@ -43,6 +43,8 @@ public class ChronoGraphConfigurationImpl extends AbstractConfiguration implemen
     @Parameter(key = ChronoGraphConfiguration.USE_SECONDARY_INDEX_FOR_VALUES_STEP, optional = true)
     private boolean useSecondaryIndexForGremlinValuesStep = false;
 
+    @Parameter(key = ChronoGraphConfiguration.PREFETCH_INDEX_QUERY_MIN_ELEMENTS, optional = true)
+    private int minimumNumberOfElementsForPrefetchIndexQuery = 100;
 
     // =================================================================================================================
     // CACHE
@@ -137,5 +139,10 @@ public class ChronoGraphConfigurationImpl extends AbstractConfiguration implemen
     @Override
     public boolean isUseSecondaryIndexForGremlinValuesStep() {
         return this.useSecondaryIndexForGremlinValuesStep;
+    }
+
+    @Override
+    public int getMinimumNumberOfElementsForPrefetchIndexQuery() {
+        return minimumNumberOfElementsForPrefetchIndexQuery;
     }
 }

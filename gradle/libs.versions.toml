@@ -1,0 +1,83 @@
+[versions]
+kotlin = "2.1.20"
+
+jUnit5 = "5.11.4"
+jUnit5Platform = "1.11.4"
+
+logback = "1.5.18"
+
+xodus = "2.0.1"
+
+gremlin = "3.6.4"
+
+[libraries]
+
+# utilities
+apache-commons-io = { group = "commons-io", name = "commons-io", version = "2.19.0" }
+apache-commons-lang3 = { group = "org.apache.commons", name = "commons-lang3", version = "3.17.0" }
+apache-commons-collections4 = { group = "org.apache.commons", name = "commons-collections4", version = "4.5.0" }
+apache-commons-configuration2 = { group = "org.apache.commons", name = "commons-configuration2", version = "2.12.0" }
+guava = { group = "com.google.guava", name = "guava", version = "33.4.8-jre" }
+groovy = { group = "org.apache.groovy", name = "groovy", version = "4.0.26" }
+jakarta-annotations = { group = "jakarta.annotation", name = "jakarta.annotation-api", version = "2.1.1" }
+
+# serialization
+kryo = { group = "com.esotericsoftware", name = "kryo", version = "3.0.3" }
+xstream = { group = "com.thoughtworks.xstream", name = "xstream", version = "1.4.21" }
+
+# kotlin core libs
+kotlin-stdlib = { group = "org.jetbrains.kotlin", name = "kotlin-stdlib", version.ref = "kotlin" }
+kotlin-reflect = { group = "org.jetbrains.kotlin", name = "kotlin-reflect", version.ref = "kotlin" }
+
+# testing
+kotlin-test-core = { group = "org.jetbrains.kotlin", name = "kotlin-test", version.ref = "kotlin" }
+kotlin-test-junit5 = { group = "org.jetbrains.kotlin", name = "kotlin-test-junit5", version.ref = "kotlin" }
+strikt-core = { group = "io.strikt", name = "strikt-core", version = "0.35.1" }
+junit-jupiter-api = { group = "org.junit.jupiter", name = "junit-jupiter-api", version.ref = "jUnit5" }
+junit-jupiter-params = { group = "org.junit.jupiter", name = "junit-jupiter-params", version.ref = "jUnit5" }
+junit-jupiter-engine = { group = "org.junit.jupiter", name = "junit-jupiter-engine", version.ref = "jUnit5" }
+junit-platform-commons = { group = "org.junit.platform", name = "junit-platform-commons", version.ref = "jUnit5Platform" }
+junit-platform-engine = { group = "org.junit.platform", name = "junit-platform-engine", version.ref = "jUnit5Platform" }
+junit-platform-runner = { group = "org.junit.platform", name = "junit-platform-runner", version.ref = "jUnit5Platform" }
+junit-platform-suite-api = { group = "org.junit.platform", name = "junit-platform-suite-api", version.ref = "jUnit5Platform" }
+junit-platform-suite-engine = { group = "org.junit.platform", name = "junit-platform-suite-engine", version.ref = "jUnit5Platform" }
+hamcrest = { group = "org.hamcrest", name = "hamcrest", version = "3.0" }
+
+# eclipse modeling framework
+emf-ecore = { group = "org.eclipse.emf", name = "org.eclipse.emf.ecore", version = "2.11.1-v20150805-0538" }
+emf-common = { group = "org.eclipse.emf", name = "org.eclipse.emf.common", version = "2.11.0-v20150805-0538" }
+emf-xmi = { group = "org.eclipse.emf", name = "org.eclipse.emf.ecore.xmi", version = "2.11.1-v20150805-0538" }
+
+# logging
+kotlin-logging-jvm = { group = "io.github.oshai", name = "kotlin-logging-jvm", version = "7.0.7" }
+logback-classic = { group = "ch.qos.logback", name = "logback-classic", version.ref = "logback" }
+logback-core = { group = "ch.qos.logback", name = "logback-core", version.ref = "logback" }
+slf4j-api = { group = "org.slf4j", name = "slf4j-api", version = "2.0.17" }
+
+# xodus storage backend
+xodus-openapi = { group = "org.jetbrains.xodus", name = "xodus-openAPI", version.ref = "xodus" }
+xodus-environment = { group = "org.jetbrains.xodus", name = "xodus-environment", version.ref = "xodus" }
+
+# gremlin
+gremlin-core = { group = "org.apache.tinkerpop", name = "gremlin-core", version.ref = "gremlin" }
+gremlin-test = { group = "org.apache.tinkerpop", name = "gremlin-test", version.ref = "gremlin" }
+
+[bundles]
+testing = [
+    "junit-jupiter-api",
+    "junit-jupiter-engine",
+    "junit-platform-commons",
+    "junit-platform-engine",
+    "junit-platform-runner",
+    "junit-jupiter-params",
+    "junit-platform-suite-api",
+    "junit-platform-suite-engine",
+    "kotlin-test-core",
+    "strikt-core",
+    "hamcrest",
+    "logback-classic"
+]
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+versions = { id = "com.github.ben-manes.versions", version = "0.52.0" }

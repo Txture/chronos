@@ -18,11 +18,14 @@ import org.chronos.chronograph.internal.impl.optimizer.strategy.OrderFiltersStra
 import org.chronos.chronograph.internal.impl.optimizer.strategy.OrderFiltersStrategy.findReorderableSteps
 import org.chronos.chronograph.internal.impl.optimizer.strategy.OrderFiltersStrategy.flattenAndP
 import org.chronos.chronograph.internal.impl.optimizer.strategy.OrderFiltersStrategy.unwrapAndP
+import org.chronos.common.test.junit.categories.IntegrationTest
+import org.junit.experimental.categories.Category
 import org.junit.jupiter.api.Test
 import strikt.api.expect
 import strikt.api.expectThat
 import strikt.assertions.*
 
+@Category(IntegrationTest::class)
 class OrderFiltersStrategyTest {
 
     @Test
@@ -142,14 +145,9 @@ class OrderFiltersStrategyTest {
             .has("alpha", 3)
             .asAdmin()
         val reorderableSteps = findReorderableSteps(traversal.startStep as GraphStep<*, *>)
-        expectThat(reorderableSteps).hasSize(2).and {
-            one {
-                isA<HasStep<*>>().get { this.hasContainers.asSequence().map { it.key }.toSet() }.containsExactlyInAnyOrder("x", "y")
-            }
-            one {
-                isA<TraversalFilterStep<*>>().get { this.labels }.containsExactly("boom")
-            }
-        }
+        expectThat(reorderableSteps).single()
+            .isA<HasStep<*>>()
+            .get { this.hasContainers.asSequence().map { it.key }.toSet() }.containsExactlyInAnyOrder("x", "y")
     }
 
     @Test
@@ -198,7 +196,7 @@ class OrderFiltersStrategyTest {
     }
 
     @Test
-    fun canEliminateDuplicateSteps2(){
+    fun canEliminateDuplicateSteps2() {
         val traversal = DefaultGraphTraversal<Vertex, Vertex>().V()
             .has("name", "marko")
             .and()
@@ -252,7 +250,7 @@ class OrderFiltersStrategyTest {
             get(3).isA<HasStep<*>>().and {
                 get { this.hasContainers }.single().and {
                     get { this.key }.isEqualTo("aScore")
-                    get { this.predicate}.isEqualTo(CP.gt(90.0))
+                    get { this.predicate }.isEqualTo(CP.gt(90.0))
                 }
             }
             get(4).isA<TraversalFilterStep<*>>()

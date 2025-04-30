@@ -214,7 +214,7 @@ class IndexScanQueryTest : AllChronoDBBackendsTest() {
 
         val master = db.branchManager.masterBranch
 
-        val expectedMap1 = (0..10000).asSequence().map { "P${it}" }.map { it to setOf(it.toLowerCase()) }.toMap()
+        val expectedMap1 = (0..10000).asSequence().map { "P${it}" }.map { it to setOf(it.lowercase()) }.toMap()
         val actualMap1 = indexManager.getIndexedValues(commit1, master, "default", "firstName")
 
         for ((indexValue, expectedKeys) in expectedMap1) {
@@ -272,7 +272,7 @@ class IndexScanQueryTest : AllChronoDBBackendsTest() {
         }
         val commit2 = tx2.commit()
 
-        val expectedMap1 = (0..10000).asSequence().map { "P${it}" }.map { it to setOf(it.toLowerCase()) }.toMap()
+        val expectedMap1 = (0..10000).asSequence().map { "P${it}" }.map { it to setOf(it.lowercase()) }.toMap()
         val actualMap1 = indexManager.getIndexedValues(commit1, myBranch, "default", "firstName")
 
         for ((indexValue, expectedKeys) in expectedMap1) {
@@ -540,11 +540,11 @@ class IndexScanQueryTest : AllChronoDBBackendsTest() {
 
         val expected = (0..10000).asSequence().map { "P${it}" }.sorted().toList()
         val actual = indexManager.sortKeysWithIndex(
-            commit1, master, "default", expected.asSequence().map { it.toLowerCase() }.toSet(), Sort.by("firstName", ASCENDING)
+            commit1, master, "default", expected.asSequence().map { it.lowercase() }.toSet(), Sort.by("firstName", ASCENDING)
         )
         assertEquals(expected.size, actual.size)
         for (i in expected.indices) {
-            val expectedElement = expected[i].toLowerCase()
+            val expectedElement = expected[i].lowercase()
             val actualElement = actual[i]
             assertEquals("Ordering failure at index ${i}", expectedElement, actualElement)
         }

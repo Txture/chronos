@@ -115,6 +115,21 @@ object ReplaceGremlinPredicateWithChronosPredicateStrategy : ChronoGraphStrategy
             Text.notEndingWith -> CP.notEndsWith(value)
             Text.containing -> CP.contains(value)
             Text.notContaining -> CP.notContains(value)
+            // note: the logic below is VERY dodgy and should eventually be improved.
+            // In TinkerPop 3.6, "TextP.regex" and "TextP.notRegex" were added to the
+            // standard. These two match modes are meant to use "matcher.find(...)" to
+            // evaluate the pattern (partial match / contains). However, the ChronoDB
+            // predicates for regular expressions use "matcher.matches(...)" for
+            // evaluation (total match). To "emulate" the TinkerPop version with our
+            // existing predicates, we add ".*" to the beginning and end of the given
+            // pattern. This works for common cases, but breaks in certain corner cases.
+            // The clean way to fix this would be to support "CP.containsRegex(...)" and
+            // "CP.notContainsRegex(...)" which we currently don't have.
+            is Text.RegexPredicate -> if(biPredicate.isNegate){
+                CP.notMatchesRegex(".*" + biPredicate.pattern + ".*")
+            }else{
+                CP.matchesRegex(".*" + biPredicate.pattern + ".*")
+            }
             else -> throw IllegalArgumentException("Encountered unknown BiPredicate in TextP: $biPredicate")
         }
     }

@@ -355,17 +355,18 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
         this.owningDB.configuration.assertNotReadOnly()
         this.withIndexManagementLock {
             this.withLocksForIndexModification {
-                val intersection = Sets.intersection(this.indexTree.getAllIndices(), indices)
+                val existingIndices = this.indexTree.getAllIndices()
+                val intersection = Sets.intersection(existingIndices, indices)
                 if (intersection.isNotEmpty()) {
                     val id = intersection.first().id
                     throw IllegalArgumentException("A SecondaryIndex with id '$id' already exists!")
                 }
                 val indexIds = mutableSetOf<String>()
-                indexIds.addAll(this.indexTree.getAllIndices().asSequence().map { it.id })
+                indexIds.addAll(existingIndices.asSequence().map { it.id })
                 indexIds.addAll(indices.asSequence().map { it.id })
 
                 val parentIds = mutableSetOf<String>()
-                parentIds.addAll(this.indexTree.getAllIndices().asSequence().mapNotNull { it.parentIndexId })
+                parentIds.addAll(existingIndices.asSequence().mapNotNull { it.parentIndexId })
                 parentIds.addAll(indices.asSequence().mapNotNull { it.parentIndexId })
 
                 for (parentId in parentIds) {
@@ -384,11 +385,19 @@ abstract class AbstractIndexManager<C : ChronoDBInternal> : IndexManagerInternal
                     }
                     this.assertHashCodeAndEqualsAreImplemented(index.name, index.indexer)
                 }
-
+                // we may only add indices without parents, since the child indices are
+                // created automatically. Adding the children from the dump as well would
+                // lead to index overlaps.
                 var indexTreeChanges = IndexChanges.EMPTY
-                for (index in indices) {
+
+                for(index in indices){
+                    if(index.parentIndexId != null){
+                        // this index is a child of another index, skip.
+                        continue
+                    }
                     indexTreeChanges = indexTreeChanges.addAll(indexTree.addIndex(index))
                 }
+
                 this.applyIndexChangesToBackend(indexTreeChanges)
                 clearQueryCache()
             }
