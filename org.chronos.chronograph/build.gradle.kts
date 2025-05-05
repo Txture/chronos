@@ -24,30 +24,33 @@ val sourceJar by tasks.registering(Jar::class) {
 
 afterEvaluate {
 
-    publishing {
+    if(project.hasProperty("s3Url")){
+        publishing {
 
-        publications {
-            create<MavenPublication>("mavenJava") {
-                from(components["java"])
-                artifact(sourceJar.get())
+            publications {
+                create<MavenPublication>("mavenJava") {
+                    from(components["java"])
+                    artifact(sourceJar.get())
 
-                groupId = project.group.toString()
-                artifactId = project.name
-                version = project.property("mavenVersion") as String
-            }
-        }
-
-        repositories {
-            maven {
-                setUrl(project.property("s3Url") as String)
-                credentials(AwsCredentials::class) {
-                    accessKey = project.property("s3AccessKey") as? String
-                    secretKey = project.property("s3SecretKey") as? String
+                    groupId = project.group.toString()
+                    artifactId = project.name
+                    version = project.property("mavenVersion") as String
                 }
             }
-        }
 
+            repositories {
+                maven {
+                    setUrl(project.property("s3Url") as String)
+                    credentials(AwsCredentials::class) {
+                        accessKey = project.property("s3AccessKey") as? String
+                        secretKey = project.property("s3SecretKey") as? String
+                    }
+                }
+            }
+
+        }
     }
+
 
 }
 
