@@ -56,16 +56,33 @@ tasks.test {
     }
 }
 
-publishing {
-    publications {
-        create<MavenPublication>("mavenJava") {
-            from(components["java"])
-            artifact(sourceJar.get())
-            groupId = project.group.toString()
-            artifactId = project.name
-            version = project.findProperty("mavenVersion") as String
+afterEvaluate {
+
+    publishing {
+
+        publications {
+            create<MavenPublication>("mavenJava") {
+                from(components["java"])
+                artifact(sourceJar.get())
+
+                groupId = project.group.toString()
+                artifactId = project.name
+                version = project.property("mavenVersion") as String
+            }
         }
+
+        repositories {
+            maven {
+                setUrl(project.property("s3Url") as String)
+                credentials(AwsCredentials::class) {
+                    accessKey = project.property("s3AccessKey") as? String
+                    secretKey = project.property("s3SecretKey") as? String
+                }
+            }
+        }
+
     }
+
 }
 
 // Task to generate buildInfo.properties

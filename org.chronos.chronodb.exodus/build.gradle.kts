@@ -24,7 +24,9 @@ val sourceJar by tasks.registering(Jar::class) {
 }
 
 afterEvaluate {
+
     publishing {
+
         publications {
             create<MavenPublication>("mavenJava") {
                 from(components["java"])
@@ -32,10 +34,22 @@ afterEvaluate {
 
                 groupId = project.group.toString()
                 artifactId = project.name
-                version = project.findProperty("mavenVersion") as String
+                version = project.property("mavenVersion") as String
             }
         }
+
+        repositories {
+            maven {
+                setUrl(project.property("s3Url") as String)
+                credentials(AwsCredentials::class) {
+                    accessKey = project.property("s3AccessKey") as? String
+                    secretKey = project.property("s3SecretKey") as? String
+                }
+            }
+        }
+
     }
+
 }
 
 tasks.test {
